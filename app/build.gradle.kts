@@ -112,6 +112,13 @@ android {
         arg("room.incremental", "true")
     }
 
+    // F-Droid asks for this off: by default AGP puts a dependency list in the APK,
+    // encrypted with Google's key, which nobody else can read or verify.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"

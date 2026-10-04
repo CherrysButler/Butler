@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android's defaults for this target SDK, written down so no future change loosens them by
+    accident: no cleartext HTTP anywhere, and only the system's built-in certificate
+    authorities are trusted. Certificates a user or another app installs are ignored, so a
+    MITM proxy with its own CA on the phone can't read Butler's traffic.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
