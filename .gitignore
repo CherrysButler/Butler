@@ -30,3 +30,6 @@ local.properties
 # Release signing: never committed.
 keystore.properties
 *.jks
+
+# Draft of the F-Droid build recipe; it is submitted to fdroiddata, not kept here.
+/fdroid/

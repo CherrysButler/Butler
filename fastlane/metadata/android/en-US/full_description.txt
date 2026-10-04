@@ -1,0 +1,35 @@
+A third party client for JanitorAI that's all about smoothness, quality-of-life stuff, and not falling over. You sign in with your own JanitorAI account.
+
+<b>Smooth</b>
+• Native Kotlin and Jetpack Compose. Tabs switch in a single frame and long chats scroll without stuttering.
+• Replies stream in smoothly, and it's light on RAM and battery.
+
+<b>Chatting</b>
+• A chat that's nice to read: Story, Bubbles, or Janitor-style layouts, and a reading font with real italics.
+• Readable thinking, with an animation while the model thinks and the full thought process in its own sheet.
+• Guided swipes: tell the model what to change ("shorter", "more dialogue") before it rerolls.
+• Choices: short next moves from your model or JLLM, one tap to send.
+• Better error handling: your message is saved before it's sent, failed replies retry with a countdown, and a reply that dies halfway can be continued.
+• Edit anything, including the first message.
+
+<b>Make it yours</b>
+• Themes: Janitor Classic, Lights out (true black) and Daylight.
+• Pick your own colors for speech, thoughts and actions.
+• Swap your default persona, with backups.
+• Pin and archive chats, Telegram style, saved to your account so they follow you.
+
+<b>Just yours</b>
+• Lock the app with your fingerprint, face or screen lock.
+• Replies finish in the background, even on phones that kill background apps.
+
+<b>Proxy nerd stuff</b>
+• Clone proxy presets, key and all.
+• OpenRouter presets, provider order, fallbacks, and sorting by price, speed or latency.
+• See how full your context is from inside the chat.
+
+<b>And the rest</b>
+Sign in with Google, Discord or e-mail; export and import chats (Butler's format or SillyTavern's); block characters, creators, tags and keywords; notifications and their settings; published chats with reactions and comments.
+
+Butler only talks to JanitorAI (and your own proxy, if you set one). It has no server of its own, no analytics and no crash reporting; if something breaks, you can make a report in Settings and send it yourself.
+
+Butler is independent. It isn't affiliated with, endorsed by, or connected to JanitorAI.
