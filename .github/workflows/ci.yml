@@ -20,8 +20,7 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
-
+      # The Ubuntu runners ship the Android SDK (ANDROID_HOME) with its licenses accepted.
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Unit tests and a debug build
