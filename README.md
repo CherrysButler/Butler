@@ -8,6 +8,18 @@
 
 * * *
 
+## Download!
+
+<a href="https://github.com/CherrysButler/Butler/releases/latest"><img src="https://img.shields.io/github/v/release/CherrysButler/Butler?style=for-the-badge&label=Download&color=EA5A4F" alt="Download the latest release"></a>
+
+Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/releases/latest) and install it. Your phone will ask you to allow installs from your browser or file manager, that's normal. Needs Android 8.0 or newer.
+
+* **Butler-x.x.x.apk** is the one you want.
+* **Butler-x.x.x-debug.apk** is a debug build that installs as a separate app next to the normal one. You probably don't need it, it's slower and mostly for testing.
+* **SHA256SUMS.txt** if you wanna check the files weren't messed with.
+
+**F-Droid is coming soon!** It's submitted and waiting on review. Heads up: the F-Droid version and the GitHub version are signed with different keys, so one can't update the other. Pick one and stick with it (switching means uninstalling first).
+
 ## Features!
 
 ### 🧈 Butter smooth? Butler smooth! (Not an Ai joke LoL)
