@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash / window background. Kept in sync with ButlerColors.Ink in Compose. -->
+    <color name="butler_ink">#0B0B0D</color>
+    <color name="butler_coral">#E8695E</color>
+    <color name="butler_surface">#141417</color>
+</resources>

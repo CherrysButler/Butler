@@ -1,0 +1,4 @@
+# Butler's own code is small: compile all of it ahead of time on install
+# (profileinstaller applies this). Compose, Coil and the other libraries ship their own.
+HSPLcom/cherry/janitor/**->**(**)**
+Lcom/cherry/janitor/**;

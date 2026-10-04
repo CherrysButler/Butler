@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- At rest: the bowtie and a slow grey drift. Nothing about any chat, by design. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="22dp"
+    android:paddingEnd="22dp">
+
+    <ImageView
+        android:layout_width="44dp"
+        android:layout_height="28dp"
+        android:contentDescription="@string/app_name"
+        android:src="@drawable/widget_bowtie" />
+
+    <ViewFlipper
+        android:id="@+id/widget_flipper"
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:layout_marginStart="16dp"
+        android:autoStart="true"
+        android:flipInterval="300">
+
+        <ImageView android:id="@+id/widget_frame0" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame1" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame2" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame3" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame4" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame5" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame6" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame7" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame8" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame9" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame10" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame11" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame12" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame13" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame14" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+        <ImageView android:id="@+id/widget_frame15" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="@null" android:scaleType="matrix" />
+    </ViewFlipper>
+</LinearLayout>

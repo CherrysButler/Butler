@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Butler</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_browse">Browse</string>
+    <string name="nav_chats">Chats</string>
+    <string name="nav_notifications">Notifications</string>
+    <string name="nav_profile">Profile</string>
+    <string name="nav_settings">Settings</string>
+    <string name="widget_description">Butler on your home screen. Shows nothing about your chats.</string>
+</resources>

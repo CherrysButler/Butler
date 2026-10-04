@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What launchers without previewLayout support show in their widget picker. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="56dp">
+    <item android:drawable="@drawable/widget_bg" />
+    <item
+        android:width="28dp"
+        android:height="18dp"
+        android:gravity="start|center_vertical"
+        android:start="18dp"
+        android:drawable="@drawable/widget_bowtie" />
+</layer-list>

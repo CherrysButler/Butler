@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Butler's home-screen widget: the latest chat, and a reply's progress while it writes. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="40dp"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_butler"
+    android:previewLayout="@layout/widget_butler"
+    android:previewImage="@drawable/widget_preview"
+    android:description="@string/widget_description"
+    android:widgetCategory="home_screen" />

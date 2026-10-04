@@ -1,0 +1,69 @@
+# What Butler does with your data
+
+Short version: it talks to Janitor, stores what it needs on your phone, and sends nothing
+anywhere else. Here is the long version, and how to check it.
+
+## Where your traffic goes
+
+Butler contacts exactly these hosts:
+
+- `janitorai.com` and its subdomains: the API, the chat generation route, notifications,
+  and `ella.janitorai.com` for pictures.
+- `auth.janitorai.com`: Janitor's Supabase project, which is where your login lives.
+- `challenges.cloudflare.com`, only during an e-mail sign-in, because Janitor requires
+  Cloudflare's check for that.
+- Your own reverse proxy, if you set one (OpenRouter or wherever you point it). Butler
+  sends your messages there because you told it to; the key you entered goes with them.
+
+Nothing else. There is no Butler server. There is no analytics SDK, no crash reporter, no
+ad network. The official app ships Sentry, Statsig and Firebase; Butler ships none of them,
+so it sends strictly less of your data than the app you'd otherwise use.
+
+## What's on the phone
+
+- Your session (the tokens that prove you're you), encrypted with a key in the Android
+  Keystore. It never touches plain storage.
+- A mirror of your chats and characters, so screens paint instantly and work offline.
+- Messages you've written and not yet managed to send. These are written before any
+  network call, which is the whole point.
+- Your settings: the look, the chat layout, which proxy is selected, routing options for
+  OpenRouter. The proxy key itself is kept by Janitor, not by Butler; Butler only knows
+  whether one is saved.
+
+Signing out deletes all of it from the phone. Pins, archive and folders live on your Janitor
+account, so they come back when you sign in again.
+
+Debug builds, and only debug builds, also write the session to a plain file so the API can
+be probed from a dev machine. That code is in a source set the release build does not
+compile. If you build Butler yourself, build `perf` or `release`.
+
+## Permissions
+
+Network, and the ability to see whether the network is up. That's the list. No contacts,
+location, storage, camera, microphone, or accessibility. Pictures you upload for a persona
+come through the system picker, which hands Butler one file and nothing else.
+
+## When something goes wrong
+
+Butler doesn't phone home about it. Settings › App › Report a problem builds a page of text
+on the phone: the app version, the device, the last crash if there was one, the last
+failures (status codes, paths, Janitor's error codes, never message bodies), and Butler's
+own recent log lines with anything shaped like a token, key or e-mail address blanked out.
+You read it, then you decide whether to copy it or send it to someone.
+
+## Check it yourself
+
+Put the phone behind mitmproxy (or any proxy that shows you hostnames) and use Butler for
+a while. The host list above is the whole list. If you ever see another one, that's a bug
+and I want to know.
+
+## The honest part
+
+Any client, Butler or the official one, holds your session while you use it. That can't be
+otherwise. The only real question is whether the code that holds it is honest, and open
+source with no server and no telemetry is about as good an answer as software can give.
+It is not "100% safe"; nothing is. It is as little trust as the job allows.
+
+The rules that keep this true, and that pull requests will be held to: no Butler-owned
+backend, ever; no telemetry, ever; no permission beyond the network; a host list that's
+written down and enforced.

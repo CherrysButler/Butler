@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base Activity theme. UI is Compose (Material3); this only governs the
+         window chrome before Compose takes over. -->
+    <style name="Theme.Butler" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/butler_ink</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Splash screen (androidx core-splashscreen). -->
+    <style name="Theme.Butler.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/butler_ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Butler</item>
+    </style>
+</resources>

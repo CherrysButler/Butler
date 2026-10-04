@@ -1,0 +1,28 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+build/
+.kotlin/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+*.keystore
+!debug.keystore
+/app/release/
+
+# Device screenshots taken during design review; regenerated on demand.
+.impeccable/review/
+
+# Decompiled proprietary code and other analysis artefacts: never committed.
+/reference/
+/docs/api_summary.json
+*.log
+
+# Working notes and design-tool files: kept locally, not published.
+/PRODUCT.md
+/DESIGN.md
+/docs/DEV_NOTES.md
+/.impeccable/
