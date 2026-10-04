@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +8,31 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.serialization)
 }
+
+/*
+ * Release signing. Locally: a git-ignored `keystore.properties` at the repo root
+ * (storeFile, storePassword, keyAlias, keyPassword). In CI: the BUTLER_KEYSTORE_PATH,
+ * BUTLER_KEYSTORE_PASSWORD, BUTLER_KEY_ALIAS and BUTLER_KEY_PASSWORD environment
+ * variables. With neither, `release` builds unsigned, which is what F-Droid wants: it
+ * signs with its own key.
+ */
+val keystoreProps = Properties().apply {
+    providers.fileContents(rootProject.layout.projectDirectory.file("keystore.properties")).asText.orNull
+        ?.let { load(it.reader()) }
+}
+fun signing(prop: String, env: String): String? =
+    keystoreProps.getProperty(prop) ?: providers.environmentVariable(env).orNull
+
+/*
+ * The debug-only session mirror (FileDevSessionSink) writes the login token to a plain
+ * file for scripts/dev-token.sh. Off unless `butler.devMirror=true` is in this machine's
+ * git-ignored local.properties, so a debug APK built anywhere else, CI included, never
+ * writes it.
+ */
+val devMirror = Properties().apply {
+    providers.fileContents(rootProject.layout.projectDirectory.file("local.properties")).asText.orNull
+        ?.let { load(it.reader()) }
+}.getProperty("butler.devMirror") == "true"
 
 android {
     namespace = "com.cherry.butler"
@@ -20,12 +47,30 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        signing("storeFile", "BUTLER_KEYSTORE_PATH")?.let { store ->
+            create("release") {
+                storeFile = file(store)
+                storePassword = signing("storePassword", "BUTLER_KEYSTORE_PASSWORD")
+                keyAlias = signing("keyAlias", "BUTLER_KEY_ALIAS")
+                keyPassword = signing("keyPassword", "BUTLER_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
             isDebuggable = true
+            buildConfigField("boolean", "DEV_MIRROR", devMirror.toString())
+            // CI signs the published debug APK with the release key, so each one installs
+            // over the last. A local debug build keeps the machine's own debug key.
+            if (providers.environmentVariable("BUTLER_SIGN_DEBUG").orNull == "true") {
+                signingConfigs.findByName("release")?.let { signingConfig = it }
+            }
         }
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -58,6 +103,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // Room schemas are checked in so migrations are reviewable in diffs.

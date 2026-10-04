@@ -26,3 +26,7 @@ local.properties
 /DESIGN.md
 /docs/DEV_NOTES.md
 /.impeccable/
+
+# Release signing: never committed.
+keystore.properties
+*.jks

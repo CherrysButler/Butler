@@ -1,5 +1,6 @@
 package com.cherry.butler.core.auth
 
+import com.cherry.butler.BuildConfig
 import android.content.Context
 import android.util.Log
 import io.github.jan.supabase.auth.user.UserSession
@@ -30,7 +31,9 @@ import javax.inject.Singleton
  *
  * **This writes an unencrypted bearer token to disk.** That is acceptable only
  * because this class is in `src/debug/` and is never compiled into a release APK
- * (release gets [NoOpDevSessionSink]). Do not move it to `src/main/`, do not
+ * (release gets [NoOpDevSessionSink]), and because even in a debug build it does
+ * nothing unless `butler.devMirror=true` is set in the dev machine's local.properties
+ * ([BuildConfig.DEV_MIRROR]). The debug APKs CI publishes are built without it. Do not move it to `src/main/`, do not
  * "temporarily" reference it from shared code, and note that the access token it
  * holds is good for ~1 hour.
  *
@@ -48,6 +51,7 @@ class FileDevSessionSink(
     private val file: File get() = File(context.filesDir, FILE_NAME)
 
     override suspend fun onSaved(session: UserSession) = withContext(Dispatchers.IO) {
+        if (!BuildConfig.DEV_MIRROR) return@withContext
         runCatching { file.writeText(json.encodeToString(session)) }
             .onSuccess { Log.i(TAG, "session mirrored -> ${file.absolutePath}") }
             .onFailure { Log.w(TAG, "failed to mirror session", it) }
@@ -61,7 +65,7 @@ class FileDevSessionSink(
     }
 
     override suspend fun seed(): UserSession? = withContext(Dispatchers.IO) {
-        if (!file.exists()) return@withContext null
+        if (!BuildConfig.DEV_MIRROR || !file.exists()) return@withContext null
         runCatching { json.decodeFromString<UserSession>(file.readText()) }
             .onSuccess { Log.i(TAG, "seeded session from ${file.absolutePath}") }
             .onFailure { Log.w(TAG, "mirrored session unreadable; ignoring", it) }

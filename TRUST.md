@@ -33,9 +33,10 @@ so it sends strictly less of your data than the app you'd otherwise use.
 Signing out deletes all of it from the phone. Pins, archive and folders live on your Janitor
 account, so they come back when you sign in again.
 
-Debug builds, and only debug builds, also write the session to a plain file so the API can
-be probed from a dev machine. That code is in a source set the release build does not
-compile. If you build Butler yourself, build `perf` or `release`.
+A debug build can also write the session to a plain file so the API can be probed from a
+dev machine, but only when the developer turns it on for their own machine
+(`butler.devMirror=true` in `local.properties`). The release build doesn't contain that code
+at all, and the debug APKs published on GitHub are built with it off.
 
 ## Permissions
 
