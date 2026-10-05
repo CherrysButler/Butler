@@ -1,7 +1,8 @@
 name: Release
 
-# Push a tag like v0.1.0 (matching versionName in app/build.gradle.kts) and this builds a
-# signed release APK and a debug APK and attaches both, with checksums, to a GitHub Release.
+# Push a tag like v0.2.0 (matching versionName in app/build.gradle.kts) and this builds the
+# signed release APK and attaches it, with its checksum, to a GitHub Release. The release text
+# is .github/release-notes/vX.Y.Z.md, written by hand for each version.
 
 on:
   push:
@@ -49,14 +50,12 @@ jobs:
           BUTLER_KEYSTORE_PASSWORD: ${{ secrets.BUTLER_KEYSTORE_PASSWORD }}
           BUTLER_KEY_ALIAS: ${{ secrets.BUTLER_KEY_ALIAS }}
           BUTLER_KEY_PASSWORD: ${{ secrets.BUTLER_KEY_PASSWORD }}
-          BUTLER_SIGN_DEBUG: "true"
-        run: ./gradlew --no-configuration-cache :app:testDebugUnitTest :app:assembleRelease :app:assembleDebug
+        run: ./gradlew --no-configuration-cache :app:testDebugUnitTest :app:assembleRelease
 
       - name: Name and checksum the APKs
         run: |
           mkdir dist
           cp app/build/outputs/apk/release/app-release.apk "dist/Butler-$VERSION.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/Butler-$VERSION-debug.apk"
           cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Verify the release APK is signed with the release key
@@ -67,8 +66,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           name: Butler ${{ env.VERSION }}
-          generate_release_notes: true
+          body_path: .github/release-notes/v${{ env.VERSION }}.md
           files: |
             dist/Butler-${{ env.VERSION }}.apk
-            dist/Butler-${{ env.VERSION }}-debug.apk
             dist/SHA256SUMS.txt
