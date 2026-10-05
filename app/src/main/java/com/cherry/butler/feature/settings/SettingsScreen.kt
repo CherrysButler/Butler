@@ -230,6 +230,7 @@ private fun SettingsBody(
                     SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
                 }
                 LookSection(viewModel, onOpenCustomize)
+                RichTypingSection(viewModel)
                 AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
             }
             SettingsPage.Model -> {
@@ -757,6 +758,43 @@ private fun ColorRow(title: String, subtitle: String, color: androidx.compose.ui
             Text(subtitle, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow)
         }
         Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+    }
+}
+
+/**
+ * Rich typing, on its own: keys for "speech", *action* and **bold** over the message box,
+ * the marks drawn as they are typed, and what typing becomes by itself. Also switchable from
+ * a chat's menu.
+ */
+@Composable
+private fun RichTypingSection(viewModel: SettingsViewModel) {
+    val on by viewModel.richOn.collectAsStateWithLifecycle()
+    val default by viewModel.richDefault.collectAsStateWithLifecycle()
+    SettingsSection(
+        title = "Rich typing",
+        footnote = if (on) "Tap just past a closing mark to step out of it; you are back to your default with a space. Inside speech, a \" becomes ' ." else null,
+    ) {
+        SwitchRow(
+            "Rich typing",
+            "Keys for \u201Cspeech\u201D, *actions* and **bold** over the message box, shown as you type",
+            on,
+            viewModel::setRich,
+        )
+        if (on) {
+            Text(
+                "Typing starts as",
+                style = MaterialTheme.typography.labelMedium,
+                color = ButlerTheme.colors.textMed,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+            )
+            val keys = listOf(null, "action", "speech", "bold")
+            com.cherry.butler.ui.components.SegmentedChoice(
+                options = listOf("Plain", "Action", "Speech", "Bold"),
+                selected = keys.indexOf(default).coerceAtLeast(0),
+                onSelect = { i -> viewModel.setRichDefault(keys[i]) },
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
+            )
+        }
     }
 }
 

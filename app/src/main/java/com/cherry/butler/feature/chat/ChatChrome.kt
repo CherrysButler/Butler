@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.outlined.FormatBold
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +56,8 @@ fun ChatMenu(
     onExport: () -> Unit = {},
     onDelete: () -> Unit = {},
     onBackground: () -> Unit = {},
+    richOn: Boolean = false,
+    onRich: () -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -70,6 +74,18 @@ fun ChatMenu(
             MenuItem(Icons.Outlined.AutoStories, if (hasSummary) "Chat memory" else "Chat memory (empty)") { open = false; onMemory() }
             MenuItem(Icons.Outlined.Palette, "Customize text") { open = false; onCustomize() }
             MenuItem(Icons.Outlined.Wallpaper, "Background") { open = false; onBackground() }
+            DropdownMenuItem(
+                text = { Text("Rich typing", style = MaterialTheme.typography.titleSmall) },
+                leadingIcon = { Icon(Icons.Outlined.FormatBold, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp)) },
+                trailingIcon = {
+                    androidx.compose.material3.Switch(
+                        checked = richOn,
+                        onCheckedChange = { onRich() },
+                        modifier = Modifier.height(24.dp),
+                    )
+                },
+                onClick = onRich,
+            )
             HorizontalDivider(color = ButlerTheme.colors.outlineFaint)
             MenuItem(Icons.AutoMirrored.Outlined.Chat, "New chat") { open = false; onNewChat() }
             MenuItem(Icons.Outlined.Person, "Character page") { open = false; onCharacter() }

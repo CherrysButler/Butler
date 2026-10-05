@@ -139,6 +139,8 @@ fun ChatScreen(
     val providerLabel by viewModel.providerLabel.collectAsStateWithLifecycle()
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val suggestion by viewModel.suggestion.collectAsStateWithLifecycle()
+    val richOn by viewModel.richOn.collectAsStateWithLifecycle()
+    val richDefault by viewModel.richDefault.collectAsStateWithLifecycle()
     val background by viewModel.chatBackground.collectAsStateWithLifecycle()
     var backgroundOpen by remember { mutableStateOf(false) }
     val transcript by viewModel.shownTranscript.collectAsStateWithLifecycle()
@@ -429,6 +431,8 @@ fun ChatScreen(
                         onExport = { exporting = true },
                         onDelete = { confirmDeleteChat = true },
                         onBackground = { backgroundOpen = true },
+                        richOn = richOn,
+                        onRich = { viewModel.setRich(!richOn) },
                     )
                 }
                 // No progress bar: the caption says what is happening, the reply shows it.
@@ -449,6 +453,8 @@ fun ChatScreen(
                 onStopWriting = viewModel::stopWriting,
                 onUndoWrite = viewModel::undoWrite,
                 onWriteAgain = viewModel::writeAgain,
+                rich = richOn,
+                richDefault = Mark.of(richDefault),
             )
         },
     ) { innerPadding ->

@@ -84,7 +84,13 @@ class ChatViewModel @Inject constructor(
     private val transfer: ChatTransfer,
     private val suggestions: SuggestionService,
     private val backgrounds: ChatBackgrounds,
+    private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
 ) : ViewModel() {
+
+    /** Rich typing, switched on or off from the chat's menu as well as Settings. */
+    val richOn: StateFlow<Boolean> = richTyping.enabled
+    val richDefault: StateFlow<String?> = richTyping.defaultMark
+    fun setRich(on: Boolean) = richTyping.setEnabled(on)
 
     /** A branch or copy being written: (done, total), or null when none is. */
     private val _copying = MutableStateFlow<Pair<Int, Int>?>(null)

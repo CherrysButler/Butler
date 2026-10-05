@@ -1,5 +1,12 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -75,8 +82,27 @@ fun Composer(
     onStopWriting: () -> Unit = {},
     onUndoWrite: () -> Unit = {},
     onWriteAgain: () -> Unit = {},
+    /** Rich typing on; [richDefault] is what typing opens on its own (null: plain). */
+    rich: Boolean = false,
+    richDefault: Mark? = Mark.Action,
 ) {
     val writing = suggestion as? SuggestionService.State.Writing
+    // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
+    // outside (sent, written for you, undone) resets the caret to the end.
+    var field by remember { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
+    var typing by remember(richDefault) { mutableStateOf(TypingState(richDefault)) }
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(draft) {
+        if (field.text != draft) {
+            field = TextFieldValue(draft, TextRange(draft.length))
+            if (draft.isEmpty()) typing = TypingState(richDefault)
+        }
+    }
+    val marks = RichMarks(
+        mark = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+        speech = com.cherry.butler.core.design.LocalRpLook.current.speech?.let { androidx.compose.ui.graphics.Color(it) } ?: ButlerTheme.colors.speech,
+        action = com.cherry.butler.core.design.LocalRpLook.current.action?.let { androidx.compose.ui.graphics.Color(it) } ?: ButlerTheme.colors.textMed,
+    )
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -131,25 +157,52 @@ fun Composer(
                             .heightIn(max = with(LocalDensity.current) { (style.lineHeight * 6).toDp() })
                             .verticalScroll(scroll),
                     )
-                } else BasicTextField(
-                    value = draft,
-                    onValueChange = onDraftChanged,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    maxLines = 6,
-                    modifier = Modifier.fillMaxWidth(),
-                    decorationBox = { inner ->
-                        if (draft.isEmpty()) {
-                            Text(
-                                text = "Write…",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = ButlerTheme.colors.textLow,
-                            )
-                        }
-                        inner()
-                    },
-                )
+                } else Column {
+                    // The three marks, over the words while the box has the keyboard.
+                    if (rich && focused) {
+                        MarkKeys(
+                            lit = RichTyping.lit(field, typing),
+                            inSpeech = RichTyping.inSpeech(field, typing),
+                            innerQuote = typing.inner,
+                            onPress = { mark ->
+                                val (v, st) = RichTyping.press(field, mark, typing)
+                                field = v
+                                typing = st
+                                if (v.text != draft) onDraftChanged(v.text)
+                            },
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    BasicTextField(
+                        value = field,
+                        onValueChange = { new ->
+                            if (rich) {
+                                val (v, st) = RichTyping.onChange(field, new, typing, richDefault)
+                                field = v
+                                typing = st
+                            } else {
+                                field = new
+                            }
+                            if (field.text != draft) onDraftChanged(field.text)
+                        },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        visualTransformation = if (rich) marks else androidx.compose.ui.text.input.VisualTransformation.None,
+                        maxLines = 6,
+                        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                        decorationBox = { inner ->
+                            if (field.text.isEmpty()) {
+                                Text(
+                                    text = "Write…",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = ButlerTheme.colors.textLow,
+                                )
+                            }
+                            inner()
+                        },
+                    )
+                }
             }
             if (onWrite != null && (!busy || writing != null)) {
                 Spacer(Modifier.width(4.dp))
@@ -157,6 +210,43 @@ fun Composer(
             }
             Spacer(Modifier.width(8.dp))
             AdvanceKey(busy = busy, enabled = draft.isNotBlank() && writing == null, onSend = onSend, onStop = onStop)
+        }
+    }
+}
+
+/**
+ * Rich typing's keys: the bare marks, " * B. The lit one is what the next words become. Small blocks along the top of the box, so they never
+ * cover what is being written.
+ */
+@Composable
+private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress: (Mark) -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+        listOf(Mark.Speech, Mark.Action, Mark.Bold).forEach { mark ->
+            // In speech the " key is the ' key, lit while its inner quote is open.
+            val quoteKey = mark == Mark.Speech && inSpeech
+            val on = if (quoteKey) innerQuote else mark == lit
+            Box(
+                modifier = Modifier
+                    .size(width = 40.dp, height = 32.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+                    .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+                    .clickable(onClickLabel = mark.key.replaceFirstChar { it.uppercase() }) { onPress(mark) }
+                    .semantics { contentDescription = if (quoteKey) "Quote inside speech" else mark.key.replaceFirstChar { it.uppercase() } },
+                contentAlignment = Alignment.Center,
+            ) {
+                // Just the mark: " * B, the way it is typed.
+                Text(
+                    text = when (mark) {
+                        Mark.Speech -> if (quoteKey) "'" else "\""
+                        Mark.Action -> "*"
+                        Mark.Bold -> "B"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (mark == Mark.Bold) androidx.compose.ui.text.font.FontWeight.Black else androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = if (on) ButlerTheme.colors.onAccentSoft else MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
     }
 }

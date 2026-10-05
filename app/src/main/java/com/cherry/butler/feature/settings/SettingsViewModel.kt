@@ -39,7 +39,13 @@ class SettingsViewModel @Inject constructor(
     private val memory: MemoryPrefs,
     private val themes: ThemePrefs,
     private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
+    private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
 ) : ViewModel() {
+
+    val richOn: StateFlow<Boolean> = richTyping.enabled
+    val richDefault: StateFlow<String?> = richTyping.defaultMark
+    fun setRich(on: Boolean) = richTyping.setEnabled(on)
+    fun setRichDefault(key: String?) = richTyping.setDefaultMark(key)
 
     /** Which model writes the user's own lines. */
     val writer: StateFlow<com.cherry.butler.core.data.Writer> = writerPrefs.writer
