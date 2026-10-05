@@ -17,6 +17,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Butler-x.x.x.apk** is the one you want.
 * **Butler-x.x.x-debug.apk** is a debug build that installs as a separate app next to the normal one. You probably don't need it, it's slower and mostly for testing.
 * **SHA256SUMS.txt** if you wanna check the files weren't messed with.
+* Scanned on [VirusTotal](https://www.virustotal.com/gui/file/af6357ada42e0b45e3e935d0d24369ee97e4dcc8b2f144da618ee1dad9b6b0c7): no security vendor flags it.
 
 **F-Droid is coming soon!** It's submitted and waiting on review. Heads up: the F-Droid version and the GitHub version are signed with different keys, so one can't update the other. Pick one and stick with it (switching means uninstalling first).
 
@@ -78,6 +79,10 @@ i got sick enough of it to just build my own. i hope you like it!
 ## Does it lack something?
 
 For **ordinary** users? No. but if you make bots, you're probably still on the website for that. so: coming soon, with cool features! i don't make bots myself, but i'll ask creators in the community what they actually want. open for feedback.
+
+## Found a bug? Got an idea?
+
+Bugs go in [Issues](https://github.com/CherrysButler/Butler/issues). If you can, paste the report from Settings › App › Report a problem, it helps a ton. Ideas, questions and everything else go in [Discussions](https://github.com/CherrysButler/Butler/discussions).
 
 ## Performance?
 

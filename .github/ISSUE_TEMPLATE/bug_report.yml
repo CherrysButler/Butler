@@ -1,0 +1,39 @@
+name: Bug report
+description: Something broke or acts weird
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Butler version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: "Pixel 8, Android 15"
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where did you get it?
+      options:
+        - GitHub release
+        - F-Droid
+        - Built it myself
+  - type: textarea
+    id: report
+    attributes:
+      label: Report from the app (optional, but it helps a lot)
+      description: In Butler, go to Settings › App › Report a problem, tap Copy, and paste it here. Read it first; keys, tokens and e-mail addresses are already blanked out.
+      render: text

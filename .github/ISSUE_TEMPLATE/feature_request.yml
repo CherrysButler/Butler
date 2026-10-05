@@ -1,0 +1,11 @@
+name: Feature idea
+description: Something you'd like Butler to do
+labels: [idea]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What it is, and what you'd use it for.
+    validations:
+      required: true
