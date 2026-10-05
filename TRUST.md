@@ -26,8 +26,11 @@ so it sends strictly less of your data than the app you'd otherwise use.
 - A mirror of your chats and characters, so screens paint instantly and work offline.
 - Messages you've written and not yet managed to send. These are written before any
   network call, which is the whole point.
-- Your settings: the look, the chat layout, which proxy is selected, routing options for
-  OpenRouter. The proxy key itself is kept by Janitor, not by Butler; Butler only knows
+- Your settings: the look, the chat layout, fonts, which proxy is selected, routing and
+  thinking options for OpenRouter.
+- Chat backgrounds and font files you added, copied in so they stay when the originals move.
+- With Butter mode or Highlights set to keep their tags on the phone, the tagged copy of
+  each reply (Janitor gets the clean one). The proxy key itself is kept by Janitor, not by Butler; Butler only knows
   whether one is saved.
 
 Signing out deletes all of it from the phone. Pins, archive and folders live on your Janitor
@@ -40,9 +43,21 @@ at all, and the debug APKs published on GitHub are built with it off.
 
 ## Permissions
 
-Network, and the ability to see whether the network is up. That's the list. No contacts,
-location, storage, camera, microphone, or accessibility. Pictures you upload for a persona
-come through the system picker, which hands Butler one file and nothing else.
+Everything Butler asks Android for, and why:
+
+- **Internet** and **network state**: to talk to Janitor (and your proxy), and to know when
+  the connection is back so a failed send can go out.
+- **Notifications**: a reply keeps writing when you leave Butler, and a notification tells
+  you when it lands. Android asks you first; say no and replies still finish, quietly.
+- **Foreground service** and **wake lock**: what lets that reply finish in the background.
+  Both are held only while a reply is being written, never otherwise.
+- **Ignore battery optimisation**: only asked for (once, from Settings or after a reply was
+  cut off) on phones that kill background apps anyway. It's your call, and Butler works
+  without it.
+
+No contacts, location, storage, camera, microphone, or accessibility. Pictures (a persona's,
+a chat background) and font files come through the system picker, which hands Butler the
+one file you chose and nothing else.
 
 ## When something goes wrong
 
