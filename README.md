@@ -16,7 +16,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 
 * **Butler-x.x.x.apk** is the one you want.
 * **SHA256SUMS.txt** if you wanna check the files weren't messed with.
-* Scanned on [VirusTotal](https://www.virustotal.com/gui/file/af6357ada42e0b45e3e935d0d24369ee97e4dcc8b2f144da618ee1dad9b6b0c7): no security vendor flags it.
+* Scanned on [VirusTotal](https://www.virustotal.com/gui/file/abd0238372ffb1000aa4f8f87bf36bda53c8b2bbe570f725b86bf2edb29ea237): no security vendor flags it.
 
 **F-Droid is coming soon!** It's submitted and waiting on review. Heads up: the F-Droid version and the GitHub version are signed with different keys, so one can't update the other. Pick one and stick with it (switching means uninstalling first).
 
