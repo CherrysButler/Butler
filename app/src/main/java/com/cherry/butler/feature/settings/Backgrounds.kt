@@ -6,6 +6,25 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.Animation
+import androidx.compose.material.icons.rounded.BrightnessMedium
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.flow.collectLatest
+import kotlin.math.roundToInt
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -152,6 +171,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
     val choice by remember(chatId) { viewModel.choice(chatId) }.collectAsStateWithLifecycle(ChatBackgroundChoice.Default)
     val error by viewModel.error.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Editing?>(null) }
+    val bars = WindowInsets.systemBars.asPaddingValues()
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) editing = Editing.New(uri)
     }
@@ -230,6 +250,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
             startDim = start?.dim ?: ChatBackgrounds.DEFAULT_DIM,
             startParallax = start?.parallax ?: true,
             saveLabel = if (e is Editing.New) "Use" else "Save",
+            bars = bars,
             onSave = { blur, dim, parallax ->
                 editing = null
                 when (e) {
@@ -340,10 +361,15 @@ private fun SavedTile(
     }
 }
 
+/** Which edge slider is out, if any. */
+private enum class Panel { None, Blur, Dim }
+
 /**
  * The picture full screen, drawn exactly as a chat will draw it, with a few sample lines on
- * top and the settings at the bottom: blur (applied when the finger lifts), dim, and whether
- * it moves with the phone. Nothing is kept until [onSave].
+ * top. Three keys at the bottom: blur (left slider), drift (on/off), dim (right slider).
+ * Blur follows the finger on a small copy and is redone at full size when it lifts.
+ * [bars] are the screen's system bars, measured outside this window: a dialog window does
+ * not always get them, and without them the keys sat under the navigation bar.
  */
 @Composable
 private fun BackgroundEditor(
@@ -352,79 +378,218 @@ private fun BackgroundEditor(
     startDim: Float,
     startParallax: Boolean,
     saveLabel: String,
+    bars: PaddingValues,
     onSave: (blur: Float, dim: Float, parallax: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var source by remember { mutableStateOf<Bitmap?>(null) }
+    var small by remember { mutableStateOf<Bitmap?>(null) }
     var failed by remember { mutableStateOf(false) }
     var blur by remember { mutableFloatStateOf(startBlur) }
     var dim by remember { mutableFloatStateOf(startDim) }
     var parallax by remember { mutableStateOf(startParallax) }
+    var panel by remember { mutableStateOf(Panel.None) }
+    var dragging by remember { mutableStateOf(false) }
     var shown by remember { mutableStateOf<ImageBitmap?>(null) }
-    var blurring by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { runCatching { load() }.onSuccess { source = it }.onFailure { failed = true } }
-    LaunchedEffect(source, blur) {
-        val src = source ?: return@LaunchedEffect
-        blurring = true
-        shown = withContext(Dispatchers.Default) { src.softBlur(blur).asImageBitmap() }
-        blurring = false
+    LaunchedEffect(Unit) {
+        runCatching { load() }
+            .onSuccess { bmp ->
+                source = bmp
+                small = withContext(Dispatchers.Default) {
+                    val f = 360f / maxOf(bmp.width, bmp.height)
+                    if (f >= 1f) bmp else Bitmap.createScaledBitmap(bmp, (bmp.width * f).toInt().coerceAtLeast(1), (bmp.height * f).toInt().coerceAtLeast(1), true)
+                }
+            }
+            .onFailure { failed = true }
+    }
+    // While dragging, the small copy keeps up with the finger; at rest, the full one is redone.
+    LaunchedEffect(source, small) {
+        val full = source ?: return@LaunchedEffect
+        val quick = small ?: full
+        snapshotFlow { blur to dragging }.collectLatest { (b, d) ->
+            val from = if (d) quick else full
+            shown = withContext(Dispatchers.Default) { from.softBlur(b).asImageBitmap() }
+        }
     }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .pointerInput(Unit) { detectTapGestures { panel = Panel.None } },
+        ) {
             shown?.let { Backdrop(dim = dim, parallax = parallax, image = it) }
-            Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+
+            when {
+                failed -> Text("Couldn't open that picture.", color = ButlerTheme.colors.textLow, modifier = Modifier.align(Alignment.Center))
+                source == null -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), strokeWidth = 2.dp)
+                else -> SampleChat(Modifier.align(Alignment.Center).padding(horizontal = 56.dp))
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(top = bars.calculateTopPadding())
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                BarKey("Cancel", emphasis = false, onClick = onDismiss)
+                Spacer(Modifier.weight(1f))
+                BarKey(saveLabel, emphasis = true, enabled = source != null) { onSave(blur, dim, parallax) }
+            }
+
+            if (panel == Panel.Blur) {
+                EdgeSlider(
+                    value = blur,
+                    max = 1f,
+                    label = if (blur <= 0f) "Off" else "${(blur * 100).toInt()}%",
+                    onChange = { blur = it },
+                    onDragging = { dragging = it },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                )
+            }
+            if (panel == Panel.Dim) {
+                EdgeSlider(
+                    value = dim,
+                    max = ChatBackgrounds.MAX_DIM,
+                    label = "${(dim * 100).toInt()}%",
+                    onChange = { dim = it },
+                    onDragging = { },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = bars.calculateBottomPadding() + 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
+            ) {
+                ToolKey(
+                    icon = Icons.Rounded.WaterDrop,
+                    label = if (blur <= 0f) "Blur" else "Blur ${(blur * 100).toInt()}%",
+                    on = blur > 0f,
+                    open = panel == Panel.Blur,
                 ) {
-                    BarKey("Cancel", emphasis = false, onClick = onDismiss)
-                    Text(
-                        "Preview",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f).padding(start = 8.dp),
-                    )
-                    if (blurring) CircularProgressIndicator(Modifier.size(18.dp).padding(end = 4.dp), strokeWidth = 2.dp)
-                    BarKey(saveLabel, emphasis = true, enabled = source != null) { onSave(blur, dim, parallax) }
-                }
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when {
-                        failed -> Text("Couldn't open that picture.", color = ButlerTheme.colors.textLow, modifier = Modifier.align(Alignment.Center))
-                        source == null -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(28.dp), strokeWidth = 2.dp)
-                        else -> SampleChat(Modifier.align(Alignment.BottomStart))
+                    panel = if (panel == Panel.Blur) Panel.None else {
+                        if (blur <= 0f) blur = 0.25f
+                        Panel.Blur
                     }
                 }
-                Column(
-                    modifier = Modifier
-                        .padding(10.dp)
-                        .fillMaxWidth()
-                        .card(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f))
-                        .padding(vertical = 4.dp),
-                ) {
-                    SliderRow(
-                        title = "Blur",
-                        value = blur,
-                        range = 0f..1f,
-                        step = 0.05f,
-                        format = { if (it <= 0f) "Off" else "${(it * 100).toInt()}%" },
-                        onCommit = { blur = it },
-                    )
-                    SliderRow(
-                        title = "Dim",
-                        value = dim,
-                        range = 0f..ChatBackgrounds.MAX_DIM,
-                        step = 0.05f,
-                        format = { "${(it * 100).toInt()}%" },
-                        onCommit = { dim = it },
-                    )
-                    SwitchRow("Move with the phone", "Drifts a little as you tilt", parallax, { parallax = it })
+                ToolKey(icon = Icons.Rounded.Animation, label = if (parallax) "Drift on" else "Drift off", on = parallax, open = false) {
+                    parallax = !parallax
+                    panel = Panel.None
                 }
+                ToolKey(
+                    icon = Icons.Rounded.BrightnessMedium,
+                    label = "Dim ${(dim * 100).toInt()}%",
+                    on = dim > 0f,
+                    open = panel == Panel.Dim,
+                ) { panel = if (panel == Panel.Dim) Panel.None else Panel.Dim }
             }
+        }
+    }
+}
+
+/**
+ * A round key on the picture: open (its slider is out) fills red, on tints the icon red,
+ * off stays plain. The name sits under it on a dark slip so it reads on any picture.
+ */
+@Composable
+private fun ToolKey(icon: ImageVector, label: String, on: Boolean, open: Boolean, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(if (open) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.45f))
+                .border(1.dp, Color.White.copy(alpha = if (open) 0f else 0.18f), CircleShape)
+                .clickable(onClickLabel = label, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = when {
+                    open -> MaterialTheme.colorScheme.onPrimary
+                    on -> MaterialTheme.colorScheme.primary
+                    else -> Color.White
+                },
+                modifier = Modifier.size(26.dp),
+            )
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/**
+ * A tall slider on the screen's edge: drag up for more, down for less, or tap a height.
+ * The fill rises from the bottom; the value sits above it.
+ */
+@Composable
+private fun EdgeSlider(
+    value: Float,
+    max: Float,
+    label: String,
+    onChange: (Float) -> Unit,
+    onDragging: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val fraction = (value / max).coerceIn(0f, 1f)
+    fun at(y: Float, height: Int) = ((1f - y / height).coerceIn(0f, 1f) * max * 100f).roundToInt() / 100f
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            modifier = Modifier
+                .padding(bottom = 8.dp)
+                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+        Box(
+            modifier = Modifier
+                .width(44.dp)
+                .height(260.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.Black.copy(alpha = 0.45f))
+                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(22.dp))
+                .pointerInput(max) {
+                    detectTapGestures { pos -> onChange(at(pos.y, size.height)) }
+                }
+                .pointerInput(max) {
+                    detectVerticalDragGestures(
+                        onDragStart = { pos -> onDragging(true); onChange(at(pos.y, size.height)) },
+                        onDragEnd = { onDragging(false) },
+                        onDragCancel = { onDragging(false) },
+                        onVerticalDrag = { change, _ ->
+                            change.consume()
+                            onChange(at(change.position.y, size.height))
+                        },
+                    )
+                },
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(fraction)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)),
+            )
         }
     }
 }
