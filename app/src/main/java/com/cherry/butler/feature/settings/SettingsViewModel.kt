@@ -40,7 +40,16 @@ class SettingsViewModel @Inject constructor(
     private val themes: ThemePrefs,
     private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
+    private val addons: com.cherry.butler.core.generation.PromptAddons,
 ) : ViewModel() {
+
+    /** Butler's specials: instructions added to the user's model (see PromptAddons). */
+    val butter: StateFlow<Boolean> = addons.butter
+    val stripTags: StateFlow<Boolean> = addons.stripTags
+    fun setButter(on: Boolean) = addons.setButter(on)
+    val butterTint: StateFlow<Boolean> = addons.butterTint
+    fun setButterTint(on: Boolean) = addons.setButterTint(on)
+    fun setStripTags(strip: Boolean) = addons.setStripTags(strip)
 
     val richOn: StateFlow<Boolean> = richTyping.enabled
     val richDefault: StateFlow<String?> = richTyping.defaultMark

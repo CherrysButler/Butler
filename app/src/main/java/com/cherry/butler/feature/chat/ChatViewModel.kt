@@ -85,7 +85,11 @@ class ChatViewModel @Inject constructor(
     private val suggestions: SuggestionService,
     private val backgrounds: ChatBackgrounds,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
+    private val addons: com.cherry.butler.core.generation.PromptAddons,
 ) : ViewModel() {
+
+    /** Butter mode's tint in full replies (Settings › Butler specials). */
+    val butterTint: StateFlow<Boolean> = addons.butterTint
 
     /** Rich typing, switched on or off from the chat's menu as well as Settings. */
     val richOn: StateFlow<Boolean> = richTyping.enabled

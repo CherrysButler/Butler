@@ -199,8 +199,13 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE localId IN (:localIds)")
     suspend fun deleteLocal(localIds: List<Long>)
 
-    @Query("UPDATE messages SET text = :text, cachedAt = :now WHERE localId = :localId")
+    /** A new text by hand: any tagged copy no longer matches it and goes. */
+    @Query("UPDATE messages SET text = :text, markup = NULL, cachedAt = :now WHERE localId = :localId")
     suspend fun updateText(localId: Long, text: String, now: Long)
+
+    /** A finished reply: the text Janitor gets, and the tagged copy kept here (or null). */
+    @Query("UPDATE messages SET text = :text, markup = :markup, thinking = :thinking, streamState = NULL, cachedAt = :now WHERE localId = :localId")
+    suspend fun finishReply(localId: Long, text: String, markup: String?, thinking: String?, now: Long)
 
     /** Bot rows that were stopped before any text arrived and never reached the server. */
     @Query("DELETE FROM messages WHERE chatId = :chatId AND isBot = 1 AND serverId IS NULL AND text = '' AND streamState = 'partial'")
@@ -236,6 +241,8 @@ interface MessageDao {
                         thinking = existing.thinking ?: m.thinking,
                         // Janitor never echoes a rating back (§25); the phone's copy stands.
                         rating = m.rating ?: existing.rating,
+                        // The tagged copy stays while it is still the same reply.
+                        markup = existing.markup?.takeIf { com.cherry.butler.core.markdown.SceneTags.strip(it) == m.text },
                         streamState = null,
                     ),
                 )

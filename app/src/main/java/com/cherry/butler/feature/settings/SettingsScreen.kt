@@ -231,6 +231,7 @@ private fun SettingsBody(
                 }
                 LookSection(viewModel, onOpenCustomize)
                 RichTypingSection(viewModel)
+                SpecialsSection(viewModel)
                 AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
             }
             SettingsPage.Model -> {
@@ -794,6 +795,115 @@ private fun RichTypingSection(viewModel: SettingsViewModel) {
                 onSelect = { i -> viewModel.setRichDefault(keys[i]) },
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
             )
+        }
+    }
+}
+
+/**
+ * Butler's specials, which work by adding to what the user's own model is asked: Butter mode
+ * for now. Each is switched on through a warning that says what it costs and where its tags go.
+ */
+@Composable
+private fun SpecialsSection(viewModel: SettingsViewModel) {
+    val butter by viewModel.butter.collectAsStateWithLifecycle()
+    val strip by viewModel.stripTags.collectAsStateWithLifecycle()
+    val tint by viewModel.butterTint.collectAsStateWithLifecycle()
+    var asking by remember { mutableStateOf(false) }
+    SettingsSection(
+        title = "Butler specials",
+        footnote = "These add a short instruction to every reply your model writes, so they use a few of your tokens.",
+    ) {
+        SwitchRow(
+            "Butter mode",
+            "The model marks the beats that move the scene. Tap the butter on a reply to read just those.",
+            butter,
+            { on -> if (on) asking = true else viewModel.setButter(false) },
+        )
+        if (butter) {
+            SwitchRow(
+                "Tint the butter",
+                "A faint wash over the butter in full replies. Off, butter only shows when you fold a reply.",
+                tint,
+                viewModel::setButterTint,
+            )
+            DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too") { close ->
+                DropItem(title = "Kept on this phone", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
+                DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
+            }
+        }
+    }
+    if (asking) {
+        AddonWarning(
+            name = "Butter mode",
+            tokens = com.cherry.butler.core.generation.PromptAddons.tokensOf(com.cherry.butler.core.generation.PromptAddons.BUTTER),
+            tag = "butter",
+            strip = strip,
+            onTurnOn = { keep -> asking = false; viewModel.setStripTags(keep); viewModel.setButter(true) },
+            onCancel = { asking = false },
+        )
+    }
+}
+
+/**
+ * Said before a special is switched on: it runs on the user's own model and costs tokens,
+ * and its tags either stay on this phone (clean on Janitor, gone if Butler's storage is
+ * cleared) or go to Janitor too (kept with the account, shown raw on Janitor's site).
+ */
+@Composable
+private fun AddonWarning(name: String, tokens: Int, tag: String, strip: Boolean, onTurnOn: (strip: Boolean) -> Unit, onCancel: () -> Unit) {
+    var keepHere by remember { mutableStateOf(strip) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large)
+                .verticalScroll(rememberScrollState())
+                .padding(top = 20.dp, bottom = 12.dp),
+        ) {
+            Text(name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp))
+            Text(
+                "This adds a short instruction to every reply, sent to your own model: about $tokens tokens of input " +
+                    "each time, and a little more output for the tags. It counts against your proxy or JLLM like any other text.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ButlerTheme.colors.textMed,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+            )
+            Text(
+                "Where the tags go",
+                style = MaterialTheme.typography.labelMedium,
+                color = ButlerTheme.colors.textMed,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+            )
+            ChoiceRow(
+                title = "Keep them on this phone",
+                subtitle = "Janitor gets the reply without tags. Clear Butler\u2019s storage or reinstall, and the $tag marks are gone; the replies stay.",
+                selected = keepHere,
+                onClick = { keepHere = true },
+            )
+            ChoiceRow(
+                title = "Save them to Janitor too",
+                subtitle = "They follow your account, but Janitor\u2019s site and app show them raw, like <$tag>\u2026</$tag>.",
+                selected = !keepHere,
+                onClick = { keepHere = false },
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onCancel) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) }
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 40.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable { onTurnOn(keepHere) }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Turn on", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                }
+            }
         }
     }
 }

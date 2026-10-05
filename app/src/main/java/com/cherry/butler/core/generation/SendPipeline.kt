@@ -74,6 +74,7 @@ class SendPipeline @Inject constructor(
     private val memory: MemoryService,
     private val background: BackgroundReplies,
     private val gauge: ContextGauge,
+    private val addons: PromptAddons,
 ) {
     private val messageDao = db.messageDao()
     private val jobDao = db.sendJobDao()
@@ -401,7 +402,13 @@ class SendPipeline @Inject constructor(
             existing = messageDao.get(botLocalId) ?: existing
         }
 
-        val history = GuidedRetry.apply(historyFor(job.chatId, mode, existing), job.guidance)
+        val baseHistory = GuidedRetry.apply(historyFor(job.chatId, mode, existing), job.guidance)
+        // Butler's specials (Butter mode): on JLLM in the latest user line, on a proxy in the
+        // system prompt (below). Never stored.
+        val addon = addons.instruction(mode)
+        val userConfigNow = profileRepository.userConfig(profileRepository.profile())
+        val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
+        val history = if (addon != null && jllm) addons.intoHistory(baseHistory, addon) else baseHistory
         val profile = profileRepository.profile()
         val appearance = profileRepository.playedPersona(chat, history).appearance
 
@@ -421,10 +428,13 @@ class SendPipeline @Inject constructor(
             // messages for the summary.
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
         )
-        val proxy = profileRepository.proxyTarget(profile)
+        val proxy = profileRepository.proxyTarget(profile).let { target ->
+            if (addon != null && !jllm) target?.then { payload -> addons.intoPayload(payload, addon) } else target
+        }
 
         // CONTINUE appends to what is already there; everything else starts clean.
-        val text = StringBuilder(if (mode == GenerateMode.Continue) existing.text else "")
+        // A continued reply goes on from its tagged copy, so its butter stays whole.
+        val text = StringBuilder(if (mode == GenerateMode.Continue) existing.markup ?: existing.text else "")
         val thinking = StringBuilder(if (mode == GenerateMode.Continue) existing.thinking.orEmpty() else "")
         val parser = TagStreamParser(THINK_TAGS)
         var inThink = false
@@ -492,7 +502,9 @@ class SendPipeline @Inject constructor(
         if (!done && text.isEmpty()) throw ApiError.Server(code = 502, upstreamStatus = null)
 
         flush(force = true)
-        messageDao.updateStream(botLocalId, text.toString(), thinking.toString().ifEmpty { null }, null, System.currentTimeMillis())
+        // Tags off before Janitor sees the reply (if the user chose so), kept here for drawing.
+        val (clean, markup) = addons.finish(text.toString())
+        messageDao.finishReply(botLocalId, clean, markup, thinking.toString().ifEmpty { null }, System.currentTimeMillis())
         requestId?.let { rid ->
             messageDao.setGenerationRequestIds(botLocalId, (existing.generationRequestIds + rid).distinct())
         }
@@ -556,7 +568,7 @@ class SendPipeline @Inject constructor(
         val posted = chatRemote.postMessage(
             job.chatId,
             PostMessageRequest(
-                isBot = true, isMain = false, message = row.text,
+                isBot = true, isMain = false, message = if (addons.stripTags.value) com.cherry.butler.core.markdown.SceneTags.strip(row.text) else row.text,
                 metadata = buildJsonObject {
                     put("generation_request_ids", buildJsonArray { row.generationRequestIds.forEach { add(JsonPrimitive(it)) } })
                 },

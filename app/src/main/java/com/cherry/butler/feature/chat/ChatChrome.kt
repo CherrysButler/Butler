@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.outlined.FormatBold
 import androidx.compose.material.icons.outlined.Delete
@@ -109,12 +110,52 @@ private fun MenuItem(icon: ImageVector, label: String, onClick: () -> Unit) {
     )
 }
 
-/** A line's one quiet tool beside its name: everything (edit, copy, branch, delete) behind ⋯. */
+/**
+ * A line's quiet tools beside its name: everything (edit, copy, branch, delete) behind ⋯, and,
+ * on a reply with butter in it, the butter key that folds it to just those beats.
+ */
 @Composable
-fun LineTools(onMore: () -> Unit) {
+fun LineTools(onMore: () -> Unit, butter: Boolean? = null, onButter: () -> Unit = {}) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        if (butter != null) ButterKey(on = butter, onClick = onButter)
         IconButton(onClick = onMore, modifier = Modifier.size(34.dp)) {
             Icon(Icons.Rounded.MoreHoriz, contentDescription = "More", tint = ButlerTheme.colors.textLow, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/**
+ * Butter mode's key on a reply: a small pat of butter, drawn rather than an emoji. Lit (the
+ * reply folded to its butter) it sits on an amber wash; tapping it again unfolds the reply.
+ */
+@Composable
+fun ButterKey(on: Boolean, onClick: () -> Unit) {
+    val amber = ButlerTheme.colors.warn
+    val ink = ButlerTheme.colors.textLow
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(MaterialTheme.shapes.small)
+            .then(if (on) Modifier.background(amber.copy(alpha = 0.18f)) else Modifier)
+            .clickable(onClickLabel = if (on) "Show the whole reply" else "Show just the butter", onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.size(width = 16.dp, height = 12.dp)) {
+            // A pat in three-quarter view: a lighter top face over its front.
+            val r = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+            val top = size.height * 0.42f
+            drawRoundRect(
+                color = if (on) amber else ink,
+                topLeft = androidx.compose.ui.geometry.Offset(0f, top),
+                size = androidx.compose.ui.geometry.Size(size.width, size.height - top),
+                cornerRadius = r,
+            )
+            drawRoundRect(
+                color = (if (on) amber else ink).copy(alpha = 0.55f),
+                topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.12f, 0f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.88f, top + r.x),
+                cornerRadius = r,
+            )
         }
     }
 }

@@ -34,6 +34,8 @@ data class RpStyles(
     val thought: SpanStyle,
     /** The user's persona name where it filled `{{user}}`: Butler red. */
     val persona: SpanStyle,
+    /** Butter mode's beats: a faint wash of the look's amber, under whatever colour the words have. */
+    val butter: SpanStyle = SpanStyle(),
 ) {
     fun forKind(kind: InlineKind): SpanStyle = when (kind) {
         InlineKind.Strong -> strong
@@ -41,8 +43,12 @@ data class RpStyles(
         InlineKind.Speech -> speech
         InlineKind.Thought -> thought
         InlineKind.Persona -> persona
+        InlineKind.Butter -> butter
     }
 }
+
+/** Whether Butter mode's beats are tinted in a full reply (a Butter mode sub-option). */
+val LocalButterTint = androidx.compose.runtime.staticCompositionLocalOf { true }
 
 /**
  * Speech in blue, thought in violet, action as a quieter italic: the tints that make a
@@ -53,7 +59,8 @@ fun rememberRpStyles(baseColor: Color): RpStyles {
     val colors = ButlerTheme.colors
     val red = MaterialTheme.colorScheme.primary
     val look = LocalRpLook.current
-    return remember(baseColor, colors, red, look) {
+    val tint = LocalButterTint.current
+    return remember(baseColor, colors, red, look, tint) {
         RpStyles(
             strong = SpanStyle(fontWeight = FontWeight.SemiBold, color = look.strong?.let { Color(it) } ?: look.narration?.let { Color(it) } ?: baseColor),
             action = SpanStyle(
@@ -63,6 +70,7 @@ fun rememberRpStyles(baseColor: Color): RpStyles {
             speech = SpanStyle(color = look.speech?.let { Color(it) } ?: colors.speech),
             thought = SpanStyle(fontStyle = FontStyle.Italic, color = look.thought?.let { Color(it) } ?: colors.thought),
             persona = SpanStyle(color = red),
+            butter = if (tint) SpanStyle(background = colors.warn.copy(alpha = 0.16f)) else SpanStyle(),
         )
     }
 }

@@ -21,7 +21,8 @@ package com.cherry.butler.core.markdown
  */
 object RpMarkdown {
 
-    enum class InlineKind { Strong, Action, Speech, Thought, Persona }
+    /** [Butter] comes from a `<butter>` tag ([SceneTags]), not from markdown. */
+    enum class InlineKind { Strong, Action, Speech, Thought, Persona, Butter }
 
     /** A styled range over [Block.Paragraph.text] / [Block.ListItem.text] — end exclusive. */
     data class Span(val start: Int, val end: Int, val kind: InlineKind)
@@ -40,16 +41,24 @@ object RpMarkdown {
         val blocks = ArrayList<Block>()
         val paragraph = StringBuilder()
         var orderedIndex = 0
+        // Scene tags (<butter>…) ride through the inline parser as private characters and are
+        // lifted out per block; one left open runs on into the next block.
+        val openTags = LinkedHashSet<SceneTag>()
+
+        fun inline(raw: String): Pair<String, List<Span>> {
+            val (text, spans) = parseInline(raw, keepQuotes)
+            return liftTags(text, spans, openTags)
+        }
 
         fun flushParagraph() {
             if (paragraph.isNotBlank()) {
-                val (text, spans) = parseInline(paragraph.toString().trim(), keepQuotes)
+                val (text, spans) = inline(paragraph.toString().trim())
                 blocks += Block.Paragraph(text, spans)
             }
             paragraph.setLength(0)
         }
 
-        for (rawLine in source.replace("\r\n", "\n").split('\n')) {
+        for (rawLine in SceneTags.toMarks(source).replace("\r\n", "\n").split('\n')) {
             val line = rawLine.trimEnd()
             val trimmed = line.trim()
             when {
@@ -57,14 +66,14 @@ object RpMarkdown {
                 RULE.matches(trimmed) -> { flushParagraph(); blocks += Block.Rule }
                 BULLET.matches(trimmed) -> {
                     flushParagraph()
-                    val (text, spans) = parseInline(trimmed.substring(2).trim(), keepQuotes)
+                    val (text, spans) = inline(trimmed.substring(2).trim())
                     blocks += Block.ListItem(text, spans, ordered = false, index = 0)
                 }
                 ORDERED.matches(trimmed) -> {
                     flushParagraph()
                     val m = ORDERED.matchEntire(trimmed)!!
                     orderedIndex = m.groupValues[1].toIntOrNull() ?: (orderedIndex + 1)
-                    val (text, spans) = parseInline(m.groupValues[2].trim(), keepQuotes)
+                    val (text, spans) = inline(m.groupValues[2].trim())
                     blocks += Block.ListItem(text, spans, ordered = true, index = orderedIndex)
                 }
                 else -> {
@@ -75,6 +84,48 @@ object RpMarkdown {
         }
         flushParagraph()
         return blocks
+    }
+
+    /**
+     * Takes the scene-tag characters out of [text], turning each pair into a span, and moves
+     * [spans] to match. Tags open at the start (carried from the block before) begin at 0;
+     * tags still open at the end run to the end and stay in [open] for the next block.
+     */
+    private fun liftTags(text: String, spans: List<Span>, open: MutableSet<SceneTag>): Pair<String, List<Span>> {
+        if (open.isEmpty() && text.none { SceneTag.ofChar(it) != null }) return text to spans
+        val at = IntArray(text.length + 1)
+        val out = StringBuilder(text.length)
+        val startOf = HashMap<SceneTag, Int>()
+        for (t in open) startOf[t] = 0
+        val tagSpans = ArrayList<Span>()
+        for (i in text.indices) {
+            at[i] = out.length
+            val mark = SceneTag.ofChar(text[i])
+            if (mark == null) {
+                out.append(text[i])
+                continue
+            }
+            val (tag, opening) = mark
+            if (opening) {
+                startOf[tag] = out.length
+            } else {
+                val from = startOf.remove(tag) ?: continue
+                if (out.length > from) tagSpans += Span(from, out.length, tag.kind())
+            }
+        }
+        at[text.length] = out.length
+        open.clear()
+        for ((tag, from) in startOf) {
+            if (out.length > from) tagSpans += Span(from, out.length, tag.kind())
+            open += tag
+        }
+        // Tag tints go first so markdown colours (speech, the persona's name) still show on them.
+        val moved = spans.map { it.copy(start = at[it.start], end = at[it.end]) }.filter { it.end > it.start }
+        return out.toString() to (tagSpans + moved)
+    }
+
+    private fun SceneTag.kind(): InlineKind = when (this) {
+        SceneTag.Butter -> InlineKind.Butter
     }
 
     // ---- inline ---------------------------------------------------------------

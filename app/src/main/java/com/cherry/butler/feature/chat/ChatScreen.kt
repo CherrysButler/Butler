@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.core.markdown.SceneTag
+import com.cherry.butler.core.markdown.SceneTags
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import com.cherry.butler.ui.components.ImageViewer
@@ -140,6 +142,7 @@ fun ChatScreen(
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val suggestion by viewModel.suggestion.collectAsStateWithLifecycle()
     val richOn by viewModel.richOn.collectAsStateWithLifecycle()
+    val butterTint by viewModel.butterTint.collectAsStateWithLifecycle()
     val richDefault by viewModel.richDefault.collectAsStateWithLifecycle()
     val background by viewModel.chatBackground.collectAsStateWithLifecycle()
     var backgroundOpen by remember { mutableStateOf(false) }
@@ -466,7 +469,7 @@ fun ChatScreen(
                     onRetry = viewModel::refresh,
                     modifier = Modifier.padding(16.dp),
                 )
-                else -> Transcript(
+                else -> androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.core.design.LocalButterTint provides butterTint) { Transcript(
                     messages = transcript,
                     jobs = jobs,
                     live = live,
@@ -504,7 +507,7 @@ fun ChatScreen(
                     intros = chat?.intros.orEmpty(),
                     unanswered = activeJob == null && transcript.lastOrNull()?.isBot == false,
                     showScene = background == null,
-                )
+                ) }
             }
         }
     }
@@ -735,6 +738,9 @@ private fun BotTurn(
 ) {
     val shown = turn.shown
     val writing = live.containsKey(shown.localId)
+    // Butter mode: a reply with butter in it can fold to just those beats, per reply.
+    val hasButter = remember(shown.markup, shown.text) { SceneTags.has(shown.markup ?: shown.text, SceneTag.Butter) }
+    var skim by androidx.compose.runtime.saveable.rememberSaveable(shown.localId) { mutableStateOf(false) }
     val canSwipe = isLast && turn.answersUser && shown.serverId != null || (isLast && turn.answersUser && turn.variants.size > 1)
     val haptics = LocalHapticFeedback.current
     val byId = turn.variants.associateBy { it.localId }
@@ -783,7 +789,7 @@ private fun BotTurn(
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(Modifier.weight(1f))
-                if (!editing && !writing) LineTools(onMore = { actions.onLongPress(shown) })
+                if (!editing && !writing) LineTools(onMore = { actions.onLongPress(shown) }, butter = if (hasButter) skim else null, onButter = { skim = !skim })
             }
         }
 
@@ -793,7 +799,7 @@ private fun BotTurn(
             name = characterName,
             nameColor = MaterialTheme.colorScheme.primary,
             onAvatar = onAvatarClick,
-            tools = if (!editing && !writing) ({ LineTools(onMore = { actions.onLongPress(shown) }) }) else null,
+            tools = if (!editing && !writing) ({ LineTools(onMore = { actions.onLongPress(shown) }, butter = if (hasButter) skim else null, onButter = { skim = !skim }) }) else null,
         ) {
         if (editing) {
             LineEditor(
@@ -824,6 +830,7 @@ private fun BotTurn(
             ) { id ->
                 val message = byId[id] ?: return@AnimatedContent
                 ReplyBody(
+                    skim = skim && hasButter,
                     message = message,
                     job = turn.job?.takeIf { it.botMessageLocalId == id },
                     live = live[id],
@@ -932,6 +939,7 @@ private fun JanitorFrame(
 
 @Composable
 private fun ReplyBody(
+    skim: Boolean = false,
     message: MessageEntity,
     job: SendJobEntity?,
     live: SendPipeline.LiveReply?,
@@ -941,8 +949,11 @@ private fun ReplyBody(
 ) {
     val writing = live != null
     val pending = !writing && message.streamState == MessageStreamState.STREAMING
-    val text = remember(message.text, live?.text, personaName, characterName) {
-        (live?.text ?: message.text).fillNames(user = personaName, char = characterName, markUser = true)
+    val text = remember(message.text, message.markup, live?.text, personaName, characterName, skim) {
+        // The tagged copy when there is one, so the butter shows; folded, only the butter.
+        val source = live?.text ?: message.markup ?: message.text
+        val shown = if (skim) SceneTags.only(source, SceneTag.Butter) ?: source else source
+        shown.fillNames(user = personaName, char = characterName, markUser = true)
     }
     val thinking = live?.thinking?.takeIf { it.isNotEmpty() } ?: message.thinking?.takeIf { it.isNotEmpty() }
     val thinkingOnly = writing && live!!.text.isEmpty() && live.thinking.isNotEmpty()

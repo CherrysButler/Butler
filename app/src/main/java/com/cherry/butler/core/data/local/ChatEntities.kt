@@ -122,6 +122,12 @@ data class MessageEntity(
     /** null once complete; [MessageStreamState] while text is still arriving or was cut off. */
     val streamState: String?,
     val cachedAt: Long,
+    /**
+     * The reply with Butler's scene tags (<butter>…) still in, when they were taken off before
+     * it went to Janitor ([text] is then the clean copy). Phone-only; dropped when [text] stops
+     * matching it (an edit, or a change made on the website).
+     */
+    val markup: String? = null,
 )
 
 object MessageStreamState {
