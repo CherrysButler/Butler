@@ -1,0 +1,1 @@
+Fixed Rich typing: deleted marks no longer come back (some keyboards resent the old text), deleting one side of a mark removes the other, an emptied mark leaves no ** behind, marks you type or paste are left alone, and the " key gives ' inside an action too.

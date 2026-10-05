@@ -76,9 +76,14 @@ object RichTyping {
     fun spanAt(text: String, caret: Int): MarkSpan? =
         spans(text).filter { caret in it.contentStart..it.contentEnd }.maxByOrNull { it.contentStart }
 
-    /** Whether the caret is in speech (not about to open something else): the " key is then ' . */
+    /**
+     * Whether the caret is in speech or an action (not about to open something else): the "
+     * key then quotes with ' , as a quote inside either reads.
+     */
     fun inSpeech(value: TextFieldValue, state: TypingState): Boolean =
-        !state.armed && value.selection.collapsed && spanAt(value.text, value.selection.start)?.mark == Mark.Speech
+        !state.armed && value.selection.collapsed && quotesInside(spanAt(value.text, value.selection.start)?.mark)
+
+    private fun quotesInside(mark: Mark?) = mark == Mark.Speech || mark == Mark.Action
 
     /** What a key would light: what the next thing typed will be. */
     fun lit(value: TextFieldValue, state: TypingState): Mark? {
@@ -114,12 +119,23 @@ object RichTyping {
         while (s < o.length - p && s < n.length - p && o[o.length - 1 - s] == n[n.length - 1 - s]) s++
         val removed = o.substring(p, o.length - s)
         val inserted = n.substring(p, n.length - s)
+        if (removed.isNotEmpty() && inserted.isEmpty()) return onDelete(o, new, p, p + removed.length, state)
         if (removed.isNotEmpty() || inserted.isEmpty()) return new to state
 
         val ctx = spanAt(o, p)
-        val typed = if (ctx?.mark == Mark.Speech || ctx?.mark == Mark.Action) inserted.replace('"', '\'') else inserted
+        // A `*` typed right where the mark already closes steps over the closing mark instead of
+        // adding a third star (`*hi**` read as the start of bold).
+        if (inserted == "*" && ctx != null && ctx.mark != Mark.Speech && p == ctx.contentEnd) {
+            return TextFieldValue(o, TextRange(ctx.end)) to TypingState(default)
+        }
+        val typed = if (quotesInside(ctx?.mark)) inserted.replace('"', '\'') else inserted
         val mode = state.mode
-        val opens = mode != null && typed.isNotBlank() && (ctx == null || (state.armed && ctx.mark != mode))
+        // Marks typed by hand, and pastes (with marks or lines of their own, or long), are
+        // left as they are: wrapping them gave `***` for a typed `*`.
+        val ownMarks = typed.any { it == '*' || it == '"' || it == '\n' } || typed.length > PASTE ||
+            // A mark opened by hand and not closed yet: the user is writing marks themselves.
+            unclosedBefore(o, p)
+        val opens = mode != null && typed.isNotBlank() && !ownMarks && (ctx == null || (state.armed && ctx.mark != mode))
         if (opens) {
             val lead = typed.takeWhile { it.isWhitespace() }
             val body = typed.drop(lead.length)
@@ -129,6 +145,53 @@ object RichTyping {
         }
         if (typed != inserted) {
             return TextFieldValue(o.substring(0, p) + typed + o.substring(p), TextRange(p + typed.length)) to state
+        }
+        return new to state
+    }
+
+    /** Whether a mark opened before [at] is still open there (typed by hand, not closed yet). */
+    fun unclosedBefore(text: String, at: Int): Boolean {
+        val head = text.substring(0, at)
+        val closed = spans(text)
+        var i = 0
+        while (i < head.length) {
+            val len = when {
+                head[i] == '*' && i + 1 < head.length && head[i + 1] == '*' -> 2
+                head[i] == '*' || head[i] == '"' -> 1
+                else -> 0
+            }
+            if (len == 0) { i++; continue }
+            if (closed.none { i == it.start || i == it.contentEnd }) return true
+            i += len
+        }
+        return false
+    }
+
+    /** Longer than this in one go is a paste (or dictation), not typing. */
+    private const val PASTE = 60
+
+    /**
+     * A deletion. A mark deleted on one side takes its other side with it (`*hi` from `*hi*`
+     * becomes `hi`); a mark whose words are all deleted goes too, leaving no empty pair (`**`
+     * read as the start of bold), and typing there comes back in the same mark.
+     */
+    private fun onDelete(o: String, new: TextFieldValue, from: Int, to: Int, state: TypingState): Pair<TextFieldValue, TypingState> {
+        val spans = spans(o)
+        for (sp in spans) {
+            val inOpen = from >= sp.start && to <= sp.contentStart
+            val inClose = from >= sp.contentEnd && to <= sp.end
+            if (inOpen || inClose) {
+                val text = o.substring(0, sp.start) + o.substring(sp.contentStart, sp.contentEnd) + o.substring(sp.end)
+                val caret = if (inOpen) sp.start else sp.contentEnd - (sp.contentStart - sp.start)
+                return TextFieldValue(text, TextRange(caret)) to state.copy(armed = false, inner = false)
+            }
+        }
+        val emptied = spans.filter { it.contentStart == from && it.contentEnd == to }.maxByOrNull { it.contentStart }
+        if (emptied != null) {
+            val text = o.substring(0, emptied.start) + o.substring(emptied.end)
+            // Inside another mark, typing must open it again there, so it is armed.
+            val nested = spanAt(text, emptied.start) != null
+            return TextFieldValue(text, TextRange(emptied.start)) to TypingState(emptied.mark, armed = nested)
         }
         return new to state
     }
@@ -144,7 +207,7 @@ object RichTyping {
             return TextFieldValue(text, TextRange(b + mark.open.length + mark.close.length)) to state.copy(armed = false)
         }
         val ctx = spanAt(t, sel.start)
-        if (mark == Mark.Speech && ctx?.mark == Mark.Speech && !state.armed) {
+        if (mark == Mark.Speech && ctx != null && quotesInside(ctx.mark) && !state.armed) {
             if (state.inner) {
                 // Out of the inner quote: just past its closing ', still in the speech.
                 val close = t.indexOf('\'', sel.start)

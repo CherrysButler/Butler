@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Butler's mark with the debug badge over it. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+    <item android:drawable="@drawable/ic_launcher_debug_badge" />
+</layer-list>

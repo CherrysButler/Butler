@@ -91,6 +91,8 @@ fun Composer(
     // outside (sent, written for you, undone) resets the caret to the end.
     var field by remember { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
     var typing by remember(richDefault) { mutableStateOf(TypingState(richDefault)) }
+    /** The text the keyboard last reported, before the marks touched it. */
+    val imeText = remember { KeyboardCopy() }
     var focused by remember { mutableStateOf(false) }
     LaunchedEffect(draft) {
         if (field.text != draft) {
@@ -177,9 +179,17 @@ fun Composer(
                         value = field,
                         onValueChange = { new ->
                             if (rich) {
-                                val (v, st) = RichTyping.onChange(field, new, typing, richDefault)
-                                field = v
-                                typing = st
+                                // When the marks change what was typed, the keyboard still holds its own
+                                // copy until the field redraws, and can send that copy again in the same
+                                // frame (Gboard does on a backspace). Its text is then what it sent last
+                                // time: not an edit, so the marks' version stands.
+                                val stale = new.text == imeText.value && new.text != field.text
+                                imeText.value = new.text
+                                if (!stale) {
+                                    val (v, st) = RichTyping.onChange(field, new, typing, richDefault)
+                                    field = v
+                                    typing = st
+                                }
                             } else {
                                 field = new
                             }
@@ -335,3 +345,6 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
         }
     }
 }
+
+/** What the keyboard last reported; read in the edit callback only, so it is no state. */
+private class KeyboardCopy(var value: String? = null)

@@ -107,4 +107,88 @@ class RichTypingTest {
         type(value, state, " now", default = Mark.Speech).let { value = it.first; state = it.second }
         assertEquals("\"he said 'run' now\"", value.text)
     }
+
+    /** Deletes [count] characters before the caret, one backspace at a time. */
+    private fun backspace(start: TextFieldValue, state: TypingState, count: Int, default: Mark? = Mark.Action): Pair<TextFieldValue, TypingState> {
+        var value = start
+        var st = state
+        repeat(count) {
+            val at = value.selection.start
+            val next = TextFieldValue(value.text.substring(0, at - 1) + value.text.substring(at), TextRange(at - 1))
+            RichTyping.onChange(value, next, st, default).let { value = it.first; st = it.second }
+        }
+        return value to st
+    }
+
+    @Test
+    fun `the quote key inside an action quotes with single quotes`() {
+        var (value, state) = type(v(""), TypingState(Mark.Action), "she reads ")
+        assertEquals(true, RichTyping.inSpeech(value, state))
+        RichTyping.press(value, Mark.Speech, state).let { value = it.first; state = it.second }
+        type(value, state, "Dune").let { value = it.first; state = it.second }
+        assertEquals("*she reads 'Dune'*", value.text)
+    }
+
+    @Test
+    fun `a star typed by hand is not wrapped again`() {
+        val (value, _) = type(v(""), TypingState(Mark.Action), "*hi*")
+        assertEquals("*hi*", value.text)
+    }
+
+    @Test
+    fun `deleting a mark's words leaves no empty pair, and typing comes back in it`() {
+        var (value, state) = type(v(""), TypingState(Mark.Action), "hi")
+        backspace(value, state, 2).let { value = it.first; state = it.second }
+        assertEquals("", value.text)
+        type(value, state, "he").let { value = it.first; state = it.second }
+        assertEquals("*he*", value.text)
+    }
+
+    @Test
+    fun `emptying a mark in the middle of a line takes its marks out`() {
+        val start = v("a *hi* b", 5)
+        val (value, _) = backspace(start, TypingState(null), 2, default = null)
+        assertEquals("a  b", value.text)
+        assertEquals(2, value.selection.start)
+    }
+
+    @Test
+    fun `deleting one side of a mark takes the other side with it`() {
+        // The closing mark.
+        backspace(v("*hi*", 4), TypingState(null), 1, default = null).first.let { assertEquals("hi", it.text) }
+        // The opening mark.
+        backspace(v("*hi*", 1), TypingState(null), 1, default = null).first.let {
+            assertEquals("hi", it.text)
+            assertEquals(0, it.selection.start)
+        }
+        // One star of a bold mark.
+        backspace(v("**hi**", 6), TypingState(null), 1, default = null).first.let { assertEquals("hi", it.text) }
+        // A speech mark.
+        backspace(v("\"hi\" yes", 1), TypingState(null), 1, default = null).first.let { assertEquals("hi yes", it.text) }
+    }
+
+    @Test
+    fun `a mark typed by hand or a paste with marks is never wrapped`() {
+        assertEquals("*", type(v(""), TypingState(Mark.Action), "*").first.text)
+        val paste = "*she waves* \"hi\""
+        val (value, _) = RichTyping.onChange(v(""), v(paste), TypingState(Mark.Action), Mark.Action)
+        assertEquals(paste, value.text)
+    }
+
+    @Test
+    fun `typing the closing star steps over it`() {
+        val (value, _) = type(v(""), TypingState(Mark.Action), "nods*")
+        assertEquals("*nods*", value.text)
+        assertEquals(6, value.selection.start)
+    }
+
+    @Test
+    fun `an emptied bold inside an action comes back bold`() {
+        var value = v("*she **really** wants*", 13)
+        var state = TypingState(Mark.Action)
+        backspace(value, state, 6).let { value = it.first; state = it.second }
+        assertEquals("*she  wants*", value.text)
+        type(value, state, "so").let { value = it.first; state = it.second }
+        assertEquals("*she **so** wants*", value.text)
+    }
 }
