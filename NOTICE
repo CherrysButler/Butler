@@ -16,5 +16,9 @@ under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 
-Bundled fonts: Atkinson Hyperlegible (Braille Institute of America), under the
-SIL Open Font License 1.1; see docs/licenses.
+Bundled fonts, each under the SIL Open Font License 1.1 (see docs/licenses):
+- Atkinson Hyperlegible, Braille Institute of America
+- Lora, Copyright 2011 The Lora Project Authors (Reserved Font Name "Lora")
+- Nunito, Copyright 2014 The Nunito Project Authors
+- Lexend, Copyright 2018 The Lexend Project Authors (Reserved Font Name "RevReading Lexend")
+- Comic Neue, Copyright 2014 The Comic Neue Project Authors

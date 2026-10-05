@@ -21,7 +21,7 @@ interface ChatDao {
      * (and then counts only the chats in it).
      */
     @Query(
-        """SELECT c.characterId, c.characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
+        """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
@@ -37,11 +37,11 @@ interface ChatDao {
 
     /** The same grouping, only characters whose name contains [query] (case-insensitive for ASCII). */
     @Query(
-        """SELECT c.characterId, c.characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
+        """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
-           WHERE c.characterName LIKE '%' || :query || '%' GROUP BY c.characterId ORDER BY lastMessageAt DESC""",
+           WHERE (c.characterName LIKE '%' || :query || '%' OR c.chatName LIKE '%' || :query || '%') GROUP BY c.characterId ORDER BY lastMessageAt DESC""",
     )
     fun searchGroupedPagingSource(query: String): PagingSource<Int, ChatGroupRow>
 

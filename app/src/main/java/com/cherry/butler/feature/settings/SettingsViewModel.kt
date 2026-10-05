@@ -41,7 +41,27 @@ class SettingsViewModel @Inject constructor(
     private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
+    private val fonts: com.cherry.butler.core.data.FontPrefs,
 ) : ViewModel() {
+
+    /** The chat font and the app font (keys, see FontPrefs), and the font files added. */
+    val chatFont: StateFlow<String> = fonts.chat
+    val appFont: StateFlow<String> = fonts.app
+    val addedFonts: StateFlow<List<String>> = fonts.added
+    fun setChatFont(key: String) = fonts.setChat(key)
+    fun setAppFont(key: String) = fonts.setApp(key)
+    fun removeFont(name: String) = fonts.remove(name)
+    val appTextScale: StateFlow<Float> = fonts.appScale
+    fun setAppTextScale(scale: Float) = fonts.setAppScale(scale)
+
+    /** Adds a picked font file and puts it to use as the chat or the app font. */
+    fun addFont(uri: android.net.Uri, forChat: Boolean) {
+        viewModelScope.launch {
+            runCatching { fonts.add(uri) }
+                .onSuccess { key -> if (forChat) fonts.setChat(key) else fonts.setApp(key) }
+                .onFailure { e -> _notices.send("Couldn\u2019t add that font: ${e.message ?: "unreadable file"}.") }
+        }
+    }
 
     /** Butler's specials: instructions added to the user's model (see PromptAddons). */
     val butter: StateFlow<Boolean> = addons.butter

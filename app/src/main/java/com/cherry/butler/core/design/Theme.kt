@@ -98,8 +98,12 @@ fun ButlerTheme(
     chatStyle: ChatStyle = ChatStyle.Story,
     look: RpLook = RpLook(),
     custom: CustomColors = CustomColors.Default,
+    appFont: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+    chatFont: androidx.compose.ui.text.font.FontFamily = ReadingFamily,
+    appTextScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
+    val typography = androidx.compose.runtime.remember(appFont, chatFont, appTextScale) { butlerTypography(appFont, chatFont, appTextScale) }
     // The shipped looks are built once; the Custom one whenever its two colours change.
     val customTones = androidx.compose.runtime.remember(custom) { customTones(custom) }
     val colorScheme = if (theme == AppTheme.Custom) androidx.compose.runtime.remember(customTones) { scheme(customTones) } else Schemes.getValue(theme)
@@ -110,10 +114,17 @@ fun ButlerTheme(
         else -> ButlerShapes
     }
 
-    CompositionLocalProvider(LocalButlerExtendedColors provides extended, LocalChatStyle provides chatStyle, LocalRpLook provides look) {
+    CompositionLocalProvider(
+        LocalButlerExtendedColors provides extended,
+        LocalChatStyle provides chatStyle,
+        LocalRpLook provides look,
+        LocalAppFont provides appFont,
+        LocalChatFont provides chatFont,
+        LocalAppTextScale provides appTextScale,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = ButlerTypography,
+            typography = typography,
             shapes = shapes,
             content = content,
         )

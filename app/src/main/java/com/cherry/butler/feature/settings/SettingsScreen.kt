@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.TextButton
 import kotlinx.coroutines.launch
@@ -541,6 +542,17 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
                 DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
             }
         }
+        FontRow(title = "Chat font", forChat = true, viewModel = viewModel)
+        FontRow(title = "App font", forChat = false, viewModel = viewModel)
+        val scale by viewModel.appTextScale.collectAsStateWithLifecycle()
+        SliderRow(
+            title = "App text size",
+            value = scale,
+            range = com.cherry.butler.core.data.FontPrefs.MIN_SCALE..com.cherry.butler.core.data.FontPrefs.MAX_SCALE,
+            step = 0.05f,
+            format = { "${(it * 100).toInt()}%" },
+            onCommit = viewModel::setAppTextScale,
+        )
         LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize)
         BackgroundRow()
     }
@@ -983,6 +995,58 @@ private fun AddonWarning(
                 }
             }
         }
+    }
+}
+
+/**
+ * One of the two fonts: the built-ins, any font files added (each with a way to remove it),
+ * and "Add a font file", which opens the system file picker for a .ttf or .otf.
+ */
+@Composable
+private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewModel) {
+    val chosen by (if (forChat) viewModel.chatFont else viewModel.appFont).collectAsStateWithLifecycle()
+    val added by viewModel.addedFonts.collectAsStateWithLifecycle()
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { viewModel.addFont(it, forChat) } }
+    fun choose(key: String) = if (forChat) viewModel.setChatFont(key) else viewModel.setAppFont(key)
+    DropRow(title = title, value = com.cherry.butler.core.data.FontPrefs.nameOf(chosen)) { close ->
+        com.cherry.butler.core.data.FontPrefs.BUILT_IN.forEach { (key, name) ->
+            DropItem(
+                title = name,
+                subtitle = when {
+                    forChat && key == com.cherry.butler.core.data.FontPrefs.DEFAULT_CHAT -> "Butler\u2019s reading font"
+                    !forChat && key == com.cherry.butler.core.data.FontPrefs.DEFAULT_APP -> "The default"
+                    else -> com.cherry.butler.core.data.FontPrefs.BLURB[key]
+                },
+                selected = chosen == key,
+                onClick = { close(); choose(key) },
+            )
+        }
+        if (added.isNotEmpty()) DropDivider()
+        added.forEach { file ->
+            val key = com.cherry.butler.core.data.FontPrefs.FILE + file
+            DropItem(
+                title = com.cherry.butler.core.data.FontPrefs.nameOf(key),
+                subtitle = "Added by you",
+                selected = chosen == key,
+                onClick = { close(); choose(key) },
+                trailing = {
+                    IconButton(onClick = { close(); viewModel.removeFont(file) }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Remove ${com.cherry.butler.core.data.FontPrefs.nameOf(key)}", tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
+                    }
+                },
+            )
+        }
+        DropDivider()
+        DropItem(
+            title = "Add a font file",
+            subtitle = ".ttf or .otf from your phone",
+            onClick = { close(); pick.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream")) },
+            trailing = {
+                Icon(Icons.Rounded.Add, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
+            },
+        )
     }
 }
 

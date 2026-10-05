@@ -38,6 +38,8 @@ data class CharacterDto(
     val avatar: String? = null,
 
     @SerialName("creator_id") val creatorId: String = "",
+    /** The name it goes by in chat, what `{{char}}` means; null when the list doesn't carry it. */
+    @SerialName("chat_name") val chatName: String? = null,
     @SerialName("creator_name") val creatorName: String = "",
     @SerialName("creator_verified") val creatorVerified: Boolean = false,
     @SerialName("creator_plusbadge") val creatorPlusBadge: Boolean = false,

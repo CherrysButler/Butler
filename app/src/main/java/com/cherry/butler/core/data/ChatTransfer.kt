@@ -161,7 +161,8 @@ class ChatTransfer @Inject constructor(
         val rows = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.text.isNotBlank() }
         return TransferChat(
             characterId = chat.characterId,
-            characterName = chat.characterName,
+            // What the chat calls the character, as its lines are signed in the export.
+            characterName = chat.shownName,
             personaName = chat.personaName.orEmpty(),
             lines = rows.map { TransferLine(it.isBot, it.text, it.createdAt) },
         )

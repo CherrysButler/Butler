@@ -36,6 +36,8 @@ class MainActivity : FragmentActivity() {
     lateinit var supabase: SupabaseClient
 
     @Inject
+    lateinit var fontPrefs: com.cherry.butler.core.data.FontPrefs
+    @Inject
     lateinit var themePrefs: ThemePrefs
 
     @Inject
@@ -92,6 +94,11 @@ class MainActivity : FragmentActivity() {
             val chatStyle by themePrefs.chatStyle.collectAsState()
             val look by textLook.look.collectAsState()
             val custom by themePrefs.custom.collectAsState()
+            val chatFontKey by fontPrefs.chat.collectAsState()
+            val appFontKey by fontPrefs.app.collectAsState()
+            val appTextScale by fontPrefs.appScale.collectAsState()
+            val chatFont = androidx.compose.runtime.remember(chatFontKey) { familyOf(chatFontKey) }
+            val appFont = androidx.compose.runtime.remember(appFontKey) { familyOf(appFontKey) }
             // Status and nav bar icons follow the picked look, not the phone's dark mode.
             val light = theme.isLight(custom)
             LaunchedEffect(light) {
@@ -106,7 +113,7 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(lockOn) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
             }
-            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom) {
+            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale) {
                 androidx.compose.foundation.layout.Box {
                     // Kept composed under the lock so the user returns exactly where they were,
                     // but hidden from accessibility while covered.
@@ -129,5 +136,19 @@ class MainActivity : FragmentActivity() {
         // Warm start: the janitor://auth/google redirect returning from the browser.
         supabase.handleDeeplinks(intent)
         takeOpenChat(intent)
+    }
+
+    /** A font key (FontPrefs) as a family; a missing added file falls back to the defaults. */
+    private fun familyOf(key: String): androidx.compose.ui.text.font.FontFamily = when (key) {
+        "atkinson" -> com.cherry.butler.core.design.ReadingFamily
+        "system" -> androidx.compose.ui.text.font.FontFamily.Default
+        "serif" -> androidx.compose.ui.text.font.FontFamily.Serif
+        "mono" -> androidx.compose.ui.text.font.FontFamily.Monospace
+        "lora" -> com.cherry.butler.core.design.LoraFamily
+        "nunito" -> com.cherry.butler.core.design.NunitoFamily
+        "lexend" -> com.cherry.butler.core.design.LexendFamily
+        "comic" -> com.cherry.butler.core.design.ComicNeueFamily
+        else -> fontPrefs.fileOf(key)?.let { androidx.compose.ui.text.font.FontFamily(androidx.compose.ui.text.font.Font(it)) }
+            ?: androidx.compose.ui.text.font.FontFamily.Default
     }
 }

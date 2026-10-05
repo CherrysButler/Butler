@@ -16,6 +16,7 @@ import androidx.room.PrimaryKey
 data class ChatEntity(
     @PrimaryKey val id: Long,
     val characterId: String,
+    /** The bot's title, as Browse and its page show it. Chat lists refresh this one. */
     val characterName: String,
     val characterAvatar: String?,
     val characterDeleted: Boolean,
@@ -49,7 +50,15 @@ data class ChatEntity(
      * detail carries the real text (verified 2026-10-05). The server seeds the first one.
      */
     @ColumnInfo(defaultValue = "") val intros: List<String> = emptyList(),
-)
+    /**
+     * The name the character goes by in chat (`chat_name`, what `{{char}}` means), from the
+     * chat's detail only, so a list refresh can't put the title back in its place.
+     */
+    val chatName: String? = null,
+) {
+    /** What the chat calls the character: its in-chat name, else its title. */
+    val shownName: String get() = chatName?.takeIf { it.isNotBlank() } ?: characterName
+}
 
 /** `[a, b]` → `,a,b,` (and nothing → ""), the form [ChatEntity.folderIds] keeps. */
 fun encodeFolderIds(ids: Collection<String>): String = if (ids.isEmpty()) "" else ids.joinToString(",", prefix = ",", postfix = ",")

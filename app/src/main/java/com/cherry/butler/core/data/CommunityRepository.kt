@@ -294,7 +294,7 @@ private fun CharacterDto.toCharacter(): Character {
         chatCount = stats.chat, messageCount = stats.message,
         isNsfw = isNsfw, isImageNsfw = isImageNsfw,
         tagNames = tags.map { it.name }, customTags = customTags,
-        blurb = desc.plainPreview(220).fillNames(user = null, char = name),
+        blurb = desc.plainPreview(220).fillNames(user = null, char = chatName?.takeIf { it.isNotBlank() } ?: name),
         totalTokens = totalTokens,
         isProxyEnabled = isProxyEnabled,
         creatorColor = creatorColorOrNull,

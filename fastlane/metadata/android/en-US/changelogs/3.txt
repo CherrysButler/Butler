@@ -1,0 +1,1 @@
+New: pick a font for chats and one for the app (Lora, Nunito, Lexend, Comic Neue and more, or your own .ttf/.otf), and set the app's text size. Write for me can use a different model than your default. Fixed: characters go by their in-chat name ({{char}}) everywhere but Browse and their own page.

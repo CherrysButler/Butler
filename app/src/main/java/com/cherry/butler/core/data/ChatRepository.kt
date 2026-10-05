@@ -322,8 +322,10 @@ private fun ChatDetailDto.toEntity(existing: ChatEntity?, now: Long): ChatEntity
     return ChatEntity(
         id = chat.id,
         characterId = chat.characterId,
-        // `chat_name` is the nickname the character uses in chat; prefer it when set.
-        characterName = character.chatName?.takeIf { it.isNotBlank() } ?: character.name,
+        // The title and `chat_name` (the name it goes by in chat) are kept apart: lists
+        // refresh the title, and the chat shows the chat name over it (ChatEntity.shownName).
+        characterName = character.name,
+        chatName = character.chatName?.takeIf { it.isNotBlank() } ?: existing?.chatName,
         characterAvatar = character.avatar,
         characterDeleted = character.isDeleted || character.isForceRemoved,
         lastMessageAt = IsoTime.parseMillis(last?.createdAt) ?: existing?.lastMessageAt,

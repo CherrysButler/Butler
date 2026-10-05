@@ -51,6 +51,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 
 * **Themes!** Janitor Classic, Lights out, Daylight, and **Custom**: pick an accent and a background and Butler builds the rest. Go Advanced and set every single colour, even how round the corners are.
 * **Markdown your way.** Pick your own colors for speech, thoughts, actions and the rest, any colour on a real colour wheel, so the chat looks how you want it to. a bit more flexible than Janitor's
+* **Fonts!** Pick one font for your chats and one for the rest of the app: a handful built in, or add your own .ttf / .otf. The app's text size is adjustable too.
 * **Backgrounds.** Keep a library of pictures, set one for every chat or a different one per chat.
 * **Swap your default persona.** Make any persona your default, swapped properly on Janitor's side, with backups kept in case something goes sideways.
 * **Pin and archive chats**, Telegram style. Pull down on your chats to find the archive. Both are saved to your Janitor account as folders, so they follow you to any phone. Folders work too.
@@ -66,7 +67,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Better OpenRouter handling.** Use OpenRouter presets, pick and order your providers, set fallbacks, and sort them by price, speed, or latency.
 * **Context length from inside the chat.** see how full your context is.
 * **Thinking levels.** Low, medium, high (and more) for OpenRouter models that think, set per proxy.
-* **Write for me, with any model.** Your lines can come from a different model than the one playing the character. Kimi for the bot, DeepSeek for you, whatever.
+* **Write for me, on another model.** Write for me doesn't have to use your default model. Kimi for the bot, DeepSeek for your lines, whatever you like.
 
 ### 📦 And the rest
 

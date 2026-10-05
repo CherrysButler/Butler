@@ -43,7 +43,7 @@ class BackgroundReplies @Inject constructor(
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     suspend fun started(job: SendJobEntity) {
-        val name = db.chatDao().get(job.chatId)?.characterName?.takeIf { it.isNotBlank() } ?: "Your character"
+        val name = db.chatDao().get(job.chatId)?.shownName?.takeIf { it.isNotBlank() } ?: "Your character"
         val working = Working(job.chatId, job.botMessageLocalId, name)
         _working.update { it + (job.chatId to working) }
         // Every start reaches the service, which renews its wake lock: overlapping replies
@@ -65,7 +65,7 @@ class BackgroundReplies @Inject constructor(
         val chat = db.chatDao().get(job.chatId) ?: return
         val text = job.botMessageLocalId?.let { db.messageDao().get(it) }?.text.orEmpty()
         if (text.isBlank()) return
-        notifier.finished(chat.id, chat.characterName, chat.characterAvatar, job.botMessageLocalId, text, private = lock.wouldBeLocked())
+        notifier.finished(chat.id, chat.shownName, chat.characterAvatar, job.botMessageLocalId, text, private = lock.wouldBeLocked())
     }
 
     /** A reply gave up for good (not a retry the pipeline will make by itself). */
@@ -73,7 +73,7 @@ class BackgroundReplies @Inject constructor(
         if (presence.isViewing(job.chatId)) return
         val chat = db.chatDao().get(job.chatId) ?: return
         val pausedByPhone = network && pausedByPhone()
-        notifier.failed(chat.id, chat.characterName, chat.characterAvatar, job.botMessageLocalId, reason, partial, pausedByPhone)
+        notifier.failed(chat.id, chat.shownName, chat.characterAvatar, job.botMessageLocalId, reason, partial, pausedByPhone)
     }
 
     /**

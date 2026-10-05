@@ -457,7 +457,7 @@ private fun Content(
                 }
                 // The description sits on its own darker panel inside the card, as on Janitor.
                 DescriptionText(
-                    text = header.description.fillNames(user = personaName, char = header.name, markUser = true),
+                    text = header.description.fillNames(user = personaName, char = header.chatName ?: header.name, markUser = true),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -471,7 +471,7 @@ private fun Content(
 
         if (definition.isNotEmpty()) {
             item(key = "definition", contentType = "definition") {
-                DefinitionSection(definition.map { (title, body) -> title to body.fillNames(user = personaName, char = header.name, markUser = true) })
+                DefinitionSection(definition.map { (title, body) -> title to body.fillNames(user = personaName, char = header.chatName ?: header.name, markUser = true) })
             }
         }
 

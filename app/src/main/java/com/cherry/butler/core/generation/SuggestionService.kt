@@ -135,7 +135,7 @@ class SuggestionService @Inject constructor(
         val inputs = profileRepository.inputsFor(profile, writerPrefs.writer.value)
         // The line lands in the composer as the user's own words, so the macros are filled in.
         val who = played.persona?.name ?: chat.personaName ?: profile.name.ifBlank { profile.userName }
-        onNames { it.replace("{{user}}", who, ignoreCase = true).replace("{{char}}", chat.characterName, ignoreCase = true) }
+        onNames { it.replace("{{user}}", who, ignoreCase = true).replace("{{char}}", chat.shownName, ignoreCase = true) }
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,

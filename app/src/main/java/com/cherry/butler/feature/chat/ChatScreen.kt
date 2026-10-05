@@ -255,7 +255,7 @@ fun ChatScreen(
         )
     }
 
-    val name = chat?.characterName?.ifBlank { null } ?: "Chat"
+    val name = chat?.shownName?.ifBlank { null } ?: "Chat"
     val avatarUrl = JanitorConfig.avatarUrl(chat?.characterAvatar)
     viewing?.let { url -> ImageViewer(url = url, name = name, onDismiss = { viewing = null }) }
     val openCharacter = { chat?.characterId?.let(onOpenCharacter); Unit }
