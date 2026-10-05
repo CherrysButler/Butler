@@ -94,6 +94,11 @@ class SettingsRepository @Inject constructor(
 
     suspend fun selectProxy(id: String) = write { remote.patch(buildJsonObject { put("selected_proxy_config_id", id) }) }
 
+    /** Several sampler keys in one request; the server merges them into the rest. */
+    suspend fun setGeneration(values: Map<String, JsonElement>) = write {
+        remote.patch(buildJsonObject { put("generation_settings", JsonObject(values)) })
+    }
+
     /** One sampler key; the server merges it into the rest. */
     suspend fun setGeneration(key: String, value: JsonElement) = write {
         remote.patch(buildJsonObject { put("generation_settings", buildJsonObject { put(key, value) }) })

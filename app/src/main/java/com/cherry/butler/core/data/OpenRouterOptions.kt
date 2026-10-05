@@ -19,7 +19,8 @@ import javax.inject.Singleton
 
 /**
  * What OpenRouter understands and Janitor doesn't carry: a preset in place of the model
- * (`@preset/roleplay`), and provider routing (`provider: {order, allow_fallbacks, sort}`).
+ * (`@preset/roleplay`), provider routing (`provider: {order, allow_fallbacks, sort}`), and
+ * how hard a thinking model thinks (`reasoning: {effort}`).
  * Butler adds them to the payload Janitor assembled, just before sending it to OpenRouter
  * (docs/JANITOR_API.md §30), so they exist only on this phone, per proxy configuration.
  */
@@ -32,11 +33,28 @@ data class OpenRouterOptions(
     /** false: only the providers listed, never others. */
     val allowFallbacks: Boolean = true,
     val prefer: Prefer = Prefer.Default,
+    val thinking: Thinking = Thinking.Default,
 ) {
     @Serializable
     enum class Prefer(val wire: String?) { Default(null), Price("price"), Throughput("throughput"), Latency("latency") }
 
-    val isEmpty: Boolean get() = preset.isBlank() && providers.isEmpty() && allowFallbacks && prefer == Prefer.Default
+    /**
+     * OpenRouter's reasoning effort (openrouter.ai/docs, "Reasoning tokens", read 2026-10-05).
+     * A model that doesn't think ignores it; [Default] sends nothing and leaves it to the model.
+     */
+    @Serializable
+    enum class Thinking(val wire: String?, val label: String) {
+        Default(null, "Model's default"),
+        Off("none", "Off"),
+        Minimal("minimal", "Minimal"),
+        Low("low", "Low"),
+        Medium("medium", "Medium"),
+        High("high", "High"),
+        XHigh("xhigh", "Extra high"),
+        Max("max", "Max"),
+    }
+
+    val isEmpty: Boolean get() = preset.isBlank() && providers.isEmpty() && allowFallbacks && prefer == Prefer.Default && thinking == Thinking.Default
 
     /** The payload as OpenRouter should receive it. */
     fun applyTo(payload: JsonObject): JsonObject {
@@ -49,6 +67,12 @@ data class OpenRouterOptions(
                 if (!allowFallbacks) put("allow_fallbacks", JsonPrimitive(false))
                 prefer.wire?.let { put("sort", JsonPrimitive(it)) }
             }
+        }
+        // Whatever Janitor put in `reasoning` stays, but the effort is ours, and a token
+        // budget alongside it goes: effort and max_tokens are two answers to one question.
+        thinking.wire?.let { effort ->
+            val had = payload["reasoning"] as? JsonObject
+            out["reasoning"] = JsonObject((had.orEmpty() - "max_tokens" - "enabled") + ("effort" to JsonPrimitive(effort)))
         }
         return JsonObject(out)
     }

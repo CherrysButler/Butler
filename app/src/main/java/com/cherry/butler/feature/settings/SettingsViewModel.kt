@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.settings
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
@@ -59,7 +62,32 @@ class SettingsViewModel @Inject constructor(
 
     fun setChatStyle(style: ChatStyle) = themes.setChatStyle(style)
 
-    val settings: StateFlow<AiSettings?> = repository.settings
+    /**
+     * Changes to Janitor-side settings wait here until Save: switching JLLM and the proxy,
+     * picking a proxy, moving a sampler value. Nothing is sent while the user is still
+     * deciding, so every control answers at once.
+     */
+    data class Draft(
+        val provider: Provider? = null,
+        val proxyId: String? = null,
+        val generation: Map<String, JsonElement> = emptyMap(),
+    ) {
+        val isEmpty: Boolean get() = provider == null && proxyId == null && generation.isEmpty()
+    }
+
+    private val _draft = MutableStateFlow(Draft())
+
+    /** What Janitor has, with the unsaved changes laid over it: what the screen shows. */
+    val settings: StateFlow<AiSettings?> = combine(repository.settings, _draft) { saved, d ->
+        saved?.copy(
+            provider = d.provider ?: saved.provider,
+            selectedProxyId = d.proxyId ?: saved.selectedProxyId,
+            generation = if (d.generation.isEmpty()) saved.generation else JsonObject(saved.generation + d.generation),
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, repository.settings.value)
+
+    /** Whether anything waits for Save. */
+    val dirty: StateFlow<Boolean> = _draft.map { !it.isEmpty }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val replacesHistory: StateFlow<Boolean> = memory.replacesHistory
     val autoSummarize: StateFlow<Boolean> = memory.autoSummarize
 
@@ -90,11 +118,49 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setProvider(provider: Provider) = write("provider") { repository.setProvider(provider) }
+    fun setProvider(provider: Provider) = _draft.update { d ->
+        d.copy(provider = provider.takeIf { it != repository.settings.value?.provider })
+    }
 
-    fun selectProxy(id: String) = write("proxy:$id") { repository.selectProxy(id) }
+    fun selectProxy(id: String) = _draft.update { d ->
+        d.copy(proxyId = id.takeIf { it != repository.settings.value?.selectedProxyId })
+    }
 
-    fun setGeneration(key: String, value: JsonElement) = write("gen:$key") { repository.setGeneration(key, value) }
+    /** A value moved back to what Janitor already has is no longer a change. */
+    fun setGeneration(key: String, value: JsonElement) = _draft.update { d ->
+        val saved = repository.settings.value?.generation?.get(key)
+        d.copy(generation = if (saved == value) d.generation - key else d.generation + (key to value))
+    }
+
+    fun discard() {
+        _draft.value = Draft()
+    }
+
+    /**
+     * Sends the changes, in Janitor's order (provider, then the proxy, then the sampler as
+     * one request), and runs [then] once all are in. A part that went through leaves the
+     * draft even if a later one fails, so a retry sends only what is still waiting.
+     */
+    fun save(then: () -> Unit = {}) {
+        val d = _draft.value
+        if (d.isEmpty) return then()
+        if (_saving.value != null) return
+        viewModelScope.launch {
+            _saving.value = SAVING_ALL
+            val result = runCatching {
+                d.provider?.let { repository.setProvider(it); _draft.update { x -> x.copy(provider = null) } }
+                d.proxyId?.let { repository.selectProxy(it); _draft.update { x -> x.copy(proxyId = null) } }
+                if (d.generation.isNotEmpty()) {
+                    repository.setGeneration(d.generation)
+                    _draft.update { x -> x.copy(generation = x.generation - d.generation.keys) }
+                }
+            }
+            _saving.value = null
+            result
+                .onSuccess { _notices.send("Saved"); then() }
+                .onFailure { e -> _notices.send("Not saved. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") }
+        }
+    }
 
     fun setReplacesHistory(on: Boolean) {
         memory.setReplacesHistory(on)
@@ -104,6 +170,11 @@ class SettingsViewModel @Inject constructor(
     fun setAutoSummarize(on: Boolean) {
         memory.setAutoSummarize(on)
         if (on) memory.setReplacesHistory(true)
+    }
+
+    companion object {
+        /** [saving] while the whole draft goes out. */
+        const val SAVING_ALL = "all"
     }
 
     private fun write(tag: String, block: suspend () -> Unit) {

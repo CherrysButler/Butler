@@ -119,9 +119,12 @@ fun ButlerRoot() {
         shell.openedChat(id)
     }
 
+    // A tab with unsaved changes (Settings) gets to ask before the bar takes the user away.
+    val leaveGuard = androidx.compose.runtime.remember { com.cherry.butler.ui.navigation.LeaveGuard() }
+    androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.ui.navigation.LocalLeaveGuard provides leaveGuard) {
     Scaffold(
         containerColor = if (showBar) ButlerTheme.colors.chrome else MaterialTheme.colorScheme.background,
-        bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { tab = it }) },
+        bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { dest -> if (dest != tab) leaveGuard.leave { tab = dest } }) },
     ) { scaffoldPadding ->
         // On a tab, the ground is a sheet with rounded lower corners resting on the dark
         // nav bar, as in Janitor. Screens get only the top inset; the sheet ends above the bar.
@@ -296,6 +299,7 @@ fun ButlerRoot() {
                 }
             }
         }
+    }
     }
 }
 

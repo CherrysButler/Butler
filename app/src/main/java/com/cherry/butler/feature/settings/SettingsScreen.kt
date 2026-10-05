@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.TextButton
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Replay
 import com.cherry.butler.core.design.hardToRead
 import com.cherry.butler.core.design.colorOf
@@ -80,8 +83,9 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Settings, kept short: the model (provider, the proxy in use, links to generation and
- * prompts), memory, the look, and what Butler does on the phone. Janitor-side values are
- * saved the moment they change and rendered back from what Janitor answered.
+ * prompts), memory, the look, and what Butler does on the phone. Janitor-side values wait
+ * in a draft until Save in the corner (every control answers at once); leaving with changes
+ * waiting asks first. Phone-only settings take effect as they are touched.
  */
 @Composable
 fun SettingsScreen(
@@ -108,11 +112,38 @@ fun SettingsScreen(
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.notices.collect { snackbar.showSnackbar(it) } }
 
+    // Unsaved changes: Back, the back arrow and the bottom bar all ask before leaving.
+    val dirty by viewModel.dirty.collectAsStateWithLifecycle()
+    var leaving by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val tabActive = com.cherry.butler.ui.navigation.LocalTabActive.current
+    val activity = androidx.compose.ui.platform.LocalContext.current as? androidx.activity.ComponentActivity
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val back: () -> Unit = onBack ?: {
+        // On the tab, Back leaves the app: let the system do it once this screen stops asking.
+        scope.launch {
+            androidx.compose.runtime.withFrameNanos { }
+            activity?.onBackPressedDispatcher?.onBackPressed()
+        }
+    }
+    androidx.activity.compose.BackHandler(enabled = dirty && (onBack != null || tabActive)) { leaving = back }
+    com.cherry.butler.ui.navigation.GuardLeaving(active = dirty && onBack == null && tabActive) { proceed -> leaving = proceed }
+    leaving?.let { go ->
+        UnsavedDialog(
+            saving = saving == SettingsViewModel.SAVING_ALL,
+            onSave = { viewModel.save { leaving = null; go() } },
+            onDiscard = { leaving = null; viewModel.discard(); go() },
+            onKeep = { leaving = null },
+        )
+    }
+    val saveKey: @Composable () -> Unit = {
+        if (dirty) SaveKey(saving = saving == SettingsViewModel.SAVING_ALL, onClick = { viewModel.save() })
+    }
+
     Box(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (onBack != null) {
-                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) {
+                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { if (dirty) leaving = onBack else onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     Text(
@@ -120,10 +151,12 @@ fun SettingsScreen(
                             SettingsPage.Main -> "Settings"
                             SettingsPage.Model -> "Model settings"
                             SettingsPage.Generation -> "Generation"
-                        }, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                        }, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f))
+                    saveKey()
                 }
             } else {
-                ScreenHead(title = "Settings")
+                ScreenHead(title = "Settings", trailing = saveKey)
             }
             val s = settings
             when {
@@ -204,6 +237,57 @@ private fun SettingsBody(
                 GenerationSections(settings.generation, saving, viewModel)
             }
             SettingsPage.Generation -> GenerationSections(settings.generation, saving, viewModel)
+        }
+    }
+}
+
+/** Save, in the header's corner, while changes wait; "Saving…" while they go out. */
+@Composable
+private fun SaveKey(saving: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(MaterialTheme.colorScheme.primary)
+            .clickable(enabled = !saving, onClickLabel = "Save changes", onClick = onClick)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (saving) "Saving\u2026" else "Save",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
+/** Asked when leaving with changes still waiting: send them, drop them, or stay. */
+@Composable
+private fun UnsavedDialog(saving: Boolean, onSave: () -> Unit, onDiscard: () -> Unit, onKeep: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onKeep) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large)
+                .padding(top = 20.dp, bottom = 12.dp),
+        ) {
+            Text("Unsaved changes", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp))
+            Text(
+                "Your model settings haven\u2019t been sent to Janitor yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ButlerTheme.colors.textMed,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 14.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onKeep, enabled = !saving) { Text("Keep editing", color = MaterialTheme.colorScheme.onSurface) }
+                TextButton(onClick = onDiscard, enabled = !saving) { Text("Discard", color = ButlerTheme.colors.danger) }
+                SaveKey(saving = saving, onClick = onSave)
+            }
         }
     }
 }

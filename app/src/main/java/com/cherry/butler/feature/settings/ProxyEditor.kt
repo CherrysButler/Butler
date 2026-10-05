@@ -82,6 +82,7 @@ data class ProxyForm(
     val providers: String = "",
     val allowFallbacks: Boolean = true,
     val prefer: OpenRouterOptions.Prefer = OpenRouterOptions.Prefer.Default,
+    val thinking: OpenRouterOptions.Thinking = OpenRouterOptions.Thinking.Default,
     val hasSavedKey: Boolean = false,
     val loaded: Boolean = false,
     val saving: Boolean = false,
@@ -94,6 +95,7 @@ data class ProxyForm(
         providers = OpenRouterOptions.parseProviders(providers),
         allowFallbacks = allowFallbacks,
         prefer = prefer,
+        thinking = thinking,
     )
 
     companion object {
@@ -132,7 +134,7 @@ class ProxyEditorViewModel @Inject constructor(
                 ProxyForm(
                     name = existing.name, apiUrl = existing.apiUrl, model = existing.model, promptId = existing.promptId,
                     preset = options.preset, providers = options.providers.joinToString(", "),
-                    allowFallbacks = options.allowFallbacks, prefer = options.prefer,
+                    allowFallbacks = options.allowFallbacks, prefer = options.prefer, thinking = options.thinking,
                     hasSavedKey = existing.hasKey, loaded = true,
                 )
             } else {
@@ -261,6 +263,7 @@ fun ProxyEditorScreen(onBack: () -> Unit, viewModel: ProxyEditorViewModel = hilt
             }
         }
         if (form.isOpenRouter) {
+            ThinkingRow(form) { change -> viewModel.update(change) }
             OpenRouterSection(form) { change -> viewModel.update(change) }
         }
     }
@@ -338,6 +341,30 @@ fun PromptPickerSheet(prompts: List<Prompt>, selectedId: String?, onPick: (Strin
                 )
             }
             Spacer(Modifier.width(1.dp).height(12.dp))
+        }
+    }
+}
+
+/**
+ * How hard a thinking model thinks, for an OpenRouter proxy: out in the open rather than
+ * folded into routing, since it changes the replies themselves. Models that don't think
+ * ignore it.
+ */
+@Composable
+private fun ThinkingRow(form: ProxyForm, update: ((ProxyForm) -> ProxyForm) -> Unit) {
+    DropRow(title = "Thinking", value = form.thinking.label) { close ->
+        OpenRouterOptions.Thinking.entries.forEach { level ->
+            DropItem(
+                title = level.label,
+                subtitle = when (level) {
+                    OpenRouterOptions.Thinking.Default -> "Leave it to the model"
+                    OpenRouterOptions.Thinking.Off -> "No thinking, where the model allows it"
+                    OpenRouterOptions.Thinking.Max -> "Longest thinking, slowest and dearest"
+                    else -> null
+                },
+                selected = level == form.thinking,
+                onClick = { close(); update { it.copy(thinking = level) } },
+            )
         }
     }
 }
