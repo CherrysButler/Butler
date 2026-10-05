@@ -46,6 +46,17 @@ data class PersonaDto(
     @SerialName("updated_at") val updatedAt: String? = null,
 )
 
+/** `GET /persona-groups/mine`: a bare array, in the user's order (verified 2026-10-05). */
+@Serializable
+data class PersonaGroupDto(
+    val id: String,
+    val name: String = "",
+    val description: String? = null,
+    /** A hex string, "#rrggbb". */
+    val color: String? = null,
+    val order: Int = 0,
+)
+
 @Serializable
 data class PronounsDto(
     val subjective: String? = null,

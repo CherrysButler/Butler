@@ -1,5 +1,10 @@
 package com.cherry.butler.feature.profile
 
+import com.cherry.butler.feature.settings.RowDivider
+import com.cherry.butler.ui.components.dropLastPixel
+import com.cherry.butler.ui.components.card
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.outlined.Edit
@@ -10,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -105,6 +111,44 @@ fun ProfileScreen(
         )
     }
 
+    val groups by viewModel.groups.collectAsStateWithLifecycle()
+    val groupError by viewModel.groupError.collectAsStateWithLifecycle()
+    var moving by remember { mutableStateOf<PersonaOption?>(null) }
+    var editingGroup by remember { mutableStateOf<GroupEdit?>(null) }
+    var deletingGroup by remember { mutableStateOf<com.cherry.butler.core.data.remote.dto.PersonaGroupDto?>(null) }
+    var shownGroup by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+
+    moving?.let { persona ->
+        MoveToGroupSheet(
+            persona = persona,
+            groups = groups,
+            onPick = { groupId -> moving = null; viewModel.movePersona(persona.id!!, groupId) },
+            onNewGroup = { moving = null; editingGroup = GroupEdit(null, "", GROUP_COLORS.first(), thenMove = persona.id) },
+            onDismiss = { moving = null },
+        )
+    }
+    editingGroup?.let { edit ->
+        GroupDialog(
+            start = edit,
+            onSave = { name, color ->
+                editingGroup = null
+                if (edit.id == null) viewModel.createGroup(name, color, edit.thenMove) else viewModel.updateGroup(edit.id, name, color)
+            },
+            onDismiss = { editingGroup = null },
+        )
+    }
+    deletingGroup?.let { group ->
+        val inIt = options.count { it.groupId == group.id }
+        DeleteConfirmDialog(
+            count = 1,
+            title = "Delete \u201C${group.name}\u201D",
+            body = if (inIt == 0) "The group is empty." else "Its ${if (inIt == 1) "persona stays" else "$inIt personas stay"}, just out of any group.",
+            confirmLabel = "Delete group",
+            onConfirm = { deletingGroup = null; viewModel.deleteGroup(group.id) },
+            onDismiss = { deletingGroup = null },
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         ScreenHead(title = "Profile")
         PullToRefreshBox(isRefreshing = refreshing && me != null, onRefresh = { viewModel.refresh() }, modifier = Modifier.fillMaxSize()) {
@@ -129,17 +173,61 @@ fun ProfileScreen(
                     }
                 }
 
+                // Who you can play as: the groups as a row across the top of the card, the
+                // personas of the lit one (or everyone) under it, and a key to add a persona.
+                @Composable
+                fun row(option: PersonaOption) = PersonaRow(
+                    option = option,
+                    selected = option.id == current?.id,
+                    busy = swap?.stage == SwapFlow.Stage.Running,
+                    onMakeDefault = { viewModel.askMakeDefault(option) },
+                    onEdit = { onEditPersona(option.id ?: "default") },
+                    onMoveToGroup = if (option.id != null) ({ moving = option }) else null,
+                ) { viewModel.choose(option) }
+
+                val lit = shownGroup?.takeIf { id -> groups.any { it.id == id } }
                 SettingsSection(title = "Play as") {
-                    options.forEach { option ->
-                        PersonaRow(
-                            option = option,
-                            selected = option.id == current?.id,
-                            busy = swap?.stage == SwapFlow.Stage.Running,
-                            onMakeDefault = { viewModel.askMakeDefault(option) },
-                            onEdit = { onEditPersona(option.id ?: "default") },
-                        ) { viewModel.choose(option) }
+                    com.cherry.butler.ui.components.GroupRow(
+                        groups = groups,
+                        total = options.size,
+                        countOf = { id -> options.count { it.groupId == id } },
+                        selected = lit,
+                        onSelect = { shownGroup = it },
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                        onAdd = { editingGroup = GroupEdit(null, "", GROUP_COLORS.first()) },
+                        menu = { group, open, close ->
+                            val index = groups.indexOfFirst { it.id == group.id }
+                            GroupMenu(
+                                open = open,
+                                onClose = close,
+                                canMoveLeft = index > 0,
+                                canMoveRight = index < groups.lastIndex,
+                                onEdit = { editingGroup = GroupEdit(group.id, group.name, group.color ?: GROUP_COLORS.first()) },
+                                onMoveLeft = { viewModel.moveGroup(group.id, -1) },
+                                onMoveRight = { viewModel.moveGroup(group.id, 1) },
+                                onDelete = { deletingGroup = group },
+                            )
+                        },
+                    )
+                    RowDivider()
+                    val shown = if (lit == null) options else options.filter { it.id != null && it.groupId == lit }
+                    shown.forEach { row(it) }
+                    if (shown.isEmpty()) {
+                        Text(
+                            "No one here yet. Use Move to group in a persona\u2019s menu.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ButlerTheme.colors.textLow,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
+                        )
                     }
-                    NewPersonaRow { onEditPersona("new") }
+                }
+                com.cherry.butler.feature.chats.KeyButton(
+                    "New persona",
+                    onClick = { onEditPersona("new") },
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
+                )
+                groupError?.let {
+                    Text(it, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.danger, modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp))
                 }
 
                 SettingsSection(title = "Account") {
@@ -219,6 +307,7 @@ private fun PersonaRow(
     busy: Boolean,
     onMakeDefault: () -> Unit,
     onEdit: () -> Unit,
+    onMoveToGroup: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -278,6 +367,13 @@ private fun PersonaRow(
                         leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed) },
                         onClick = { menu = false; onEdit() },
                     )
+                    onMoveToGroup?.let { move ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Move to group", style = MaterialTheme.typography.titleSmall) },
+                            leadingIcon = { Icon(Icons.Outlined.FolderOpen, contentDescription = null, tint = ButlerTheme.colors.textMed) },
+                            onClick = { menu = false; move() },
+                        )
+                    }
                     if (option.id != null) {
                         androidx.compose.material3.DropdownMenuItem(
                             text = { Text("Make default", style = MaterialTheme.typography.titleSmall) },
@@ -292,25 +388,177 @@ private fun PersonaRow(
     }
 }
 
-/** The last row of the persona card: a new one, starting blank. */
+/** A group being made ([id] null) or changed; [thenMove] is a persona to put in a new one. */
+private data class GroupEdit(val id: String?, val name: String, val color: String, val thenMove: String? = null)
+
+/** Colours offered for a group, Janitor's grey first; the wheel covers the rest. */
+private val GROUP_COLORS = listOf("#6b7280", "#EA5A4F", "#F2A65E", "#E8C55A", "#6FCF97", "#6CC4C4", "#7FA6F5", "#C3A8EE", "#F28FAD")
+
+/** The lit group's menu, opened by tapping its chip again: change it, move it, delete it. */
 @Composable
-private fun NewPersonaRow(onClick: () -> Unit) {
+private fun GroupMenu(
+    open: Boolean,
+    onClose: () -> Unit,
+    canMoveLeft: Boolean,
+    canMoveRight: Boolean,
+    onEdit: () -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    androidx.compose.material3.DropdownMenu(
+        expanded = open,
+        onDismissRequest = onClose,
+        shape = MaterialTheme.shapes.medium,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        androidx.compose.material3.DropdownMenuItem(text = { Text("Rename and colour", style = MaterialTheme.typography.titleSmall) }, onClick = { onClose(); onEdit() })
+        if (canMoveLeft) androidx.compose.material3.DropdownMenuItem(text = { Text("Move left", style = MaterialTheme.typography.titleSmall) }, onClick = { onClose(); onMoveLeft() })
+        if (canMoveRight) androidx.compose.material3.DropdownMenuItem(text = { Text("Move right", style = MaterialTheme.typography.titleSmall) }, onClick = { onClose(); onMoveRight() })
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text("Delete group", style = MaterialTheme.typography.titleSmall, color = ButlerTheme.colors.danger) },
+            onClick = { onClose(); onDelete() },
+        )
+    }
+}
+
+/** Where a persona goes: any group, no group, or a new one made for it. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MoveToGroupSheet(
+    persona: PersonaOption,
+    groups: List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>,
+    onPick: (String?) -> Unit,
+    onNewGroup: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        shape = com.cherry.butler.core.design.SheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
+            Text(
+                "Move ${persona.name}",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            groups.forEach { g ->
+                GroupChoice(name = g.name, color = com.cherry.butler.ui.components.groupColor(g.color), chosen = persona.groupId == g.id) { onPick(g.id) }
+            }
+            GroupChoice(name = "No group", color = null, chosen = persona.groupId == null || groups.none { it.id == persona.groupId }) { onPick(null) }
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onNewGroup).padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Text("New group", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupChoice(name: String, color: androidx.compose.ui.graphics.Color?, chosen: Boolean, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .heightIn(min = 60.dp)
-            .padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).background(ButlerTheme.colors.surfaceHigh),
-            contentAlignment = Alignment.Center,
+        com.cherry.butler.ui.components.GroupMark(color, Modifier.size(12.dp))
+        Text(
+            name,
+            style = MaterialTheme.typography.titleMedium,
+            color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 14.dp).weight(1f),
+        )
+        if (chosen) Icon(Icons.Rounded.Check, contentDescription = "Here now", tint = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** A group's name and colour: a few colours to tap, and the wheel for any other. */
+@Composable
+private fun GroupDialog(start: GroupEdit, onSave: (name: String, color: String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(start.name) }
+    var color by remember { mutableStateOf(start.color) }
+    var wheel by remember { mutableStateOf(false) }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large)
+                .padding(vertical = 16.dp),
         ) {
-            Icon(Icons.Rounded.Add, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
+            Text(
+                if (start.id == null) "New group" else "Group",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            com.cherry.butler.feature.settings.FieldBlock(label = "Name", value = name, onChange = { name = it.take(60) }, placeholder = "Fantasy, Modern, Main…")
+            Text("Colour", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                (GROUP_COLORS.take(7) + listOf("wheel")).forEach { hex ->
+                    val isWheel = hex == "wheel"
+                    val own = isWheel && GROUP_COLORS.none { it.equals(color, ignoreCase = true) }
+                    val c = if (isWheel) (if (own) com.cherry.butler.ui.components.groupColor(color) else null) else com.cherry.butler.ui.components.groupColor(hex)
+                    val chosen = if (isWheel) own else hex.equals(color, ignoreCase = true)
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .then(
+                                if (c != null) Modifier.background(c) else Modifier.background(
+                                    androidx.compose.ui.graphics.Brush.sweepGradient(
+                                        listOf(androidx.compose.ui.graphics.Color.Red, androidx.compose.ui.graphics.Color.Yellow, androidx.compose.ui.graphics.Color.Green, androidx.compose.ui.graphics.Color.Cyan, androidx.compose.ui.graphics.Color.Blue, androidx.compose.ui.graphics.Color.Magenta, androidx.compose.ui.graphics.Color.Red),
+                                    ),
+                                ),
+                            )
+                            .border(if (chosen) 2.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, androidx.compose.foundation.shape.CircleShape)
+                            .clickable { if (isWheel) wheel = true else color = hex },
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+            ) {
+                Text(
+                    "Cancel",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clip(MaterialTheme.shapes.small).clickable(onClick = onDismiss).padding(horizontal = 16.dp, vertical = 11.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                val ok = name.isNotBlank()
+                Text(
+                    "Save",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (ok) MaterialTheme.colorScheme.onPrimary else ButlerTheme.colors.textLow,
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .background(if (ok) MaterialTheme.colorScheme.primary else ButlerTheme.colors.surfaceHigh)
+                        .clickable(enabled = ok) { onSave(name.trim(), color) }
+                        .padding(horizontal = 18.dp, vertical = 11.dp),
+                )
+            }
         }
-        Spacer(Modifier.width(14.dp))
-        Text("New persona", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+    }
+    if (wheel) {
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = "Group colour",
+            initial = com.cherry.butler.ui.components.groupColor(color) ?: androidx.compose.ui.graphics.Color.Gray,
+            recent = emptyList(),
+            onPick = { argb -> wheel = false; color = "#%06X".format(argb and 0xFFFFFF) },
+            onDismiss = { wheel = false },
+        )
     }
 }
 

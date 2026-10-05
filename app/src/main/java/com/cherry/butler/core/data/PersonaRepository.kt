@@ -28,6 +28,8 @@ data class PersonaOption(
     val id: String?,
     val name: String,
     val avatarUrl: String?,
+    /** Its persona group, if any; the profile never has one. */
+    val groupId: String? = null,
 )
 
 /**
@@ -91,7 +93,7 @@ class PersonaRepository @Inject constructor(
                 }
                 add(PersonaOption(id = null, name = p.name.ifBlank { p.userName }, avatarUrl = avatar))
             }
-            personas.forEach { add(PersonaOption(it.id, it.name, JanitorConfig.personaAvatarUrl(it.avatar))) }
+            personas.forEach { add(PersonaOption(it.id, it.name, JanitorConfig.personaAvatarUrl(it.avatar), it.groupId)) }
         }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
@@ -110,10 +112,14 @@ class PersonaRepository @Inject constructor(
         prefs.edit().putString(KEY_SELECTED, id).apply()
     }
 
-    /** Makes sure the profile and personas are in memory; failures leave what is there. */
+    /** The user's persona groups, in their order. */
+    val groups: StateFlow<List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>> = profile.groups
+
+    /** Makes sure the profile, personas and groups are in memory; failures leave what is there. */
     suspend fun load() {
         runCatching { profile.profile() }
         runCatching { profile.personas() }
+        runCatching { profile.groups() }
     }
 
     private companion object {

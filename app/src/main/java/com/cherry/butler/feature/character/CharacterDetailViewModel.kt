@@ -61,6 +61,7 @@ class CharacterDetailViewModel @Inject constructor(
     /** Who a chat started here plays as; its name fills `{{user}}` on this page too. */
     val persona: StateFlow<PersonaOption?> = personas.current
     val personaOptions: StateFlow<List<PersonaOption>> = personas.options
+    val personaGroups = personas.groups
 
     fun choosePersona(option: PersonaOption) = personas.select(option.id)
 

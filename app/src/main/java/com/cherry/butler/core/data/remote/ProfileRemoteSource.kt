@@ -1,5 +1,7 @@
 package com.cherry.butler.core.data.remote
 
+import kotlinx.serialization.json.JsonPrimitive
+import com.cherry.butler.core.data.remote.dto.PersonaGroupDto
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.remote.dto.PersonaDto
 import com.cherry.butler.core.data.remote.dto.ProfileCountsDto
@@ -99,6 +101,51 @@ class ProfileRemoteSource @Inject constructor(
     /** `DELETE /personas/{id}` → 200 `true` (verified 2026-10-04). */
     suspend fun deletePersona(id: String) {
         val request = Request.Builder().url("$base/personas/$id").delete().build()
+        apiCall.execute(request, maxAttempts = 1) { }
+    }
+
+    // ---- persona groups (all verified live 2026-10-05, docs/JANITOR_API.md §4.6) --------
+
+    suspend fun groups(): List<PersonaGroupDto> {
+        val request = Request.Builder().url("$base/persona-groups/mine").get().build()
+        return apiCall.execute(request) { body -> json.decodeFromString(ListSerializer(PersonaGroupDto.serializer()), body) }
+    }
+
+    /** `POST /persona-groups {name, description, color}` → 201 and the group. */
+    suspend fun createGroup(name: String, color: String): PersonaGroupDto {
+        val body = buildJsonObject { put("name", name); put("description", ""); put("color", color) }
+        val request = Request.Builder().url("$base/persona-groups").post(body.toString().toRequestBody(jsonMedia)).build()
+        return apiCall.execute(request, maxAttempts = 1) { raw -> json.decodeFromString(PersonaGroupDto.serializer(), raw) }
+    }
+
+    /** `PATCH /persona-groups/{id} {name, color}` → 200 and the group. */
+    suspend fun updateGroup(id: String, name: String, color: String): PersonaGroupDto {
+        val body = buildJsonObject { put("name", name); put("color", color) }
+        val request = Request.Builder().url("$base/persona-groups/$id").patch(body.toString().toRequestBody(jsonMedia)).build()
+        return apiCall.execute(request, maxAttempts = 1) { raw -> json.decodeFromString(PersonaGroupDto.serializer(), raw) }
+    }
+
+    /** `DELETE /persona-groups/{id}` → `true`; its personas stay, ungrouped. */
+    suspend fun deleteGroup(id: String) {
+        val request = Request.Builder().url("$base/persona-groups/$id").delete().build()
+        apiCall.execute(request, maxAttempts = 1) { }
+    }
+
+    /** `PATCH /persona-groups/reorder {groups: [{id, order}]}` (50 at most) → `true`. */
+    suspend fun reorderGroups(ids: List<String>) {
+        val body = buildJsonObject {
+            put("groups", kotlinx.serialization.json.buildJsonArray {
+                ids.forEachIndexed { i, id -> add(buildJsonObject { put("id", id); put("order", i + 1) }) }
+            })
+        }
+        val request = Request.Builder().url("$base/persona-groups/reorder").patch(body.toString().toRequestBody(jsonMedia)).build()
+        apiCall.execute(request, maxAttempts = 1) { }
+    }
+
+    /** `PATCH /personas/{id}/group {groupId}`; null takes it out of any group. */
+    suspend fun movePersona(personaId: String, groupId: String?) {
+        val body = buildJsonObject { put("groupId", groupId?.let(::JsonPrimitive) ?: JsonNull) }
+        val request = Request.Builder().url("$base/personas/$personaId/group").patch(body.toString().toRequestBody(jsonMedia)).build()
         apiCall.execute(request, maxAttempts = 1) { }
     }
 

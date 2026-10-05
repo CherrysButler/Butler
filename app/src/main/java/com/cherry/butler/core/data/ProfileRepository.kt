@@ -48,6 +48,50 @@ class ProfileRepository @Inject constructor(
         remote.personas().sortedBy { it.order }.also { _personas.value = it }
     }
 
+    // ---- persona groups ----------------------------------------------------------------
+
+    private val _groups = MutableStateFlow<List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>>(emptyList())
+
+    /** The user's persona groups, in their order. */
+    val groups: StateFlow<List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>> = _groups.asStateFlow()
+
+    suspend fun groups(refresh: Boolean = false) {
+        if (!refresh && _groups.value.isNotEmpty()) return
+        _groups.value = remote.groups().sortedBy { it.order }
+    }
+
+    suspend fun createGroup(name: String, color: String): com.cherry.butler.core.data.remote.dto.PersonaGroupDto =
+        remote.createGroup(name, color).also { _groups.value = _groups.value + it }
+
+    suspend fun updateGroup(id: String, name: String, color: String) {
+        val updated = remote.updateGroup(id, name, color)
+        _groups.value = _groups.value.map { if (it.id == id) updated else it }
+    }
+
+    /** Deletes the group; its personas stay, out of any group, which the mirror shows at once. */
+    suspend fun deleteGroup(id: String) {
+        remote.deleteGroup(id)
+        _groups.value = _groups.value.filterNot { it.id == id }
+        _personas.value = _personas.value.map { if (it.groupId == id) it.copy(groupId = null) else it }
+    }
+
+    /** Moves the group [by] places (-1 up, +1 down) and saves the whole order. */
+    suspend fun moveGroup(id: String, by: Int) {
+        val list = _groups.value.toMutableList()
+        val from = list.indexOfFirst { it.id == id }
+        val to = from + by
+        if (from < 0 || to !in list.indices) return
+        list.add(to, list.removeAt(from))
+        val before = _groups.value
+        _groups.value = list
+        runCatching { remote.reorderGroups(list.map { it.id }) }.onFailure { _groups.value = before; throw it }
+    }
+
+    suspend fun movePersona(personaId: String, groupId: String?) {
+        remote.movePersona(personaId, groupId)
+        _personas.value = _personas.value.map { if (it.id == personaId) it.copy(groupId = groupId) else it }
+    }
+
     /**
      * Who the user is playing in [chat] for a generation: the persona of the latest line they
      * wrote (a chat can change hands mid-way), else the chat's own. Its appearance falls back

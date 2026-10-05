@@ -127,6 +127,38 @@ class ProfileViewModel @Inject constructor(
     val options: StateFlow<List<PersonaOption>> = personas.options
     val current: StateFlow<PersonaOption?> = personas.current
 
+    // ---- persona groups ----------------------------------------------------------------
+
+    val groups: StateFlow<List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>> = personas.groups
+
+    private val _groupError = MutableStateFlow<String?>(null)
+
+    /** The last group change that didn't go through, in a line. */
+    val groupError: StateFlow<String?> = _groupError.asStateFlow()
+
+    private fun groupWork(failure: String, work: suspend () -> Unit) {
+        viewModelScope.launch {
+            _groupError.value = null
+            runCatching { work() }.onFailure { e ->
+                _groupError.value = "$failure ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}"
+            }
+        }
+    }
+
+    /** A new group; with [thenMove], that persona goes straight into it. */
+    fun createGroup(name: String, color: String, thenMove: String? = null) = groupWork("Couldn't make the group.") {
+        val group = profile.createGroup(name, color)
+        thenMove?.let { profile.movePersona(it, group.id) }
+    }
+
+    fun updateGroup(id: String, name: String, color: String) = groupWork("Couldn't save the group.") { profile.updateGroup(id, name, color) }
+
+    fun deleteGroup(id: String) = groupWork("Couldn't delete the group.") { profile.deleteGroup(id) }
+
+    fun moveGroup(id: String, by: Int) = groupWork("Couldn't move the group.") { profile.moveGroup(id, by) }
+
+    fun movePersona(personaId: String, groupId: String?) = groupWork("Couldn't move the persona.") { profile.movePersona(personaId, groupId) }
+
     private val _counts = MutableStateFlow<ProfileCountsDto?>(null)
     val counts: StateFlow<ProfileCountsDto?> = _counts.asStateFlow()
 
@@ -158,6 +190,7 @@ class ProfileViewModel @Inject constructor(
             _error.value = null
             val p = runCatching { profile.profile(refresh = force) }
             runCatching { profile.personas(refresh = force) }
+            runCatching { profile.groups(refresh = force) }
             runCatching { profile.counts() }.onSuccess { _counts.value = it }
             p.exceptionOrNull()?.let { _error.value = it as? ApiError ?: ApiError.Unknown(it) }
             _refreshing.value = false

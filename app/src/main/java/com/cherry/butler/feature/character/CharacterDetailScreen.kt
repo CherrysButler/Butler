@@ -126,8 +126,10 @@ fun CharacterDetailScreen(
     var pickingPersona by remember { mutableStateOf(false) }
 
     if (pickingPersona) {
+        val personaGroups by viewModel.personaGroups.collectAsStateWithLifecycle()
         PersonaPickerSheet(
             options = personaOptions,
+            groups = personaGroups,
             selected = persona,
             onPick = { viewModel.choosePersona(it); pickingPersona = false },
             onDismiss = { pickingPersona = false },

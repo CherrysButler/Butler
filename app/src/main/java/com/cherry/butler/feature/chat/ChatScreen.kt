@@ -258,8 +258,10 @@ fun ChatScreen(
     val personaName = activePersona?.name ?: chat?.personaName ?: fallbackPersona
 
     if (pickingPersona) {
+        val personaGroups by viewModel.personaGroups.collectAsStateWithLifecycle()
         PersonaPickerSheet(
             options = personaOptions,
+            groups = personaGroups,
             selected = activePersona,
             onPick = { viewModel.pickPersona(it); pickingPersona = false },
             onDismiss = { pickingPersona = false },

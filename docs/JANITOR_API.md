@@ -476,12 +476,13 @@ appeared to be top-level and are not.
 | `GET` | `/personas/mine` | **List my personas** | ✅ 200 |
 | `POST` | `/personas` | Create persona | from registry |
 | `DELETE` | `/personas/{id}` | Delete persona | from registry |
-| `PATCH` | `/personas/{id}/group` | Move persona to group | from registry |
-| `PATCH` | `/personas/reorder` | Reorder personas | from registry |
-| `GET` | `/persona-groups/mine` | List persona groups | ✅ 200 (`[]`) |
-| `POST` | `/persona-groups` | Create group | from registry |
-| `DELETE` | `/persona-groups/{id}` | Delete group | from registry |
-| `PATCH` | `/persona-groups/reorder` | Reorder groups | from registry |
+| `PATCH` | `/personas/{id}/group` | Move persona to group: `{groupId}`, `null` ungroups | ✅ 200 `true` (2026-10-05) |
+| `PATCH` | `/personas/reorder` | Reorder personas: `{personas: [{id, order}]}` | ✅ 200 `true` (2026-10-05) |
+| `GET` | `/persona-groups/mine` | List persona groups: `[{id, userId, name, description, color, order, created_at, updated_at}]`, by `order` | ✅ 200 |
+| `POST` | `/persona-groups` | Create group: `{name, description, color}`; `""` description stored as null | ✅ 201, the group (2026-10-05) |
+| `PATCH` | `/persona-groups/{id}` | Rename / recolour: `{name?, color?, description?}` | ✅ 200, the group (2026-10-05) |
+| `DELETE` | `/persona-groups/{id}` | Delete group; its personas stay, with `groupId: null` | ✅ 200 `true` (2026-10-05) |
+| `PATCH` | `/persona-groups/reorder` | Reorder groups: `{groups: [{id, order}]}` (max 50) | ✅ 200 `true` (2026-10-05) |
 
 **Superseded — do not use:** ~~`GET /personas`~~ (404), ~~`GET /my_personas`~~ (404),
 ~~`PATCH /reorder`~~, ~~`POST /persona-groups` as a bare path for listing~~.

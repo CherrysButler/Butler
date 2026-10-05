@@ -277,6 +277,7 @@ class ChatViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     val personaOptions: StateFlow<List<PersonaOption>> = personas.options
+    val personaGroups = personas.groups
 
     /** A persona picked from the composer chip during this visit; null until one is. */
     private data class Pick(val id: String?)
