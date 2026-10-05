@@ -9,6 +9,7 @@ import com.cherry.butler.ui.components.TransferProgressDialog
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.graphics.Color
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.animation.AnimatedContent
@@ -137,7 +138,10 @@ fun ChatScreen(
 ) {
     val providerLabel by viewModel.providerLabel.collectAsStateWithLifecycle()
     val chat by viewModel.chat.collectAsStateWithLifecycle()
-    val transcript by viewModel.transcript.collectAsStateWithLifecycle()
+    val suggestion by viewModel.suggestion.collectAsStateWithLifecycle()
+    val background by viewModel.chatBackground.collectAsStateWithLifecycle()
+    var backgroundOpen by remember { mutableStateOf(false) }
+    val transcript by viewModel.shownTranscript.collectAsStateWithLifecycle()
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
     val live by viewModel.live.collectAsStateWithLifecycle()
     val now by viewModel.now.collectAsStateWithLifecycle()
@@ -351,8 +355,14 @@ fun ChatScreen(
         )
     }
 
+    if (backgroundOpen) {
+        com.cherry.butler.feature.settings.BackgroundsSheet(chatId = viewModel.chatId, onDismiss = { backgroundOpen = false })
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key) }
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = if (background != null) Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             SnackbarHost(snackbar) { data ->
@@ -416,6 +426,7 @@ fun ChatScreen(
                         hasSummary = !chat?.summary.isNullOrBlank(),
                         onExport = { exporting = true },
                         onDelete = { confirmDeleteChat = true },
+                        onBackground = { backgroundOpen = true },
                     )
                 }
                 // No progress bar: the caption says what is happening, the reply shows it.
@@ -431,6 +442,11 @@ fun ChatScreen(
                 onStop = viewModel::stop,
                 persona = activePersona,
                 onPickPersona = { pickingPersona = true },
+                suggestion = suggestion,
+                onWrite = viewModel::writeForMe,
+                onStopWriting = viewModel::stopWriting,
+                onUndoWrite = viewModel::undoWrite,
+                onWriteAgain = viewModel::writeAgain,
             )
         },
     ) { innerPadding ->
@@ -475,11 +491,15 @@ fun ChatScreen(
                         onChoices = viewModel::requestChoices,
                         onPickChoice = viewModel::sendChoice,
                         onHideChoices = viewModel::hideChoices,
+                        onPickIntro = viewModel::pickIntro,
                     ),
+                    intros = chat?.intros.orEmpty(),
                     unanswered = activeJob == null && transcript.lastOrNull()?.isBot == false,
+                    showScene = background == null,
                 )
             }
         }
+    }
     }
 }
 
@@ -528,6 +548,7 @@ private class TranscriptActions(
     val onChoices: (Long) -> Unit,
     val onPickChoice: (String) -> Unit,
     val onHideChoices: () -> Unit,
+    val onPickIntro: (MessageEntity, String) -> Unit,
 )
 
 @Composable
@@ -547,6 +568,10 @@ private fun Transcript(
     actions: TranscriptActions,
     unanswered: Boolean,
     personas: List<PersonaOption> = emptyList(),
+    /** The character's openings; offered on the opening line until the user first answers it. */
+    intros: List<String> = emptyList(),
+    /** The portrait at the top of the log; off when the chat has a background picture. */
+    showScene: Boolean = true,
 ) {
     val listState = rememberFlingListState(ahead = 2)
     val jobByUser = remember(jobs) { jobs.filter { it.userMessageLocalId != null }.associateBy { it.userMessageLocalId!! } }
@@ -558,8 +583,17 @@ private fun Transcript(
     // already at the bottom. Someone re-reading is never pulled away.
     val newest = messages.lastOrNull()
     val beforeNewest = messages.getOrNull(messages.lastIndex - 1)
+    // A chat never opened here has no rows until its first read lands; meanwhile the list
+    // shows only the scene, and keeps it anchored when the rows arrive. So the first rows
+    // always put the reader at the newest line, whatever the list thinks it is showing.
+    var placed by remember { mutableStateOf(false) }
     LaunchedEffect(newest?.localId) {
         if (newest == null) return@LaunchedEffect
+        if (!placed) {
+            placed = true
+            listState.scrollToItem(0)
+            return@LaunchedEffect
+        }
         val atBottom = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 48
         // The reply to a line you just sent is part of the same act: still follow it.
         val replyToYourLine = newest.isBot && newest.serverId == null && beforeNewest?.isBot == false
@@ -614,6 +648,7 @@ private fun Transcript(
                         editDraft = editDraft,
                         editStatus = editStatus,
                         actions = actions,
+                        intros = if (i == 0 && isLast && !turn.answersUser) intros else emptyList(),
                     )
                     is Turn.User -> UserTurn(
                         message = turn.message,
@@ -632,7 +667,7 @@ private fun Transcript(
             }
         }
         // The scene: the last item in a reversed list is the top of the log.
-        item(key = "scene", contentType = "scene") {
+        if (showScene) item(key = "scene", contentType = "scene") {
             Scene(url = characterAvatarUrl, name = characterName, onClick = onAvatarClick)
         }
     }
@@ -688,6 +723,7 @@ private fun BotTurn(
     editDraft: String,
     editStatus: EditStatus,
     actions: TranscriptActions,
+    intros: List<String> = emptyList(),
 ) {
     val shown = turn.shown
     val writing = live.containsKey(shown.localId)
@@ -799,16 +835,25 @@ private fun BotTurn(
         // The last reply always keeps the bar's room, even while it is being written, so the
         // bar arriving at the end does not push the page (it showed as a jump at the finish).
         if (isLast && !editing) {
-            val barReady = !writing && (canSwipe || shown.serverId != null)
+            // The opening, before anyone has answered it, steps through the character's intros
+            // instead: -1 when the line was edited into none of them.
+            val introIndex = if (intros.size > 1) intros.indexOfFirst { it.trim() == shown.text.trim() } else null
+            val barReady = !writing && (canSwipe || introIndex != null || shown.serverId != null)
             VariantBar(
-                index = turn.index.coerceAtLeast(0),
-                count = turn.variants.size,
-                canSwipe = canSwipe,
+                index = introIndex ?: turn.index.coerceAtLeast(0),
+                count = if (introIndex != null) intros.size else turn.variants.size,
+                canSwipe = canSwipe || introIndex != null,
                 busy = busy,
+                noun = if (introIndex != null) "intro" else "reply",
+                canAskNew = introIndex == null,
                 canContinue = !busy && shown.serverId != null && shown.text.isNotEmpty() &&
                     shown.streamState != MessageStreamState.PARTIAL,
-                onPrevious = { step(-1) },
-                onNext = { step(1) },
+                onPrevious = {
+                    if (introIndex != null) intros.getOrNull(introIndex - 1)?.let { actions.onPickIntro(shown, it) } else step(-1)
+                },
+                onNext = {
+                    if (introIndex != null) intros.getOrNull(introIndex + 1)?.let { actions.onPickIntro(shown, it) } else step(1)
+                },
                 onNew = actions.onGuidedRetry,
                 onContinue = { actions.onContinue(shown.localId) },
                 onChoices = if (actions.choicesAvailable && !busy && shown.serverId != null && actions.choices?.forReply != shown.localId) {

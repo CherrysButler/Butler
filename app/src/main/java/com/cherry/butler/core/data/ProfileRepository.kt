@@ -1,5 +1,6 @@
 package com.cherry.butler.core.data
 
+import kotlinx.serialization.json.JsonPrimitive
 import com.cherry.butler.core.data.remote.ProfileRemoteSource
 import com.cherry.butler.core.data.remote.dto.PersonaDto
 import com.cherry.butler.core.data.remote.dto.ProfileDto
@@ -86,16 +87,59 @@ class ProfileRepository @Inject constructor(
      * in the envelope all matched that entry).
      */
     fun selectedProxy(profile: ProfileDto): SelectedProxy? {
-        val config = profile.config ?: return null
-        val selectedId = config["selectedProxyConfigId"]?.jsonPrimitive?.contentOrNull ?: return null
-        val entry = config["proxyConfigurations"]?.jsonArray
+        val selectedId = profile.config?.get("selectedProxyConfigId")?.jsonPrimitive?.contentOrNull ?: return null
+        return proxy(profile, selectedId)
+    }
+
+    /** Any saved proxy configuration, by its id in `config.proxyConfigurations`. */
+    fun proxy(profile: ProfileDto, id: String): SelectedProxy? {
+        val entry = profile.config?.get("proxyConfigurations")?.jsonArray
             ?.mapNotNull { it as? JsonObject }
-            ?.firstOrNull { it["id"]?.jsonPrimitive?.contentOrNull == selectedId }
+            ?.firstOrNull { it["id"]?.jsonPrimitive?.contentOrNull == id }
             ?: return null
         val url = entry["apiUrl"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
         val key = entry["apiKey"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val model = entry["model"]?.jsonPrimitive?.contentOrNull
-        return SelectedProxy(id = selectedId, url = url, key = key, model = model)
+        return SelectedProxy(id = id, url = url, key = key, model = model)
+    }
+
+    /**
+     * `userConfig` and proxy target for a generation by [writer] rather than the chat's own
+     * choice. The legacy config Janitor reads is rewritten the way its own switch writes it
+     * (`api`, `open_ai_mode`, `selectedProxyConfigId`, `openAiModel`; docs/JANITOR_API.md
+     * §27.1), and a proxy's payload is also stamped with its model on the way out, so the
+     * answer comes from the model asked for whatever Janitor assembled. A proxy that no
+     * longer exists falls back to the chat's own choice.
+     */
+    fun inputsFor(profile: ProfileDto, writer: Writer): Pair<JsonObject, ProxyTarget?> {
+        val base = profile.config ?: JsonObject(emptyMap())
+        return when (writer) {
+            Writer.SameAsChat -> userConfig(profile) to proxyTarget(profile)
+            Writer.Jllm -> GenerationEnvelope.userConfig(
+                profileConfig = JsonObject(base + mapOf("api" to JsonPrimitive("janitor"), "open_ai_mode" to JsonPrimitive("api_key"))),
+                reverseProxyKey = null,
+                reverseProxyUrl = null,
+                routerEnabled = false,
+            ) to null
+            is Writer.Proxy -> {
+                val saved = proxy(profile, writer.id) ?: return userConfig(profile) to proxyTarget(profile)
+                val p = writer.model?.let { SelectedProxy(saved.id, saved.url, saved.key, it) } ?: saved
+                val config = JsonObject(
+                    base + buildMap {
+                        put("api", JsonPrimitive("openai"))
+                        put("open_ai_mode", JsonPrimitive("proxy"))
+                        put("selectedProxyConfigId", JsonPrimitive(p.id))
+                        p.model?.let { put("openAiModel", JsonPrimitive(it)) }
+                    },
+                )
+                val options = openRouter.get(p.id).takeIf { OpenRouterOptions.isOpenRouter(p.url) }
+                val target = ProxyTarget(url = p.url, key = p.key, shape = { payload ->
+                    val shaped = options?.applyTo(payload) ?: payload
+                    p.model?.let { JsonObject(shaped + ("model" to JsonPrimitive(it))) } ?: shaped
+                })
+                GenerationEnvelope.userConfig(profileConfig = config, reverseProxyKey = p.key, reverseProxyUrl = p.url, routerEnabled = false) to target
+            }
+        }
     }
 
     /** Where the payload goes, and what OpenRouter options it picks up on the way. */

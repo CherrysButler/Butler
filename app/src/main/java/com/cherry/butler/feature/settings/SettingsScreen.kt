@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -238,8 +240,140 @@ private fun ModelSection(
                 onClick = onOpenRouter,
             )
         }
+        WriterPicker(settings, viewModel)
         if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration)
         LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts)
+    }
+}
+
+/**
+ * Which model writes the user's own lines (write for me, enhance my draft): the chat's own,
+ * JLLM, or a proxy set: one of the saved presets, with its own model if wanted. The
+ * character keeps answering from the choice above.
+ */
+@Composable
+private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
+    val writer by viewModel.writer.collectAsStateWithLifecycle()
+    var configuring by remember { mutableStateOf(false) }
+    val asProxy = writer as? com.cherry.butler.core.data.Writer.Proxy
+    val preset = asProxy?.let { w -> settings.proxies.firstOrNull { w.id in it.ids } }
+    val value = when {
+        writer == com.cherry.butler.core.data.Writer.Jllm -> "JLLM"
+        asProxy != null && preset != null -> "${preset.name.ifBlank { "Untitled" }} · ${asProxy.model ?: preset.model.ifBlank { "no model" }}"
+        asProxy != null -> "Same as the chat (that proxy is gone)"
+        else -> "Same as the chat"
+    }
+    DropRow(title = "Write for me uses", value = value) { close ->
+        DropItem(
+            title = "Same as the chat",
+            subtitle = "Whatever writes the character",
+            selected = writer == com.cherry.butler.core.data.Writer.SameAsChat,
+            onClick = { close(); viewModel.setWriter(com.cherry.butler.core.data.Writer.SameAsChat) },
+        )
+        DropItem(
+            title = "A proxy set",
+            subtitle = if (preset != null) value else "Pick a preset, and a model if you like",
+            selected = asProxy != null && preset != null,
+            onClick = { close(); configuring = true },
+            trailing = {
+                Icon(Icons.Rounded.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
+            },
+        )
+        DropItem(
+            title = "JLLM",
+            subtitle = "Janitor's own model",
+            selected = writer == com.cherry.butler.core.data.Writer.Jllm,
+            onClick = { close(); viewModel.setWriter(com.cherry.butler.core.data.Writer.Jllm) },
+        )
+    }
+    if (configuring) {
+        WriterProxySheet(
+            presets = settings.proxies,
+            current = asProxy,
+            onSave = { configuring = false; viewModel.setWriter(it) },
+            onDismiss = { configuring = false },
+        )
+    }
+}
+
+/**
+ * The proxy set that writes the user's lines: one of the saved presets (its address and key),
+ * and the model, which starts as the preset's own and can be changed for this alone.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun WriterProxySheet(
+    presets: List<com.cherry.butler.core.data.ProxyConfig>,
+    current: com.cherry.butler.core.data.Writer.Proxy?,
+    onSave: (com.cherry.butler.core.data.Writer.Proxy) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var chosen by remember { mutableStateOf(presets.firstOrNull { p -> current != null && current.id in p.ids } ?: presets.firstOrNull()) }
+    var model by remember { mutableStateOf(current?.model.orEmpty()) }
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = com.cherry.butler.core.design.SheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().imePadding().padding(bottom = 16.dp)) {
+            Text(
+                "Write for me uses",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            Text(
+                "Your lines come from this; the character still answers from your chat's choice.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ButlerTheme.colors.textLow,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
+            )
+            if (presets.isEmpty()) {
+                Text(
+                    "No proxy presets yet. Add one under Model first.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ButlerTheme.colors.textMed,
+                    modifier = Modifier.padding(16.dp),
+                )
+                return@Column
+            }
+            Text("Preset", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+            presets.forEach { p ->
+                DropItem(
+                    title = p.name.ifBlank { "Untitled" },
+                    subtitle = proxyLine(p.model, p.apiUrl, p.hasKey),
+                    selected = p == chosen,
+                    onClick = { chosen = p },
+                )
+            }
+            FieldBlock(
+                label = "Model",
+                value = model,
+                onChange = { model = it },
+                placeholder = chosen?.model?.ifBlank { null } ?: "The preset's model",
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                val preset = chosen
+                Box(
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .background(if (preset != null) MaterialTheme.colorScheme.primary else ButlerTheme.colors.surfaceHigh)
+                        .clickable(enabled = preset != null) {
+                            preset?.let { onSave(com.cherry.butler.core.data.Writer.Proxy(it.clientId ?: it.id, model.trim().ifBlank { null })) }
+                        }
+                        .padding(horizontal = 18.dp, vertical = 11.dp),
+                ) {
+                    Text("Use this", style = MaterialTheme.typography.labelLarge, color = if (preset != null) MaterialTheme.colorScheme.onPrimary else ButlerTheme.colors.textLow)
+                }
+            }
+        }
     }
 }
 
@@ -306,7 +440,16 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
             }
         }
         LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize)
+        BackgroundRow()
     }
+}
+
+/** The picture behind every chat: opens the backgrounds library. */
+@Composable
+private fun BackgroundRow() {
+    var open by remember { mutableStateOf(false) }
+    LinkRow(title = "Chat background", subtitle = "Pictures behind your chats", onClick = { open = true })
+    if (open) BackgroundsSheet(chatId = null, onDismiss = { open = false })
 }
 
 /** A thumbnail of the look (its ground, one card, a short red bar) with its name under it. */

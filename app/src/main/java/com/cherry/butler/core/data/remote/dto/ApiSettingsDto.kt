@@ -16,14 +16,20 @@ import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class ApiSettingsDto(
-    val settings: SettingsDto,
+    /**
+     * Null on an account that has never saved AI settings (`materialized: false`, seen on a
+     * fresh account 2026-10-05). Such an account generates with JLLM, as the website does.
+     */
+    @SerialName("settings") private val stored: SettingsDto? = null,
     @SerialName("proxy_configs") val proxyConfigs: List<ProxyConfigDto> = emptyList(),
     /**
      * Present on `GET`, absent from every `PATCH` response (verified 2026-10-03). Null means
      * "not sent", not "none": the caller keeps the list it already has.
      */
     val prompts: List<PromptDto>? = null,
-)
+) {
+    val settings: SettingsDto get() = stored ?: SettingsDto(source = "janitor")
+}
 
 @Serializable
 data class SettingsDto(

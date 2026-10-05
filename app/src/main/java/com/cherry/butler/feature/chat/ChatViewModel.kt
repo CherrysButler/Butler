@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -45,6 +46,9 @@ import com.cherry.butler.core.data.OpenRouterOptionsStore
 import com.cherry.butler.core.data.AiSettings
 import com.cherry.butler.core.data.ProxyDraft
 import com.cherry.butler.core.generation.ChoicesService
+import com.cherry.butler.core.generation.SuggestionService
+import com.cherry.butler.core.data.ChatBackground
+import com.cherry.butler.core.data.ChatBackgrounds
 import com.cherry.butler.core.data.ChatTransfer
 import com.cherry.butler.core.data.ChatFormats
 import com.cherry.butler.ui.components.ExportFormat
@@ -78,6 +82,8 @@ class ChatViewModel @Inject constructor(
     private val openRouter: OpenRouterOptionsStore,
     private val choices: ChoicesService,
     private val transfer: ChatTransfer,
+    private val suggestions: SuggestionService,
+    private val backgrounds: ChatBackgrounds,
 ) : ViewModel() {
 
     /** A branch or copy being written: (done, total), or null when none is. */
@@ -131,6 +137,7 @@ class ChatViewModel @Inject constructor(
     fun sendChoice(text: String) {
         choices.dismiss(chatId)
         viewModelScope.launch {
+            commitIntro()
             val active = activePersona.value
             val persona = if (active != null) active.id else repository.chat(chatId)?.personaId
             pipeline.send(chatId, text, persona)
@@ -252,6 +259,15 @@ class ChatViewModel @Inject constructor(
     val transcript: StateFlow<List<MessageEntity>> = repository.observeTranscript(chatId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** [transcript] as drawn: the opening line shows the intro picked but not yet sent. */
+    val shownTranscript: StateFlow<List<MessageEntity>> by lazy {
+        combine(transcript, pendingIntro) { rows, intro ->
+            val opening = rows.firstOrNull()
+            if (intro == null || opening == null || !opening.isBot || rows.any { !it.isBot }) rows
+            else listOf(opening.copy(text = intro)) + rows.drop(1)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }
+
     /**
      * Fills `{{user}}` until the chat's own detail arrives: the profile, which plays in any
      * chat that names no persona.
@@ -363,6 +379,8 @@ class ChatViewModel @Inject constructor(
      * just sent) is written at once, so a sent line can never come back as a draft.
      */
     fun onDraftChanged(text: String) {
+        // Typing over a written line makes it the user's own: Undo no longer applies.
+        (suggestion.value as? SuggestionService.State.Ready)?.let { if (it.text != text) suggestions.clear(chatId) }
         savedStateHandle[KEY_DRAFT] = text
         draftSave?.cancel()
         if (text.isBlank()) {
@@ -394,13 +412,67 @@ class ChatViewModel @Inject constructor(
 
     fun notificationsAsked() = background.markPermissionAsked()
 
+    // ---- background -------------------------------------------------------------------
+
+    val chatBackground: StateFlow<ChatBackground?> by lazy {
+        backgrounds.forChat(chatId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }
+
+    // ---- write for me / enhance my draft ------------------------------------------------
+
+    /** The line being written for the user, or the one just written (Undo / Again under it). */
+    val suggestion: StateFlow<SuggestionService.State?> by lazy {
+        suggestions.states.map { it[chatId] }.stateIn(viewModelScope, SharingStarted.Eagerly, suggestions.states.value[chatId])
+    }
+
+    init {
+        // A finished line goes into the composer; a failure says so and leaves the draft be.
+        viewModelScope.launch {
+            suggestions.states.map { it[chatId] }.distinctUntilChanged().collect { state ->
+                when (state) {
+                    is SuggestionService.State.Ready -> if (draft.value != state.text) {
+                        savedStateHandle[KEY_DRAFT] = state.text
+                        lastPlace.saveDraft(chatId, state.text)
+                    }
+                    is SuggestionService.State.Failed -> {
+                        suggestions.clear(chatId)
+                        _notices.send("Couldn't write it. ${state.message}")
+                    }
+                    else -> Unit
+                }
+            }
+        }
+    }
+
+    /** Writes the next line from scratch, or rewrites what is in the composer. */
+    fun writeForMe() {
+        if (suggestion.value is SuggestionService.State.Writing) return
+        suggestions.write(chatId, draft.value.trim(), pendingIntro.value)
+    }
+
+    fun stopWriting() = suggestions.stop(chatId)
+
+    /** Puts back what was in the composer before it was written over. */
+    fun undoWrite() {
+        val state = suggestion.value ?: return
+        suggestions.clear(chatId)
+        onDraftChanged(state.original)
+    }
+
+    fun writeAgain() {
+        val state = suggestion.value ?: return
+        suggestions.write(chatId, state.original, pendingIntro.value)
+    }
+
     /** Persists the draft as a send and clears the composer. The network happens elsewhere. */
     fun send() {
         val text = draft.value.trim()
         if (text.isEmpty()) return
+        suggestions.clear(chatId)
         onDraftChanged("")
         choices.dismiss(chatId)
         viewModelScope.launch {
+            commitIntro()
             val active = activePersona.value
             val persona = if (active != null) active.id else repository.chat(chatId)?.personaId
             pipeline.send(chatId, text, persona)
@@ -446,9 +518,37 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The intro picked for the opening line, on screen only until the first send: stepping
+     * through them costs no network, and a chat left without a word keeps what Janitor has.
+     */
+    private val pendingIntro: StateFlow<String?> = savedStateHandle.getStateFlow(KEY_INTRO, null)
+
+    fun pickIntro(opening: MessageEntity, text: String) {
+        val stored = transcript.value.firstOrNull { it.localId == opening.localId }?.text
+        savedStateHandle[KEY_INTRO] = text.takeIf { it != stored }
+    }
+
+    /**
+     * Before the first line goes out: the picked intro becomes the opening on the phone
+     * (so the reply answers it) and is sent to Janitor alongside, not ahead of, the line.
+     */
+    private suspend fun commitIntro() {
+        val text = pendingIntro.value ?: return
+        savedStateHandle[KEY_INTRO] = null
+        val opening = transcript.value.firstOrNull()?.takeIf { it.isBot } ?: return
+        repository.keepIntroLocally(chatId, opening, text)
+        viewModelScope.launch {
+            runCatching { repository.pushIntro(chatId, opening, text) }
+                .onFailure { e -> _notices.send("The intro you picked wasn't saved on Janitor. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") }
+        }
+    }
+
     // ---- editing ----------------------------------------------------------------------
 
     fun startEdit(message: MessageEntity) {
+        // Editing the opening starts from the intro on screen and saves it as the edit.
+        savedStateHandle[KEY_INTRO] = null
         savedStateHandle[KEY_EDIT_ID] = message.localId
         savedStateHandle[KEY_EDIT_TEXT] = message.text
         _editStatus.value = EditStatus()
@@ -527,6 +627,7 @@ class ChatViewModel @Inject constructor(
         const val DRAFT_SAVE_MS = 400L
         const val KEY_EDIT_ID = "editId"
         const val KEY_EDIT_TEXT = "editText"
+        const val KEY_INTRO = "intro"
         const val NO_EDIT = -1L
     }
 }

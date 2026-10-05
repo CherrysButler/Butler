@@ -18,10 +18,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.AutoAwesome
+import com.cherry.butler.core.generation.SuggestionService
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.cherry.butler.core.design.Motion
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.togetherWith
@@ -49,8 +55,10 @@ import androidx.compose.ui.draw.clip
 
 /**
  * The text window. A ruled field on the ground, and one red advance key at the right;
- * while a reply is being written the key becomes Stop. Nothing else lives here: the
- * draft is already in saved state before it is ever sent.
+ * while a reply is being written the key becomes Stop. Beside it, the write key: empty
+ * field, "write for me"; words in it, "enhance my draft". The line being written streams
+ * into the field, and a written line can be undone or written again until it is edited.
+ * The draft is already in saved state before it is ever sent.
  */
 @Composable
 fun Composer(
@@ -62,7 +70,13 @@ fun Composer(
     modifier: Modifier = Modifier,
     persona: PersonaOption? = null,
     onPickPersona: (() -> Unit)? = null,
+    suggestion: SuggestionService.State? = null,
+    onWrite: (() -> Unit)? = null,
+    onStopWriting: () -> Unit = {},
+    onUndoWrite: () -> Unit = {},
+    onWriteAgain: () -> Unit = {},
 ) {
+    val writing = suggestion as? SuggestionService.State.Writing
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -70,6 +84,21 @@ fun Composer(
             .navigationBarsPadding()
             .imePadding(),
     ) {
+        (suggestion as? SuggestionService.State.Ready)?.let { written ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (written.original.isBlank()) "Written for you" else "Draft rewritten",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ButlerTheme.colors.textLow,
+                    modifier = Modifier.weight(1f),
+                )
+                StateAction(label = "Undo", onClick = onUndoWrite)
+                StateAction(label = "Again", onClick = onWriteAgain, emphasis = true)
+            }
+        }
         // One field across the whole width, as Janitor's message box: the persona's face at
         // its start, the words, the send key at its end. The keys sit inside the field, so the
         // writing room is the screen's width and not what two keys leave of it.
@@ -87,7 +116,22 @@ fun Composer(
                 Spacer(Modifier.width(10.dp))
             }
             Box(modifier = Modifier.weight(1f).heightIn(min = 40.dp).padding(vertical = 7.dp), contentAlignment = Alignment.CenterStart) {
-                BasicTextField(
+                if (writing != null) {
+                    // Read-only while it arrives, six lines tall at most, and held at its newest
+                    // words: clipped at the top, a growing line looked as if it had stopped.
+                    val style = MaterialTheme.typography.bodyLarge
+                    val scroll = rememberScrollState()
+                    LaunchedEffect(writing.text) { scroll.scrollTo(scroll.maxValue) }
+                    Text(
+                        text = writing.text.ifEmpty { if (writing.original.isBlank()) "Writing…" else "Rewriting…" },
+                        style = style,
+                        color = if (writing.text.isEmpty()) ButlerTheme.colors.textLow else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = with(LocalDensity.current) { (style.lineHeight * 6).toDp() })
+                            .verticalScroll(scroll),
+                    )
+                } else BasicTextField(
                     value = draft,
                     onValueChange = onDraftChanged,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
@@ -107,8 +151,12 @@ fun Composer(
                     },
                 )
             }
+            if (onWrite != null && (!busy || writing != null)) {
+                Spacer(Modifier.width(4.dp))
+                WriteKey(writing = writing != null, rewrite = draft.isNotBlank(), onWrite = onWrite, onStop = onStopWriting)
+            }
             Spacer(Modifier.width(8.dp))
-            AdvanceKey(busy = busy, enabled = draft.isNotBlank(), onSend = onSend, onStop = onStop)
+            AdvanceKey(busy = busy, enabled = draft.isNotBlank() && writing == null, onSend = onSend, onStop = onStop)
         }
     }
 }
@@ -130,6 +178,33 @@ private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .semantics { contentDescription = if (name.isEmpty()) "Choose persona" else "Playing as $name. Change persona" },
     )
+}
+
+/**
+ * Write for me / enhance my draft: a quiet glyph on the field, never a second red key.
+ * While the line is being written it is that line's Stop.
+ */
+@Composable
+private fun WriteKey(writing: Boolean, rewrite: Boolean, onWrite: () -> Unit, onStop: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = if (writing) onStop else onWrite)
+            .semantics { contentDescription = if (writing) "Stop writing" else if (rewrite) "Enhance my draft" else "Write for me" },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (writing) {
+            Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
+        } else {
+            Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = if (rewrite) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
+                modifier = Modifier.size(21.dp),
+            )
+        }
+    }
 }
 
 /**

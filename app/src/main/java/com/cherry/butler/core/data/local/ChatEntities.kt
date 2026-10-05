@@ -43,6 +43,12 @@ data class ChatEntity(
     val cachedAt: Long,
     /** The folders this chat is in, as `,id,id,` so a folder can be matched with LIKE; "" for none. */
     @ColumnInfo(defaultValue = "") val folderIds: String = "",
+    /**
+     * The character's openings, from the chat detail's `character.first_messages`. The
+     * character endpoint hides them on mobile ("hidden on mobile (N tokens)"); the chat
+     * detail carries the real text (verified 2026-10-05). The server seeds the first one.
+     */
+    @ColumnInfo(defaultValue = "") val intros: List<String> = emptyList(),
 )
 
 /** `[a, b]` → `,a,b,` (and nothing → ""), the form [ChatEntity.folderIds] keeps. */

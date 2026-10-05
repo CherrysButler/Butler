@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.outlined.FileDownload
@@ -51,6 +53,7 @@ fun ChatMenu(
     hasSummary: Boolean,
     onExport: () -> Unit = {},
     onDelete: () -> Unit = {},
+    onBackground: () -> Unit = {},
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -66,6 +69,7 @@ fun ChatMenu(
             onModelSettings?.let { go -> MenuItem(Icons.Outlined.AutoAwesome, "Model settings") { open = false; go() } }
             MenuItem(Icons.Outlined.AutoStories, if (hasSummary) "Chat memory" else "Chat memory (empty)") { open = false; onMemory() }
             MenuItem(Icons.Outlined.Palette, "Customize text") { open = false; onCustomize() }
+            MenuItem(Icons.Outlined.Wallpaper, "Background") { open = false; onBackground() }
             HorizontalDivider(color = ButlerTheme.colors.outlineFaint)
             MenuItem(Icons.AutoMirrored.Outlined.Chat, "New chat") { open = false; onNewChat() }
             MenuItem(Icons.Outlined.Person, "Character page") { open = false; onCharacter() }

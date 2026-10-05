@@ -17,7 +17,7 @@ set -euo pipefail
 PKG="${BUTLER_PKG:-com.cherry.butler.debug}"
 REMOTE="files/dev-session.json"
 BACKEND="https://janitorai.com/mb"
-CONFIG="app/src/main/java/com/cherry/janitor/core/config/JanitorConfig.kt"
+CONFIG="app/src/main/java/com/cherry/butler/core/config/JanitorConfig.kt"
 
 # The anon key is split across concatenated string literals in JanitorConfig.kt.
 anon_key() {

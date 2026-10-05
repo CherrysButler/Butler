@@ -23,12 +23,12 @@ class RoutingTransportTest {
     }
 
     @Test
-    fun `janitor goes over the socket, everything else over http`() {
+    fun `janitor and a never-chosen provider go over the socket, a proxy over http`() {
         val calls = mutableListOf<String>()
         val router = RoutingTransport(proxyPath = Spy("http", calls), jllm = Spy("ws", calls))
         router.generate(envelope("janitor"), null)
         router.generate(envelope("openai"), null)
         router.generate(envelope(null), null)
-        assertEquals(listOf("ws", "http", "http"), calls)
+        assertEquals(listOf("ws", "http", "ws"), calls)
     }
 }

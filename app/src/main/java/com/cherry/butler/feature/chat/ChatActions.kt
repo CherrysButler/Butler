@@ -283,6 +283,8 @@ fun LineEditor(
 /**
  * Under the last reply: which variant this is, in the dot face, with a step either way.
  * Past the last variant the step becomes a new reply. Continue sits at the far end.
+ * On an unanswered opening it steps through the character's intros instead ([noun]
+ * "intro", no new reply past the end); [index] -1 means the line matches none of them.
  */
 @Composable
 fun VariantBar(
@@ -296,6 +298,8 @@ fun VariantBar(
     onNew: () -> Unit,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
+    noun: String = "reply",
+    canAskNew: Boolean = true,
     /** null hides it: not on JLLM, not while busy, not when the choices are already up. */
     onChoices: (() -> Unit)? = null,
 ) {
@@ -304,26 +308,28 @@ fun VariantBar(
             IconButton(onClick = onPrevious, enabled = !busy && index > 0, modifier = Modifier.size(40.dp)) {
                 Icon(
                     Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                    contentDescription = "Previous reply",
+                    contentDescription = "Previous $noun",
                     tint = if (!busy && index > 0) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.outlineFaint,
                 )
             }
             PlateText(
-                text = "${index + 1}/$count",
+                text = if (index < 0) "–/$count" else "${index + 1}/$count",
                 level = PlateLevel.Small,
                 color = if (count > 1) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.textLow,
             )
             val atEnd = index >= count - 1
-            IconButton(onClick = if (atEnd) onNew else onNext, enabled = !busy, modifier = Modifier.size(40.dp)) {
+            val newAtEnd = atEnd && canAskNew
+            val nextEnabled = !busy && (!atEnd || canAskNew)
+            IconButton(onClick = if (newAtEnd) onNew else onNext, enabled = nextEnabled, modifier = Modifier.size(40.dp)) {
                 Icon(
-                    imageVector = if (atEnd) Icons.Rounded.Refresh else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = if (atEnd) "New reply" else "Next reply",
+                    imageVector = if (newAtEnd) Icons.Rounded.Refresh else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = if (newAtEnd) "New reply" else "Next $noun",
                     tint = when {
-                        busy -> ButlerTheme.colors.outlineFaint
-                        atEnd -> MaterialTheme.colorScheme.primary
+                        !nextEnabled -> ButlerTheme.colors.outlineFaint
+                        newAtEnd -> MaterialTheme.colorScheme.primary
                         else -> MaterialTheme.colorScheme.onSurface
                     },
-                    modifier = Modifier.size(if (atEnd) 20.dp else 24.dp),
+                    modifier = Modifier.size(if (newAtEnd) 20.dp else 24.dp),
                 )
             }
         }

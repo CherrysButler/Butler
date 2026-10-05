@@ -171,6 +171,7 @@ class RoutingTransport(
 ) : GenerationTransport {
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> {
         val api = runCatching { envelope["userConfig"]?.jsonObject?.get("api")?.jsonPrimitive?.contentOrNull }.getOrNull()
-        return if (api == "janitor") jllm.generate(envelope, proxy) else proxyPath.generate(envelope, proxy)
+        // No `api` at all is a fresh account that never chose: JLLM, as on the website.
+        return if (api == null || api == "janitor") jllm.generate(envelope, proxy) else proxyPath.generate(envelope, proxy)
     }
 }

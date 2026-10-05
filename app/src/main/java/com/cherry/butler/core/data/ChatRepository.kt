@@ -249,6 +249,20 @@ class ChatRepository @Inject constructor(
     }
 
     /**
+     * Makes the intro picked on screen the chat's opening line, at the first send. The
+     * phone's copy changes at once, so the reply being asked for already answers it; Janitor
+     * is told by [pushIntro] (`PATCH {message}`, verified 2026-10-05).
+     */
+    suspend fun keepIntroLocally(chatId: Long, opening: MessageEntity, text: String) {
+        messageDao.updateText(opening.localId, text, System.currentTimeMillis())
+        chatDao.setActivity(chatId, opening.createdAt, text.take(160), 1)
+    }
+
+    suspend fun pushIntro(chatId: Long, opening: MessageEntity, text: String) {
+        opening.serverId?.let { remote.patchMessage(chatId, it, buildJsonObject { put("message", text) }) }
+    }
+
+    /**
      * Deletes [from] and everything after it, the way the official client does. A reply
      * goes with all of its variants, so deleting what is on screen never uncovers an
      * alternate underneath. Returns the number of lines removed.
@@ -325,6 +339,10 @@ private fun ChatDetailDto.toEntity(existing: ChatEntity?, now: Long): ChatEntity
         summaryChatId = chat.summaryChatId,
         detailLoaded = true,
         cachedAt = now,
+        // The detail doesn't carry folders; the row is replaced whole, so keep what the list said.
+        folderIds = existing?.folderIds.orEmpty(),
+        intros = character.firstMessages.filterNotNull().filter { it.isNotBlank() }
+            .ifEmpty { listOfNotNull(character.firstMessage?.takeIf { it.isNotBlank() }) },
     )
 }
 

@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.settings
 
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cherry.butler.core.data.AiSettings
@@ -32,7 +35,14 @@ class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     private val memory: MemoryPrefs,
     private val themes: ThemePrefs,
+    private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
 ) : ViewModel() {
+
+    /** Which model writes the user's own lines. */
+    val writer: StateFlow<com.cherry.butler.core.data.Writer> = writerPrefs.writer
+
+    fun setWriter(writer: com.cherry.butler.core.data.Writer) = writerPrefs.set(writer)
+
 
     val theme: StateFlow<AppTheme> = themes.theme
 

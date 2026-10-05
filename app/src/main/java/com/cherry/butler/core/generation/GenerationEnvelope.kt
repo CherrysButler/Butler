@@ -16,6 +16,8 @@ enum class GenerateMode(val wire: String) {
     Alternative("ALTERNATIVE"),
     Continue("CONTINUE"),
     SummaryFull("SUMMARY_FULL"),
+    /** The user's next line, written or rewritten for them; see [GenerationEnvelope.build]'s `draft`. */
+    Suggestion("SUGGESTION"),
 }
 
 /**
@@ -52,6 +54,13 @@ object GenerationEnvelope {
         clientPlatform: String,
         memoryReplacesHistory: Boolean? = null,
         forceRefetch: Set<String> = emptySet(),
+        /**
+         * With [GenerateMode.Suggestion]: the user's draft, sent as a trailing user line with
+         * no id ("" asks for a line from scratch, text asks for that text rewritten) beside
+         * `suggestionMode: "write"`. Janitor writes the instruction itself, on JLLM and when
+         * it assembles a proxy's prompt alike (captured on the website, 2026-10-05).
+         */
+        draft: String? = null,
     ): JsonObject = buildJsonObject {
         put("chat", buildJsonObject {
             put("id", chatId)
@@ -74,6 +83,12 @@ object GenerationEnvelope {
                     put("message", m.text)
                 })
             }
+            if (draft != null) add(buildJsonObject {
+                put("chat_id", chatId)
+                put("is_bot", false)
+                put("is_main", true)
+                put("message", draft)
+            })
         })
         put("profile", buildJsonObject {
             put("id", profile.id)
@@ -93,6 +108,7 @@ object GenerationEnvelope {
         put("userConfig", userConfig)
         put("generateMode", mode.wire)
         put("generateType", "CHAT")
+        if (draft != null) put("suggestionMode", "write")
         put("clientPlatform", clientPlatform)
         put("forcedPromptGenerationCacheRefetch", buildJsonObject {
             for (k in listOf("character", "chat", "profile", "script")) put(k, k in forceRefetch)
@@ -111,6 +127,12 @@ object GenerationEnvelope {
         reverseProxyUrl: String?,
         routerEnabled: Boolean,
     ): JsonObject = buildJsonObject {
+        // A fresh account's config is `{}` until AI settings are first saved; Janitor (and
+        // the website) treat that as JLLM, so the envelope says so rather than saying nothing.
+        if ("api" !in profileConfig) {
+            put("api", "janitor")
+            put("open_ai_mode", "api_key")
+        }
         for ((k, v) in profileConfig) put(k, v)
         put("reverseProxyKey", reverseProxyKey?.let(::JsonPrimitive) ?: JsonNull)
         if (reverseProxyUrl != null) put("open_ai_reverse_proxy", reverseProxyUrl)
