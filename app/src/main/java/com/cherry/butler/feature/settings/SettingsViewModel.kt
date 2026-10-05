@@ -48,6 +48,10 @@ class SettingsViewModel @Inject constructor(
     val stripTags: StateFlow<Boolean> = addons.stripTags
     fun setButter(on: Boolean) = addons.setButter(on)
     val butterTint: StateFlow<Boolean> = addons.butterTint
+    val highlights: StateFlow<Boolean> = addons.highlights
+    fun setHighlights(on: Boolean) = addons.setHighlights(on)
+    val moods: StateFlow<Set<com.cherry.butler.core.generation.Mood>> = addons.moods
+    fun setMood(mood: com.cherry.butler.core.generation.Mood, on: Boolean) = addons.setMood(mood, on)
     fun setButterTint(on: Boolean) = addons.setButterTint(on)
     fun setStripTags(strip: Boolean) = addons.setStripTags(strip)
 

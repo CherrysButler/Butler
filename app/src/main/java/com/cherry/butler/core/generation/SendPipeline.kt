@@ -75,6 +75,7 @@ class SendPipeline @Inject constructor(
     private val background: BackgroundReplies,
     private val gauge: ContextGauge,
     private val addons: PromptAddons,
+    private val moodTagger: MoodTagger,
 ) {
     private val messageDao = db.messageDao()
     private val jobDao = db.sendJobDao()
@@ -558,6 +559,8 @@ class SendPipeline @Inject constructor(
             for (sibling in siblings) messageDao.setMain(sibling.localId, false)
             messageDao.setMain(botLocalId, true)
         }
+        // A new reply (not a continued one) gets its Highlights now that it is saved and final.
+        if (job.mode == GenerateMode.New.wire || job.mode == GenerateMode.Alternative.wire) moodTagger.tagLater(job.chatId, botLocalId)
         return persist(job.copy(state = SendJobState.COMPLETE))
     }
 

@@ -12,6 +12,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -34,8 +37,12 @@ data class RpStyles(
     val thought: SpanStyle,
     /** The user's persona name where it filled `{{user}}`: Butler red. */
     val persona: SpanStyle,
-    /** Butter mode's beats: a faint wash of the look's amber, under whatever colour the words have. */
-    val butter: SpanStyle = SpanStyle(),
+    /**
+     * Butter and the Highlights moods: not a span style but a highlighter stroke drawn behind
+     * the letters ([MarkedText]), in each kind's colour. A background span filled the whole
+     * (tall) line and stacked into blocks.
+     */
+    val marks: Map<InlineKind, Color> = emptyMap(),
 ) {
     fun forKind(kind: InlineKind): SpanStyle = when (kind) {
         InlineKind.Strong -> strong
@@ -43,7 +50,7 @@ data class RpStyles(
         InlineKind.Speech -> speech
         InlineKind.Thought -> thought
         InlineKind.Persona -> persona
-        InlineKind.Butter -> butter
+        else -> SpanStyle()
     }
 }
 
@@ -70,10 +77,20 @@ fun rememberRpStyles(baseColor: Color): RpStyles {
             speech = SpanStyle(color = look.speech?.let { Color(it) } ?: colors.speech),
             thought = SpanStyle(fontStyle = FontStyle.Italic, color = look.thought?.let { Color(it) } ?: colors.thought),
             persona = SpanStyle(color = red),
-            butter = if (tint) SpanStyle(background = colors.warn.copy(alpha = 0.16f)) else SpanStyle(),
+            marks = buildMap {
+                if (tint) put(InlineKind.Butter, colors.warn.copy(alpha = MARK_ALPHA))
+                put(InlineKind.Romantic, colors.romance.copy(alpha = MARK_ALPHA))
+                put(InlineKind.Erotic, colors.desire.copy(alpha = MARK_ALPHA))
+                put(InlineKind.Dangerous, colors.danger.copy(alpha = MARK_ALPHA))
+                put(InlineKind.Sad, colors.speech.copy(alpha = MARK_ALPHA))
+                put(InlineKind.Funny, colors.success.copy(alpha = MARK_ALPHA))
+            },
         )
     }
 }
+
+/** How strong a highlighter stroke is: "ever slightly", but a clear shape. */
+private const val MARK_ALPHA = 0.22f
 
 /** The plain-narration ink: the reader's choice, else [base]. */
 @Composable
@@ -118,8 +135,9 @@ fun RpText(
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(paragraphSpacing)) {
         for (block in blocks) {
             when (block) {
-                is Block.Paragraph -> Text(
+                is Block.Paragraph -> MarkedText(
                     text = remember(block, styles) { block.toAnnotated(styles) },
+                    marks = remember(block, styles) { block.spans.mapNotNull { s -> styles.marks[s.kind]?.let { Triple(s.start, s.end, it) } } },
                     style = style,
                     color = color,
                 )
@@ -130,8 +148,9 @@ fun RpText(
                         color = ButlerTheme.colors.textLow,
                         modifier = Modifier.width(22.dp),
                     )
-                    Text(
+                    MarkedText(
                         text = remember(block, styles) { block.toAnnotated(styles) },
+                        marks = remember(block, styles) { block.spans.mapNotNull { s -> styles.marks[s.kind]?.let { Triple(s.start, s.end, it) } } },
                         style = style,
                         color = color,
                     )
@@ -170,4 +189,55 @@ private fun List<Block>.toCompactAnnotated(styles: RpStyles): AnnotatedString = 
         append(text.replace('\n', ' '))
         for (s in spans) addStyle(styles.forKind(s.kind), base + s.start, base + s.end)
     }
+}
+
+/**
+ * Text with highlighter strokes behind some of it: for each (start, end, colour), a rounded
+ * band per line, as tall as the letters rather than the line, so tagged lines in a loosely set
+ * paragraph stay separate strokes instead of merging into a block.
+ */
+@Composable
+private fun MarkedText(
+    text: AnnotatedString,
+    marks: List<Triple<Int, Int, Color>>,
+    style: TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    if (marks.isEmpty()) {
+        Text(text = text, style = style, color = color, modifier = modifier)
+        return
+    }
+    var layout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        onTextLayout = { layout = it },
+        modifier = modifier.drawBehind {
+            val l = layout ?: return@drawBehind
+            val font = style.fontSize.toPx()
+            val padX = 2.dp.toPx()
+            val radius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+            for ((start, end, tint) in marks) {
+                val from = start.coerceIn(0, l.layoutInput.text.length)
+                val to = end.coerceIn(from, l.layoutInput.text.length)
+                if (to <= from) continue
+                val firstLine = l.getLineForOffset(from)
+                val lastLine = l.getLineForOffset((to - 1).coerceAtLeast(from))
+                for (line in firstLine..lastLine) {
+                    val left = if (line == firstLine) l.getHorizontalPosition(from, true) else l.getLineLeft(line)
+                    val right = if (line == lastLine) l.getHorizontalPosition(to, true) else l.getLineRight(line)
+                    if (right - left < 1f) continue
+                    val baseline = l.getLineBaseline(line)
+                    drawRoundRect(
+                        color = tint,
+                        topLeft = androidx.compose.ui.geometry.Offset(minOf(left, right) - padX, baseline - font * 0.8f),
+                        size = androidx.compose.ui.geometry.Size(kotlin.math.abs(right - left) + padX * 2, font * 1.06f),
+                        cornerRadius = radius,
+                    )
+                }
+            }
+        },
+    )
 }

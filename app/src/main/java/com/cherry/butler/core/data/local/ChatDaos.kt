@@ -203,6 +203,10 @@ interface MessageDao {
     @Query("UPDATE messages SET text = :text, markup = NULL, cachedAt = :now WHERE localId = :localId")
     suspend fun updateText(localId: Long, text: String, now: Long)
 
+    /** The tagged copy alone (Highlights added its tags after the reply was saved). */
+    @Query("UPDATE messages SET markup = :markup WHERE localId = :localId")
+    suspend fun setMarkup(localId: Long, markup: String?)
+
     /** A finished reply: the text Janitor gets, and the tagged copy kept here (or null). */
     @Query("UPDATE messages SET text = :text, markup = :markup, thinking = :thinking, streamState = NULL, cachedAt = :now WHERE localId = :localId")
     suspend fun finishReply(localId: Long, text: String, markup: String?, thinking: String?, now: Long)

@@ -7,6 +7,12 @@ package com.cherry.butler.core.markdown
  */
 enum class SceneTag(val tag: String) {
     Butter("butter"),
+    // Highlights' moods. Order matters: each tag's private characters follow from it.
+    Romantic("romantic"),
+    Erotic("erotic"),
+    Dangerous("dangerous"),
+    Sad("sad"),
+    Funny("funny"),
     ;
 
     internal val open: Char get() = (BASE + ordinal * 2).toChar()

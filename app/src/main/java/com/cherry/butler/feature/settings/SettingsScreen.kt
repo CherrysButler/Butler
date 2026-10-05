@@ -808,7 +808,10 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
     val butter by viewModel.butter.collectAsStateWithLifecycle()
     val strip by viewModel.stripTags.collectAsStateWithLifecycle()
     val tint by viewModel.butterTint.collectAsStateWithLifecycle()
+    val highlights by viewModel.highlights.collectAsStateWithLifecycle()
+    val moods by viewModel.moods.collectAsStateWithLifecycle()
     var asking by remember { mutableStateOf(false) }
+    var askingHighlights by remember { mutableStateOf(false) }
     SettingsSection(
         title = "Butler specials",
         footnote = "These add a short instruction to every reply your model writes, so they use a few of your tokens.",
@@ -826,11 +829,34 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
                 tint,
                 viewModel::setButterTint,
             )
+        }
+        SwitchRow(
+            "Highlights",
+            "After a reply, the model points out lines that carry a mood, and each gets a soft mark of its colour.",
+            highlights,
+            { on -> if (on) askingHighlights = true else viewModel.setHighlights(false) },
+        )
+        if (highlights) MoodChips(moods, viewModel::setMood)
+        if (butter || highlights) {
             DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too") { close ->
                 DropItem(title = "Kept on this phone", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
                 DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
         }
+    }
+    if (askingHighlights) {
+        AddonWarning(
+            name = "Highlights",
+            tokens = com.cherry.butler.core.generation.PromptAddons.tokensOf(com.cherry.butler.core.generation.MoodTagger.question(moods.ifEmpty { com.cherry.butler.core.generation.Mood.entries.toSet() })),
+            tag = "romantic",
+            cost = "Your replies are written exactly as before. After each longer one, Butler asks your model one short " +
+                "follow-up: which sentences carry a mood. On a proxy that sends the reply plus about " +
+                "${com.cherry.butler.core.generation.PromptAddons.tokensOf(com.cherry.butler.core.generation.MoodTagger.question(moods.ifEmpty { com.cherry.butler.core.generation.Mood.entries.toSet() }))} " +
+                "tokens and gets a few lines back. On JLLM it is a second short generation.",
+            strip = strip,
+            onTurnOn = { keep -> askingHighlights = false; viewModel.setStripTags(keep); viewModel.setHighlights(true) },
+            onCancel = { askingHighlights = false },
+        )
     }
     if (asking) {
         AddonWarning(
@@ -845,12 +871,65 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
 }
 
 /**
+ * Which moods Highlights asks for: a chip each, wearing its colour. Fewer moods, a shorter
+ * instruction. At least one stays on.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun MoodChips(on: Set<com.cherry.butler.core.generation.Mood>, onChange: (com.cherry.butler.core.generation.Mood, Boolean) -> Unit) {
+    val colors = ButlerTheme.colors
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        com.cherry.butler.core.generation.Mood.entries.forEach { mood ->
+            val lit = mood in on
+            val wash = when (mood) {
+                com.cherry.butler.core.generation.Mood.Romantic -> colors.romance
+                com.cherry.butler.core.generation.Mood.Erotic -> colors.desire
+                com.cherry.butler.core.generation.Mood.Dangerous -> colors.danger
+                com.cherry.butler.core.generation.Mood.Sad -> colors.speech
+                com.cherry.butler.core.generation.Mood.Funny -> colors.success
+            }
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 36.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(if (lit) wash.copy(alpha = 0.22f) else ButlerTheme.colors.surfaceHigh)
+                    .border(1.dp, if (lit) wash else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+                    .clickable(enabled = !lit || on.size > 1) { onChange(mood, !lit) }
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(10.dp).background(wash, androidx.compose.foundation.shape.RoundedCornerShape(2.dp)))
+                Text(
+                    mood.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (lit) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.textLow,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
  * Said before a special is switched on: it runs on the user's own model and costs tokens,
  * and its tags either stay on this phone (clean on Janitor, gone if Butler's storage is
  * cleared) or go to Janitor too (kept with the account, shown raw on Janitor's site).
  */
 @Composable
-private fun AddonWarning(name: String, tokens: Int, tag: String, strip: Boolean, onTurnOn: (strip: Boolean) -> Unit, onCancel: () -> Unit) {
+private fun AddonWarning(
+    name: String,
+    tokens: Int,
+    tag: String,
+    strip: Boolean,
+    onTurnOn: (strip: Boolean) -> Unit,
+    onCancel: () -> Unit,
+    cost: String = "This adds a short instruction to every reply, sent to your own model: about $tokens tokens of input " +
+        "each time, and a little more output for the tags. It counts against your proxy or JLLM like any other text.",
+) {
     var keepHere by remember { mutableStateOf(strip) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
         Column(
@@ -862,8 +941,7 @@ private fun AddonWarning(name: String, tokens: Int, tag: String, strip: Boolean,
         ) {
             Text(name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp))
             Text(
-                "This adds a short instruction to every reply, sent to your own model: about $tokens tokens of input " +
-                    "each time, and a little more output for the tags. It counts against your proxy or JLLM like any other text.",
+                cost,
                 style = MaterialTheme.typography.bodyMedium,
                 color = ButlerTheme.colors.textMed,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),

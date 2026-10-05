@@ -21,8 +21,8 @@ package com.cherry.butler.core.markdown
  */
 object RpMarkdown {
 
-    /** [Butter] comes from a `<butter>` tag ([SceneTags]), not from markdown. */
-    enum class InlineKind { Strong, Action, Speech, Thought, Persona, Butter }
+    /** [Butter] and the moods come from scene tags (`<butter>`, `<romantic>`, … [SceneTags]), not markdown. */
+    enum class InlineKind { Strong, Action, Speech, Thought, Persona, Butter, Romantic, Erotic, Dangerous, Sad, Funny }
 
     /** A styled range over [Block.Paragraph.text] / [Block.ListItem.text] — end exclusive. */
     data class Span(val start: Int, val end: Int, val kind: InlineKind)
@@ -126,6 +126,11 @@ object RpMarkdown {
 
     private fun SceneTag.kind(): InlineKind = when (this) {
         SceneTag.Butter -> InlineKind.Butter
+        SceneTag.Romantic -> InlineKind.Romantic
+        SceneTag.Erotic -> InlineKind.Erotic
+        SceneTag.Dangerous -> InlineKind.Dangerous
+        SceneTag.Sad -> InlineKind.Sad
+        SceneTag.Funny -> InlineKind.Funny
     }
 
     // ---- inline ---------------------------------------------------------------

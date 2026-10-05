@@ -61,6 +61,8 @@ object GenerationEnvelope {
          * it assembles a proxy's prompt alike (captured on the website, 2026-10-05).
          */
         draft: String? = null,
+        /** A user line after the chat, in this request only (Highlights asks its question here on JLLM). */
+        extraUserLine: String? = null,
     ): JsonObject = buildJsonObject {
         put("chat", buildJsonObject {
             put("id", chatId)
@@ -83,6 +85,12 @@ object GenerationEnvelope {
                     put("message", m.text)
                 })
             }
+            if (extraUserLine != null) add(buildJsonObject {
+                put("chat_id", chatId)
+                put("is_bot", false)
+                put("is_main", true)
+                put("message", extraUserLine)
+            })
             if (draft != null) add(buildJsonObject {
                 put("chat_id", chatId)
                 put("is_bot", false)

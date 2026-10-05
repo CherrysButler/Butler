@@ -32,6 +32,9 @@ data class ButlerExtendedColors(
     val onAccentSoft: Color,
     /** The hairline drawn around every card and along the nav bar's top edge. */
     val cardOutline: Color,
+    /** Highlights' romantic and erotic washes. */
+    val romance: Color,
+    val desire: Color,
 )
 
 internal fun extendedColors(t: Tones) = ButlerExtendedColors(
@@ -49,6 +52,8 @@ internal fun extendedColors(t: Tones) = ButlerExtendedColors(
     chrome = t.chrome,
     onAccentSoft = t.onRedDim,
     cardOutline = t.cardOutline,
+    romance = t.romance,
+    desire = t.desire,
 )
 
 internal val LocalButlerExtendedColors = staticCompositionLocalOf { extendedColors(Palette.Classic) }

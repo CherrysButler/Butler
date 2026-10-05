@@ -56,6 +56,29 @@ class PromptAddons @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putBoolean(KEY_BUTTER_TINT, on).apply()
     }
 
+    private val _highlights = MutableStateFlow(prefs.getBoolean(KEY_HIGHLIGHTS, false))
+
+    /** Highlights: the model tags sentences by mood, drawn as faint washes. */
+    val highlights: StateFlow<Boolean> = _highlights.asStateFlow()
+
+    fun setHighlights(on: Boolean) {
+        _highlights.value = on
+        prefs.edit().putBoolean(KEY_HIGHLIGHTS, on).apply()
+    }
+
+    private val _moods = MutableStateFlow(
+        prefs.getStringSet(KEY_MOODS, null)?.mapNotNull { Mood.of(it) }?.toSet() ?: Mood.entries.toSet(),
+    )
+
+    /** Which moods Highlights asks for; only these go into the instruction. */
+    val moods: StateFlow<Set<Mood>> = _moods.asStateFlow()
+
+    fun setMood(mood: Mood, on: Boolean) {
+        val next = if (on) _moods.value + mood else _moods.value - mood
+        _moods.value = next
+        prefs.edit().putStringSet(KEY_MOODS, next.map { it.tag }.toSet()).apply()
+    }
+
     fun setStripTags(strip: Boolean) {
         _stripTags.value = strip
         prefs.edit().putBoolean(KEY_STRIP, strip).apply()
@@ -64,6 +87,8 @@ class PromptAddons @Inject constructor(@ApplicationContext context: Context) {
     /** The instruction for this request, or null when nothing is on or [mode] doesn't take one. */
     fun instruction(mode: GenerateMode): String? {
         if (mode != GenerateMode.New && mode != GenerateMode.Alternative) return null
+        // Highlights is not here: it asks after the reply is written (MoodTagger), so the reply
+        // itself is never bent to fit a mood.
         val parts = buildList { if (_butter.value) add(BUTTER) }
         return parts.takeIf { it.isNotEmpty() }?.joinToString("\n\n")
     }
@@ -107,11 +132,40 @@ class PromptAddons @Inject constructor(@ApplicationContext context: Context) {
                 "<butter>\"We leave now,\" she says.</butter> Wrap whole sentences and change no words. Read alone, the " +
                 "butter parts should retell the reply in short. A reply of only a few lines needs none."
 
+        /**
+         * Highlights for the chosen [moods], in one short rule with an example (an example is
+         * what gets JLLM to use a format at all; see [BUTTER]).
+         */
+        fun highlights(moods: Set<Mood>): String {
+            val list = Mood.entries.filter { it in moods }
+            val which = list.joinToString(", ") { "<${it.tag}> for ${it.meaning}" }
+            val sample = list.first()
+            return "Formatting rule for this reply: lightly tag sentences by mood with $which. Example: She sets " +
+                "the cup down. <${sample.tag}>${sample.example}</${sample.tag}> Tag only sentences that clearly carry " +
+                "the mood, usually a few per reply; most stay untagged. Whole sentences, words unchanged."
+        }
+
         /** Roughly, at four characters a token. */
         fun tokensOf(text: String): Int = (text.length + 3) / 4
 
         private const val KEY_BUTTER = "addon_butter"
         private const val KEY_STRIP = "addon_strip_tags"
         private const val KEY_BUTTER_TINT = "addon_butter_tint"
+        private const val KEY_HIGHLIGHTS = "addon_highlights"
+        private const val KEY_MOODS = "addon_moods"
+    }
+}
+
+/** A Highlights mood: its tag, what it is for (in the instruction), and the example line. */
+enum class Mood(val tag: String, val label: String, val meaning: String, val example: String) {
+    Romantic("romantic", "Romantic", "tender or loving moments", "He brushes the hair from her face."),
+    Erotic("erotic", "Erotic", "sexual or sensual ones", "Her breath catches at his touch."),
+    Dangerous("dangerous", "Dangerous", "threat or violence", "The blade presses to his throat."),
+    Sad("sad", "Sad", "grief or pain", "She hides the tears behind her hand."),
+    Funny("funny", "Funny", "humour", "The cat knocks the vase over, again."),
+    ;
+
+    companion object {
+        fun of(tag: String) = entries.firstOrNull { it.tag == tag }
     }
 }

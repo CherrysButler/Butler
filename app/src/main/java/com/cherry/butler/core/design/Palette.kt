@@ -36,6 +36,10 @@ internal data class Tones(
     val warn: Color,
     /** Drawn around every card: a hairline so a surface has an edge, not only a tone. */
     val cardOutline: Color,
+    /** Highlights: tender moments (a faint wash). */
+    val romance: Color = Color(0xFFF28FAD),
+    /** Highlights: sensual ones. */
+    val desire: Color = Color(0xFFD96BC4),
 )
 
 internal object Palette {
@@ -110,6 +114,8 @@ internal object Palette {
         success = Color(0xFF2E8E62),
         warn = Color(0xFFA86C0C),
         cardOutline = Color(0xFFC9C8C3),
+        romance = Color(0xFFC2457A),
+        desire = Color(0xFF9E3A8C),
     )
 }
 
@@ -217,6 +223,8 @@ internal fun customTones(custom: CustomColors): Tones {
         thought = base.thought,
         success = base.success,
         warn = base.warn,
+        romance = base.romance,
+        desire = base.desire,
         cardOutline = step(if (light) 0.18f else 0.22f),
     ).let { auto ->
         // Hand-set colours win, exactly as picked: the readability guard is for Auto only.
