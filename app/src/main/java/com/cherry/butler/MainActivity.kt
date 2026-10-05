@@ -91,10 +91,12 @@ class MainActivity : FragmentActivity() {
             val theme by themePrefs.theme.collectAsState()
             val chatStyle by themePrefs.chatStyle.collectAsState()
             val look by textLook.look.collectAsState()
+            val custom by themePrefs.custom.collectAsState()
             // Status and nav bar icons follow the picked look, not the phone's dark mode.
-            LaunchedEffect(theme.isLight) {
+            val light = theme.isLight(custom)
+            LaunchedEffect(light) {
                 val transparent = android.graphics.Color.TRANSPARENT
-                val style = if (theme.isLight) SystemBarStyle.light(transparent, transparent) else SystemBarStyle.dark(transparent)
+                val style = if (light) SystemBarStyle.light(transparent, transparent) else SystemBarStyle.dark(transparent)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             val lockOn by appLock.enabled.collectAsState()
@@ -104,7 +106,7 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(lockOn) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
             }
-            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look) {
+            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom) {
                 androidx.compose.foundation.layout.Box {
                     // Kept composed under the lock so the user returns exactly where they were,
                     // but hidden from accessibility while covered.

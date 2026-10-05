@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.runtime.remember
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,10 +56,17 @@ import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 @HiltViewModel
-class CustomizeViewModel @Inject constructor(private val prefs: TextLookPrefs) : ViewModel() {
+class CustomizeViewModel @Inject constructor(
+    private val prefs: TextLookPrefs,
+    private val themes: com.cherry.butler.core.data.ThemePrefs,
+) : ViewModel() {
     val look: StateFlow<RpLook> = prefs.look
     fun update(change: (RpLook) -> RpLook) = prefs.update(change)
     fun reset() = prefs.reset()
+
+    /** The last colours picked on the wheel, anywhere in the app. */
+    val recentColors: StateFlow<List<Long>> = themes.recentColors
+    fun addRecent(argb: Long) = themes.addRecent(argb)
 }
 
 /**
@@ -109,7 +118,10 @@ fun CustomizeScreen(onBack: () -> Unit, viewModel: CustomizeViewModel = hiltView
                 SwitchRow("Italic actions", null, look.italicActions, { on -> viewModel.update { it.copy(italicActions = on) } })
                 SwitchRow("Quote marks", null, look.showQuotes, { on -> viewModel.update { it.copy(showQuotes = on) } })
             }
-            SettingsSection(title = "Colours") { Colours(look, viewModel::update) }
+            SettingsSection(title = "Colours") {
+                val recent by viewModel.recentColors.collectAsStateWithLifecycle()
+                Colours(look, viewModel::update, recent = recent, onPicked = viewModel::addRecent)
+            }
         }
     }
 }
@@ -129,8 +141,9 @@ private enum class Ink(val label: String, val get: (RpLook) -> Long?, val set: (
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun Colours(look: RpLook, update: ((RpLook) -> RpLook) -> Unit) {
+private fun Colours(look: RpLook, update: ((RpLook) -> RpLook) -> Unit, recent: List<Long>, onPicked: (Long) -> Unit) {
     var target by rememberSaveable { mutableStateOf(Ink.Dialogue) }
+    var wheel by remember { mutableStateOf(false) }
     val colors = ButlerTheme.colors
     val onSurface = MaterialTheme.colorScheme.onSurface
     fun shown(ink: Ink): Color = ink.get(look)?.let { Color(it) } ?: when (ink) {
@@ -165,21 +178,72 @@ private fun Colours(look: RpLook, update: ((RpLook) -> RpLook) -> Unit) {
         }
     }
     val value = target.get(look)
-    // An even grid, eight across: "Theme" first, then the swatches.
+    // An even grid, eight across: "Theme" first, the swatches, and the wheel last. A colour
+    // from the wheel that is not a swatch shows in the wheel's cell.
     val cells = listOf<Long?>(null) + SWATCHES
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        cells.chunked(8).forEach { row ->
+        (cells + listOf(WHEEL)).chunked(8).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { argb ->
-                    Swatch(color = argb?.let { Color(it) }, chosen = value == argb, modifier = Modifier.weight(1f)) { update { target.set(it, argb) } }
+                    if (argb == WHEEL) {
+                        val own = value?.takeIf { it !in SWATCHES }
+                        WheelSwatch(own = own?.let { Color(it) }, modifier = Modifier.weight(1f)) { wheel = true }
+                    } else {
+                        Swatch(color = argb?.let { Color(it) }, chosen = value == argb, modifier = Modifier.weight(1f)) { update { target.set(it, argb) } }
+                    }
                 }
             }
         }
     }
+    if (wheel) {
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = target.label,
+            initial = shown(target),
+            recent = recent,
+            onPick = { argb ->
+                wheel = false
+                onPicked(argb)
+                update { target.set(it, argb) }
+            },
+            onDismiss = { wheel = false },
+        )
+    }
 }
+
+/**
+ * The wheel's cell: a rainbow with a plus, or, once a colour of its own is chosen, that
+ * colour with the chosen ring. Either way it opens the wheel.
+ */
+@Composable
+private fun WheelSwatch(own: Color?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val rainbow = remember {
+        androidx.compose.ui.graphics.Brush.sweepGradient(
+            listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red),
+        )
+    }
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(CircleShape)
+            .then(if (own != null) Modifier.background(own) else Modifier.background(rainbow))
+            .border(if (own != null) 2.dp else 1.dp, if (own != null) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
+            .clickable(onClickLabel = "Any colour", onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (own != null) Icons.Rounded.Check else Icons.Rounded.Add,
+            contentDescription = null,
+            tint = if ((own ?: Color.White).luminance() > 0.5f && own != null) Color.Black else Color.White,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+/** Marks the wheel's place in the grid; not a colour. */
+private const val WHEEL = -1L
 
 /** A colour to tap; [color] null is "Theme", drawn as the ground with a slash of the look's ink. */
 @Composable
@@ -210,8 +274,8 @@ private const val SAMPLE =
     "*She glances up from her book, unimpressed.* \"You're late,\" she says. **Again.**\n\n" +
         "`He always is.` *A small smile slips through anyway.*"
 
-/** Readable on the dark looks; the "Theme" choice adapts for Daylight. */
+/** Readable on the dark looks; the "Theme" choice adapts for Daylight. Fourteen, so with "Theme" and the wheel the grid is two even rows. */
 private val SWATCHES = listOf(
-    0xFFF3F3F1, 0xFFC3C6CB, 0xFF90949B, 0xFFE8D5B0, 0xFFF2B5A0, 0xFFF28FAD, 0xFFEA5A4F, 0xFFF2A65E,
+    0xFFF3F3F1, 0xFFC3C6CB, 0xFFE8D5B0, 0xFFF2B5A0, 0xFFF28FAD, 0xFFEA5A4F, 0xFFF2A65E,
     0xFFE8C55A, 0xFF8FD6B0, 0xFF6CC4C4, 0xFF9CC3F0, 0xFF7FA6F5, 0xFFC3A8EE, 0xFFA98BF2,
 )

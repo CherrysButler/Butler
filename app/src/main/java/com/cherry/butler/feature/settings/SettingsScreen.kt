@@ -1,5 +1,10 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.material.icons.rounded.Replay
+import com.cherry.butler.core.design.hardToRead
+import com.cherry.butler.core.design.colorOf
+import com.cherry.butler.core.design.isLight
+import com.cherry.butler.core.design.accentAdjusted
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.mutableStateOf
@@ -426,12 +431,23 @@ private fun generationSummary(gen: JsonObject): String {
 private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit) {
     val current by viewModel.theme.collectAsStateWithLifecycle()
     val chatStyle by viewModel.chatStyle.collectAsStateWithLifecycle()
+    val custom by viewModel.custom.collectAsStateWithLifecycle()
+    var customizing by remember { mutableStateOf(false) }
     SettingsSection(title = "Look") {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            AppTheme.entries.forEach { theme -> ThemeTile(theme, theme == current, Modifier.weight(1f)) { viewModel.setTheme(theme) } }
+            AppTheme.entries.forEach { theme ->
+                ThemeTile(theme, theme.tones(custom), theme == current, Modifier.weight(1f)) {
+                    viewModel.setTheme(theme)
+                    // Custom's colours are its own: picking it opens them.
+                    if (theme == AppTheme.Custom) customizing = true
+                }
+            }
+        }
+        if (current == AppTheme.Custom) {
+            LinkRow(title = "Custom colours", subtitle = "Accent and background", onClick = { customizing = true })
         }
         RowDivider()
         DropRow(title = "Chat layout", value = chatStyle.label) { close ->
@@ -441,6 +457,222 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
         }
         LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize)
         BackgroundRow()
+    }
+    if (customizing) CustomLookSheet(viewModel, onDismiss = { customizing = false })
+}
+
+/**
+ * The Custom look's two colours. Everything else (cards, rules, text shades) is worked out
+ * from them, and the app re-colours as they change. An accent too close to the background
+ * to read is nudged, and this says so.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomLookSheet(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+    val custom by viewModel.custom.collectAsStateWithLifecycle()
+    val recent by viewModel.recentColors.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf<String?>(null) }
+    var advanced by remember { mutableStateOf(false) }
+    val isDefault = custom == com.cherry.butler.core.design.CustomColors.Default
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = com.cherry.butler.core.design.SheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            Text("Custom look", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(
+                "Pick two colours; the rest of the look is made from them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ButlerTheme.colors.textLow,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
+            )
+            ColorRow("Accent", "Buttons, links, the send key", androidx.compose.ui.graphics.Color(custom.accent)) { editing = "accent" }
+            ColorRow("Background", "The ground everything sits on", androidx.compose.ui.graphics.Color(custom.ground)) { editing = "ground" }
+            if (custom.accentAdjusted()) {
+                Text(
+                    "Your accent is shown a little " + (if (AppTheme.Custom.isLight(custom)) "darker" else "lighter") + " so it stays readable on this background.",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ButlerTheme.colors.warn,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            val setByHand = custom.overrides.size + (if (custom.corners != 1f) 1 else 0)
+            LinkRow(
+                title = "Advanced",
+                subtitle = if (setByHand == 0) "Every colour of the look, and the corners" else "$setByHand set by hand",
+                onClick = { advanced = true },
+            )
+            Text(
+                "Reset to Butler" + "\u2019" + "s colours",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (!isDefault) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(enabled = !isDefault) { viewModel.setCustom(com.cherry.butler.core.design.CustomColors.Default) }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+        }
+    }
+    if (advanced) AdvancedLookSheet(viewModel, onDismiss = { advanced = false })
+    editing?.let { which ->
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = if (which == "accent") "Accent" else "Background",
+            initial = androidx.compose.ui.graphics.Color(if (which == "accent") custom.accent else custom.ground),
+            recent = recent,
+            onPick = { argb ->
+                editing = null
+                viewModel.addRecent(argb)
+                viewModel.setCustom(if (which == "accent") custom.copy(accent = argb) else custom.copy(ground = argb))
+            },
+            onDismiss = { editing = null },
+        )
+    }
+}
+
+/**
+ * Every colour of the Custom look, by group, each Auto (worked out from the accent and the
+ * background) until set by hand, with a way back to Auto; and how round the corners are.
+ * A hand-set colour that is hard to read on what it sits on says so; it is still the user's call.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun AdvancedLookSheet(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+    val custom by viewModel.custom.collectAsStateWithLifecycle()
+    val recent by viewModel.recentColors.collectAsStateWithLifecycle()
+    var editing by remember { mutableStateOf<com.cherry.butler.core.design.CustomToken?>(null) }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = com.cherry.butler.core.design.SheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            Text("Advanced", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(
+                "Set any colour by hand. The ones on Auto keep following your accent and background.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ButlerTheme.colors.textLow,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp),
+            )
+            SliderRow(
+                title = "Corners",
+                value = custom.corners,
+                range = 0f..2f,
+                step = 0.25f,
+                format = { v ->
+                    when {
+                        v <= 0f -> "Square"
+                        v < 1f -> "Sharper"
+                        v == 1f -> "Butler"
+                        else -> "Rounder"
+                    }
+                },
+                onCommit = { viewModel.setCustom(custom.copy(corners = it)) },
+            )
+            com.cherry.butler.core.design.CustomToken.entries.groupBy { it.group }.forEach { (group, tokens) ->
+                Text(
+                    group.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = ButlerTheme.colors.textLow,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                )
+                tokens.forEach { token ->
+                    TokenRow(
+                        token = token,
+                        color = custom.colorOf(token),
+                        setByHand = token.key in custom.overrides,
+                        hardToRead = custom.hardToRead(token),
+                        onClick = { editing = token },
+                        onAuto = { viewModel.setCustom(custom.copy(overrides = custom.overrides - token.key)) },
+                    )
+                }
+            }
+            val anything = custom.overrides.isNotEmpty() || custom.corners != 1f
+            Text(
+                "Put everything back to Auto",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (anything) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
+                modifier = Modifier
+                    .padding(start = 8.dp, end = 8.dp, top = 12.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(enabled = anything) { viewModel.setCustom(custom.copy(overrides = emptyMap(), corners = 1f)) }
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+            )
+        }
+    }
+    editing?.let { token ->
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = token.label,
+            initial = custom.colorOf(token),
+            recent = recent,
+            onPick = { argb ->
+                editing = null
+                viewModel.addRecent(argb)
+                viewModel.setCustom(custom.copy(overrides = custom.overrides + (token.key to argb)))
+            },
+            onDismiss = { editing = null },
+        )
+    }
+}
+
+/** One colour of the look: its swatch, what it colours, Auto or set by hand, and back to Auto. */
+@Composable
+private fun TokenRow(
+    token: com.cherry.butler.core.design.CustomToken,
+    color: androidx.compose.ui.graphics.Color,
+    setByHand: Boolean,
+    hardToRead: Boolean,
+    onClick: () -> Unit,
+    onAuto: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(token.label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                (if (setByHand) "Set by you" else "Auto") + " \u00B7 " + token.hint,
+                style = MaterialTheme.typography.labelSmall,
+                color = ButlerTheme.colors.textLow,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            if (hardToRead) {
+                Text("Hard to read on what it sits on", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.warn)
+            }
+        }
+        if (setByHand) {
+            IconButton(onClick = onAuto) {
+                Icon(Icons.Rounded.Replay, contentDescription = "Back to Auto", tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
+            }
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
+    }
+}
+
+/** A colour setting: its name and what it colours, and its swatch at the end. */
+@Composable
+private fun ColorRow(title: String, subtitle: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow)
+        }
+        Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
     }
 }
 
@@ -454,8 +686,7 @@ private fun BackgroundRow() {
 
 /** A thumbnail of the look (its ground, one card, a short red bar) with its name under it. */
 @Composable
-private fun ThemeTile(theme: AppTheme, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val t = theme.tones
+private fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val frame by androidx.compose.animation.animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule,
         animationSpec = com.cherry.butler.core.design.Motion.enter(com.cherry.butler.core.design.Motion.SHORT),

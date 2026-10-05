@@ -48,6 +48,13 @@ class SettingsViewModel @Inject constructor(
 
     fun setTheme(theme: AppTheme) = themes.set(theme)
 
+    /** What the Custom look is made from. */
+    val custom: StateFlow<com.cherry.butler.core.design.CustomColors> = themes.custom
+    fun setCustom(colors: com.cherry.butler.core.design.CustomColors) = themes.setCustom(colors)
+
+    val recentColors: StateFlow<List<Long>> = themes.recentColors
+    fun addRecent(argb: Long) = themes.addRecent(argb)
+
     val chatStyle: StateFlow<ChatStyle> = themes.chatStyle
 
     fun setChatStyle(style: ChatStyle) = themes.setChatStyle(style)

@@ -30,3 +30,18 @@ val LightsOutShapes = Shapes(
     large = RoundedCornerShape(4.dp),
     extraLarge = RoundedCornerShape(6.dp),
 )
+
+/**
+ * Butler's corners scaled by [factor]: 0 square, 1 as [ButlerShapes], 2 twice as round.
+ * The Custom look's "Corners" setting.
+ */
+fun scaledShapes(factor: Float): Shapes {
+    val f = factor.coerceIn(0f, 2f)
+    return Shapes(
+        extraSmall = RoundedCornerShape((4 * f).dp),
+        small = RoundedCornerShape((8 * f).dp),
+        medium = RoundedCornerShape((12 * f).dp),
+        large = RoundedCornerShape((14 * f).dp),
+        extraLarge = RoundedCornerShape((18 * f).dp),
+    )
+}

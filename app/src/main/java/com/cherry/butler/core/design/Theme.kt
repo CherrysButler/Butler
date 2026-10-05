@@ -13,17 +13,21 @@ enum class AppTheme(val key: String, val label: String, val blurb: String) {
     JanitorClassic("janitor_classic", "Janitor Classic", "Slate and soft cards, close to Janitor"),
     LightsOut("lights_out", "Lights out", "True black with hairline frames"),
     Daylight("daylight", "Daylight", "Light ground and white cards"),
+    Custom("custom", "Custom", "Your accent and background"),
 }
 
-internal val AppTheme.tones: Tones
-    get() = when (this) {
-        AppTheme.JanitorClassic -> Palette.Classic
-        AppTheme.LightsOut -> Palette.LightsOut
-        AppTheme.Daylight -> Palette.Daylight
-    }
+/** The look's tones; [custom] is what the Custom look is made from, ignored by the others. */
+internal fun AppTheme.tones(custom: CustomColors = CustomColors.Default): Tones = when (this) {
+    AppTheme.JanitorClassic -> Palette.Classic
+    AppTheme.LightsOut -> Palette.LightsOut
+    AppTheme.Daylight -> Palette.Daylight
+    AppTheme.Custom -> customTones(custom)
+}
+
+internal val AppTheme.tones: Tones get() = tones()
 
 /** Whether the look is light, for system bar icons. */
-val AppTheme.isLight: Boolean get() = tones.isLight
+fun AppTheme.isLight(custom: CustomColors = CustomColors.Default): Boolean = tones(custom).isLight
 
 private fun scheme(t: Tones): ColorScheme = if (t.isLight) lightColorScheme(
     primary = t.red,
@@ -93,11 +97,18 @@ fun ButlerTheme(
     theme: AppTheme = AppTheme.JanitorClassic,
     chatStyle: ChatStyle = ChatStyle.Story,
     look: RpLook = RpLook(),
+    custom: CustomColors = CustomColors.Default,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = Schemes.getValue(theme)
-    val extended = Extended.getValue(theme)
-    val shapes = if (theme == AppTheme.LightsOut) LightsOutShapes else ButlerShapes
+    // The shipped looks are built once; the Custom one whenever its two colours change.
+    val customTones = androidx.compose.runtime.remember(custom) { customTones(custom) }
+    val colorScheme = if (theme == AppTheme.Custom) androidx.compose.runtime.remember(customTones) { scheme(customTones) } else Schemes.getValue(theme)
+    val extended = if (theme == AppTheme.Custom) androidx.compose.runtime.remember(customTones) { extendedColors(customTones) } else Extended.getValue(theme)
+    val shapes = when (theme) {
+        AppTheme.LightsOut -> LightsOutShapes
+        AppTheme.Custom -> androidx.compose.runtime.remember(custom.corners) { scaledShapes(custom.corners) }
+        else -> ButlerShapes
+    }
 
     CompositionLocalProvider(LocalButlerExtendedColors provides extended, LocalChatStyle provides chatStyle, LocalRpLook provides look) {
         MaterialTheme(
