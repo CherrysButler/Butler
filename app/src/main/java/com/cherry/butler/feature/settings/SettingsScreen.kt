@@ -234,9 +234,9 @@ private fun SettingsBody(
             }
             SettingsPage.Model -> {
                 ModelSection(settings, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
-                GenerationSections(settings.generation, saving, viewModel)
+                GenerationSections(settings.generation, saving, viewModel, jllm = settings.provider == Provider.Janitor)
             }
-            SettingsPage.Generation -> GenerationSections(settings.generation, saving, viewModel)
+            SettingsPage.Generation -> GenerationSections(settings.generation, saving, viewModel, jllm = settings.provider == Provider.Janitor)
         }
     }
 }
@@ -807,7 +807,7 @@ private fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, s
 
 /** The sampler, in three short groups. Each value is saved to Janitor as it is let go of. */
 @Composable
-private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: SettingsViewModel) {
+private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: SettingsViewModel, jllm: Boolean) {
     fun num(key: String, default: Float) = gen[key]?.jsonPrimitive?.floatOrNull ?: default
     fun int(key: String, default: Int) = gen[key]?.jsonPrimitive?.intOrNull ?: gen[key]?.jsonPrimitive?.floatOrNull?.toInt() ?: default
     fun bool(key: String) = gen[key]?.jsonPrimitive?.booleanOrNull ?: false
@@ -823,11 +823,47 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
         SliderRow("Repetition penalty", num("repetition_penalty", 0f), 0f..2f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("repetition_penalty", JsonPrimitive(it)) }, busy = saving == "gen:repetition_penalty")
         SliderRow("Frequency penalty", num("frequency_penalty", 0f), 0f..2f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("frequency_penalty", JsonPrimitive(it)) }, busy = saving == "gen:frequency_penalty")
     }
+    // JLLM's own switches, in Janitor's words. They do nothing for a proxy (its thinking is the
+    // proxy's Thinking level), so they show only while JLLM answers. Deep reasoning and
+    // swipe reasoning are Janitor+ (they sit under its banner in the official app, and a
+    // free account streams no reasoning either way: checked 2026-10-05).
+    if (jllm) {
+        val premium by viewModel.premium.collectAsStateWithLifecycle()
+        val short = bool("enable_short_responses")
+        SettingsSection(
+            title = "JLLM",
+            footnote = if (premium == false) "Deep reasoning and reasoning on enhanced swipes come with Janitor+." else null,
+        ) {
+            SwitchRow(
+                "Short responses",
+                "Snappier, more concise replies. Leave off for longer ones.",
+                short,
+                { viewModel.setGeneration("enable_short_responses", JsonPrimitive(it)) },
+            )
+            if (premium == true) {
+                SwitchRow(
+                    "Deep reasoning",
+                    "Replies think first, for richer answers. Slower; leave off for faster replies.",
+                    bool("enable_reasoning_chat"),
+                    { viewModel.setGeneration("enable_reasoning_chat", JsonPrimitive(it)) },
+                )
+                SwitchRow(
+                    "Reasoning on enhanced swipes",
+                    if (short) "Off while short responses is on." else "Enhanced swipes think first. Off for faster, shorter swipes.",
+                    bool("enable_reasoning"),
+                    { viewModel.setGeneration("enable_reasoning", JsonPrimitive(it)) },
+                    enabled = !short,
+                )
+            }
+        }
+    }
     SettingsSection(title = "Replies") {
-        SwitchRow("Thinking", null, bool("enable_thinking"), { viewModel.setGeneration("enable_thinking", JsonPrimitive(it)) })
-        SwitchRow("Reasoning", null, bool("enable_reasoning"), { viewModel.setGeneration("enable_reasoning", JsonPrimitive(it)) })
-        SwitchRow("Short responses", null, bool("enable_short_responses"), { viewModel.setGeneration("enable_short_responses", JsonPrimitive(it)) })
-        SwitchRow("Prefill", null, bool("prefill_enabled"), { viewModel.setGeneration("prefill_enabled", JsonPrimitive(it)) })
+        SwitchRow(
+            "Prefill",
+            "Every reply starts with your text, and the model carries on from it.",
+            bool("prefill_enabled"),
+            { viewModel.setGeneration("prefill_enabled", JsonPrimitive(it)) },
+        )
         if (bool("prefill_enabled")) {
             PrefillField(gen["prefill_text"]?.jsonPrimitive?.contentOrNull.orEmpty()) { viewModel.setGeneration("prefill_text", JsonPrimitive(it)) }
         }

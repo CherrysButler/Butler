@@ -841,8 +841,15 @@ Traps — the assumed names were wrong in ways that would have failed silently:
 - `context_length`, not `max_context` or `context_size`.
 - `top_p: 0` and `top_k: 2` are real observed values, not placeholders — don't
   "correct" them to 1.0/40.
-- The `enable_*` booleans are Janitor-specific features (thinking, reasoning, short
-  responses, router temperature) with no OpenAI equivalent.
+- The `enable_*` booleans are Janitor-specific JLLM features with no OpenAI equivalent.
+  Matched to the official app's own labels and defaults (2026-10-05):
+  `enable_reasoning_chat` is **Deep Reasoning** ("replies think first", default off),
+  `enable_reasoning` is **Reasoning on Enhanced Swipes** (default on, off while short
+  responses is on), `enable_short_responses` is **Short responses** ("snappier, more concise
+  replies"). The first two sit under the Janitor+ banner: on a free account
+  (`has_premium: false`) a JLLM reply streamed no reasoning with Deep Reasoning on or off.
+  `enable_thinking` appears in an older account's config but the current app neither sets
+  nor shows it; treat it as a leftover.
 - Values are read off **one** account. Ranges and server-side validation are still
   unknown; treat the defaults as illustrative, the **keys** as confirmed.
 

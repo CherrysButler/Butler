@@ -51,6 +51,13 @@ class SettingsRemoteSource @Inject constructor(
             }
         }
 
+    /** `has_premium` from the same budget call: whether the account has Janitor+. */
+    suspend fun hasPremium(): Boolean =
+        apiCall.execute(Request.Builder().url("${JanitorConfig.LLM_BASE}/generateAlpha/budget").get().build()) { raw ->
+            val o = json.parseToJsonElement(raw) as? kotlinx.serialization.json.JsonObject
+            (o?.get("has_premium") as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+        }
+
     suspend fun get(): ApiSettingsDto =
         apiCall.execute(Request.Builder().url(base).get().build(), decode = ::decode)
 

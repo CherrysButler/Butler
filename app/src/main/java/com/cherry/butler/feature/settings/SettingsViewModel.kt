@@ -104,8 +104,14 @@ class SettingsViewModel @Inject constructor(
     private val _notices = Channel<String>(Channel.BUFFERED)
     val notices: Flow<String> = _notices.receiveAsFlow()
 
+    private val _premium = MutableStateFlow<Boolean?>(null)
+
+    /** Janitor+ or not (null: unknown); JLLM's reasoning switches are Janitor+ only. */
+    val premium: StateFlow<Boolean?> = _premium.asStateFlow()
+
     init {
         refresh()
+        viewModelScope.launch { _premium.value = repository.hasPremium() }
     }
 
     fun refresh() {

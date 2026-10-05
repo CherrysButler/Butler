@@ -84,6 +84,9 @@ class SettingsRepository @Inject constructor(
     /** JLLM's allowance as (remaining, total), when the account has one. */
     suspend fun jllmAllowance(): Pair<Int, Int>? = runCatching { remote.jllmAllowance() }.getOrNull()
 
+    /** Whether the account has Janitor+; null when it couldn't be asked. */
+    suspend fun hasPremium(): Boolean? = runCatching { remote.hasPremium() }.getOrNull()
+
     val settings: StateFlow<AiSettings?> = _settings.asStateFlow()
 
     suspend fun load(refresh: Boolean = false): AiSettings = mutex.withLock {
