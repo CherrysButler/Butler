@@ -1,5 +1,6 @@
 package com.cherry.butler.core.markdown
 
+import com.cherry.butler.core.data.remote.dto.PronounsDto
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -55,5 +56,19 @@ class PlaceholdersTest {
         val filled = "{{user}} smiles".fillNames("Rain", null, markUser = true)
         assertEquals("Rain smiles", filled.stripPersonaMarks())
         assertEquals("Rain smiles", filled.plainPreview())
+    }
+
+    @Test
+    fun `pronoun macros fill from the persona`() {
+        val she = PronounsDto(subjective = "she", objective = "her", possessive = "her", possessivePronoun = "hers", reflexive = "herself")
+        assertEquals(
+            "she / her / her / hers / herself",
+            "{{sub}} / {{obj}} / {{ POSS }} / {{poss_p}} / {{ref}}".fillNames(user = "Sen", char = "Eto", pronouns = she),
+        )
+    }
+
+    @Test
+    fun `pronoun macros read as they without pronouns`() {
+        assertEquals("they / them / their / theirs / themselves", "{{sub}} / {{obj}} / {{poss}} / {{poss_p}} / {{ref}}".fillNames(user = "Sen", char = null))
     }
 }

@@ -30,6 +30,8 @@ data class PersonaOption(
     val avatarUrl: String?,
     /** Its persona group, if any; the profile never has one. */
     val groupId: String? = null,
+    /** What fills `{{sub}}` and the rest; the profile's come from [DefaultOrigin], if any. */
+    val pronouns: PronounsDto? = null,
 )
 
 /**
@@ -91,9 +93,9 @@ class PersonaRepository @Inject constructor(
                     origin?.showPicture == false -> null
                     else -> JanitorConfig.personaAvatarUrl(origin?.personaAvatar)
                 }
-                add(PersonaOption(id = null, name = p.name.ifBlank { p.userName }, avatarUrl = avatar))
+                add(PersonaOption(id = null, name = p.name.ifBlank { p.userName }, avatarUrl = avatar, pronouns = origin?.pronouns))
             }
-            personas.forEach { add(PersonaOption(it.id, it.name, JanitorConfig.personaAvatarUrl(it.avatar), it.groupId)) }
+            personas.forEach { add(PersonaOption(it.id, it.name, JanitorConfig.personaAvatarUrl(it.avatar), it.groupId, it.pronouns)) }
         }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 

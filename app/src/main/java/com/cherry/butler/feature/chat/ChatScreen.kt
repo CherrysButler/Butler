@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.core.data.remote.dto.PronounsDto
 import com.cherry.butler.core.markdown.SceneTag
 import com.cherry.butler.core.markdown.SceneTags
 import androidx.compose.foundation.clickable
@@ -261,6 +262,7 @@ fun ChatScreen(
     val openCharacter = { chat?.characterId?.let(onOpenCharacter); Unit }
     val showPortrait = { avatarUrl?.let { viewing = it }; Unit }
     val personaName = activePersona?.name ?: chat?.personaName ?: fallbackPersona
+    val personaPronouns = activePersona?.pronouns
 
     if (pickingPersona) {
         val personaGroups by viewModel.personaGroups.collectAsStateWithLifecycle()
@@ -297,7 +299,7 @@ fun ChatScreen(
         val liveRow = live[id]
         val text = (liveRow?.thinking?.takeIf { it.isNotEmpty() } ?: row?.thinking).orEmpty()
         ThinkingSheet(
-            text = text.fillNames(user = personaName, char = name, markUser = true),
+            text = text.fillNames(user = personaName, char = name, markUser = true, pronouns = personaPronouns),
             streaming = liveRow != null && liveRow.text.isEmpty(),
             word = ThinkingWords.forSeed(id),
             onDismiss = { openThought = null },
@@ -307,11 +309,11 @@ fun ChatScreen(
     actionsFor?.let { message ->
         val confirmed = message.serverId != null
         LineActionsSheet(
-            preview = message.text.fillNames(user = personaName, char = name),
+            preview = message.text.fillNames(user = personaName, char = name, pronouns = personaPronouns),
             canEdit = confirmed && !busy,
             canDelete = confirmed || activeJob == null,
             onCopy = {
-                clipboard.setText(AnnotatedString(message.text.fillNames(user = personaName, char = name)))
+                clipboard.setText(AnnotatedString(message.text.fillNames(user = personaName, char = name, pronouns = personaPronouns)))
                 actionsFor = null
             },
             onEdit = {
@@ -477,6 +479,7 @@ fun ChatScreen(
                     busy = busy,
                     characterName = name,
                     personaName = personaName,
+                    personaPronouns = personaPronouns,
                     characterAvatarUrl = avatarUrl,
                     onAvatarClick = showPortrait,
                     personas = personaOptions,
@@ -571,6 +574,7 @@ private fun Transcript(
     busy: Boolean,
     characterName: String,
     personaName: String?,
+    personaPronouns: PronounsDto? = null,
     characterAvatarUrl: String?,
     onAvatarClick: () -> Unit = {},
     editingId: Long,
@@ -655,6 +659,7 @@ private fun Transcript(
                         characterAvatarUrl = characterAvatarUrl,
                         onAvatarClick = onAvatarClick,
                         personaName = personaName,
+                        personaPronouns = personaPronouns,
                         editing = turn.shown.localId == editingId,
                         editDraft = editDraft,
                         editStatus = editStatus,
@@ -668,6 +673,7 @@ private fun Transcript(
                         now = now,
                         characterName = characterName,
                         personaName = personaName,
+                        personaPronouns = personaPronouns,
                         editing = turn.message.localId == editingId,
                         editDraft = editDraft,
                         editStatus = editStatus,
@@ -730,6 +736,7 @@ private fun BotTurn(
     characterAvatarUrl: String?,
     onAvatarClick: () -> Unit = {},
     personaName: String?,
+    personaPronouns: PronounsDto? = null,
     editing: Boolean,
     editDraft: String,
     editStatus: EditStatus,
@@ -836,6 +843,7 @@ private fun BotTurn(
                     live = live[id],
                     characterName = characterName,
                     personaName = personaName,
+                    personaPronouns = personaPronouns,
                     actions = actions,
                 )
             }
@@ -945,15 +953,16 @@ private fun ReplyBody(
     live: SendPipeline.LiveReply?,
     characterName: String,
     personaName: String?,
+    personaPronouns: PronounsDto? = null,
     actions: TranscriptActions,
 ) {
     val writing = live != null
     val pending = !writing && message.streamState == MessageStreamState.STREAMING
-    val text = remember(message.text, message.markup, live?.text, personaName, characterName, skim) {
+    val text = remember(message.text, message.markup, live?.text, personaName, personaPronouns, characterName, skim) {
         // The tagged copy when there is one, so the butter shows; folded, only the butter.
         val source = live?.text ?: message.markup ?: message.text
         val shown = if (skim) SceneTags.only(source, SceneTag.Butter) ?: source else source
-        shown.fillNames(user = personaName, char = characterName, markUser = true)
+        shown.fillNames(user = personaName, char = characterName, markUser = true, pronouns = personaPronouns)
     }
     val thinking = live?.thinking?.takeIf { it.isNotEmpty() } ?: message.thinking?.takeIf { it.isNotEmpty() }
     val thinkingOnly = writing && live!!.text.isEmpty() && live.thinking.isNotEmpty()
@@ -978,7 +987,7 @@ private fun ReplyBody(
     ) {
         if (thinking != null) {
             ThinkingLine(
-                text = thinking.fillNames(user = personaName, char = characterName),
+                text = thinking.fillNames(user = personaName, char = characterName, pronouns = personaPronouns),
                 streaming = thinkingOnly,
                 word = remember(message.localId) { ThinkingWords.forSeed(message.localId) },
                 onOpen = { actions.onOpenThought(message.localId) },
@@ -1059,6 +1068,7 @@ private fun UserTurn(
     now: Long,
     characterName: String,
     personaName: String?,
+    personaPronouns: PronounsDto? = null,
     editing: Boolean,
     editDraft: String,
     editStatus: EditStatus,
@@ -1067,7 +1077,7 @@ private fun UserTurn(
 ) {
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * 0.78f
     val haptics = LocalHapticFeedback.current
-    val text = remember(message.text, personaName, characterName) { message.text.fillNames(user = personaName, char = characterName, markUser = true) }
+    val text = remember(message.text, personaName, personaPronouns, characterName) { message.text.fillNames(user = personaName, char = characterName, markUser = true, pronouns = personaPronouns) }
     val style = LocalChatStyle.current
     val bubbles = style == ChatStyle.Bubbles
     val janitor = style == ChatStyle.Janitor
