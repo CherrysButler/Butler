@@ -37,6 +37,10 @@ import com.cherry.butler.ui.components.SheetScrim
  * the site key is bound to that hostname. Usually it passes by itself in a second or two;
  * when Cloudflare wants a tap, the box shows it. The token comes back through [onToken]
  * and is good for one request within five minutes.
+ *
+ * Passing it also clears this phone with Cloudflare for janitorai.com (`cf_clearance`, Janitor's
+ * Turnstile is set to pre-clear), which the WebView keeps; [JanitorCookies] brings it over for
+ * Butler's own calls. The WebView says Butler's User-Agent so the clearance matches them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,17 +87,30 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                // The clearance Cloudflare grants here is tied to this User-Agent, so it is the one
+                // every other call is sending now (Butler's own, or Firefox while that's blocked).
+                settings.userAgentString = com.cherry.butler.core.network.ButlerUserAgent.current
+                android.webkit.CookieManager.getInstance().setAcceptCookie(true)
                 setBackgroundColor(Color.TRANSPARENT)
                 webViewClient = WebViewClient()
                 addJavascriptInterface(object {
-                    @JavascriptInterface fun onToken(token: String) = post { onToken(token) }
+                    @JavascriptInterface fun onToken(token: String) = post {
+                        com.cherry.butler.core.network.JanitorCookies.importFromWebView()
+                        onToken(token)
+                    }
                     @JavascriptInterface fun onError(code: String) = post { onError(code) }
                 }, "Butler")
                 // The origin is what the site key is bound to; the page itself is Butler's.
                 loadDataWithBaseURL("https://janitorai.com/", page(dark), "text/html", "utf-8", null)
             }
         },
-        onRelease = { it.destroy() },
+        // The clearance can land a moment after the token; take whatever arrived by the time
+        // the sheet closes too.
+        onRelease = {
+            android.webkit.CookieManager.getInstance().flush()
+            com.cherry.butler.core.network.JanitorCookies.importFromWebView()
+            it.destroy()
+        },
     )
 }
 

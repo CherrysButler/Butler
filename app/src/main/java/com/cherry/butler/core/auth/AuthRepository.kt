@@ -83,5 +83,6 @@ class AuthRepository @Inject constructor(
     suspend fun signOut() {
         keeper.markSigningOut()
         auth.signOut()
+        com.cherry.butler.core.network.JanitorCookies.clear()
     }
 }

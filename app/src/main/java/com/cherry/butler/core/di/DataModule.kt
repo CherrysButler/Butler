@@ -35,11 +35,14 @@ object DataModule {
     ): OkHttpClient {
         DebugProxy.load(context)
         com.cherry.butler.core.network.CloudflareGate.init(context)
+        com.cherry.butler.core.network.JanitorCookies.init(context)
         return OkHttpClient.Builder()
             // Debug builds only: Settings › Debug can route everything through Burp or mitmproxy.
             .proxySelector(DebugProxy)
             .apply { if (com.cherry.butler.BuildConfig.DEBUG) sslSocketFactory(DebugProxy.socketFactory, DebugProxy.trustManager) }
             .addInterceptor(ButlerUserAgent)
+            // Cloudflare's cookies for janitorai.com only, sent back as a browser does.
+            .cookieJar(com.cherry.butler.core.network.JanitorCookies)
             .addInterceptor(authInterceptor)
             // A 401 from Janitor: renew the session once and send the call again. Never for
             // another host (the user's proxy shares this builder), and never twice.
