@@ -9,6 +9,7 @@ package com.cherry.butler.core.markdown
  * - `` `thought` ``       → [InlineKind.Thought]
  * - `---` on its own line → [Block.Rule]
  * - `- item` / `1. item`  → [Block.ListItem]
+ * - `![alt](url)`         → [Block.Image], only when the caller asks for images
  *
  * General CommonMark parsers mis-handle this text: they break on `**bold**` next to
  * `*action*`, and one stray `*` italicises the rest of a message. Two rules fix that here
@@ -31,13 +32,16 @@ object RpMarkdown {
         data class Paragraph(val text: String, val spans: List<Span>) : Block
         data class ListItem(val text: String, val spans: List<Span>, val ordered: Boolean, val index: Int) : Block
         data object Rule : Block
+        /** A markdown picture, lifted out of its line. Whether it may load is the renderer's call. */
+        data class Image(val url: String, val alt: String) : Block
     }
 
     /**
      * @param keepQuotes keep the quote marks around speech (the reader's choice; Janitor
      *   shows them). Off, the colour alone marks speech.
+     * @param images lift `![alt](url)` out as [Block.Image]; off, it stays literal text.
      */
-    fun parse(source: String, keepQuotes: Boolean = false): List<Block> {
+    fun parse(source: String, keepQuotes: Boolean = false, images: Boolean = false): List<Block> {
         val blocks = ArrayList<Block>()
         val paragraph = StringBuilder()
         var orderedIndex = 0
@@ -75,6 +79,22 @@ object RpMarkdown {
                     orderedIndex = m.groupValues[1].toIntOrNull() ?: (orderedIndex + 1)
                     val (text, spans) = inline(m.groupValues[2].trim())
                     blocks += Block.ListItem(text, spans, ordered = true, index = orderedIndex)
+                }
+                images && IMAGE.containsMatchIn(line) -> {
+                    // Text either side of a picture stays in the paragraph flow around it.
+                    var from = 0
+                    for (m in IMAGE.findAll(line)) {
+                        val before = line.substring(from, m.range.first)
+                        if (before.isNotBlank()) {
+                            if (paragraph.isNotEmpty()) paragraph.append('\n')
+                            paragraph.append(before)
+                        }
+                        flushParagraph()
+                        blocks += Block.Image(url = m.groupValues[2], alt = m.groupValues[1].trim())
+                        from = m.range.last + 1
+                    }
+                    val after = line.substring(from)
+                    if (after.isNotBlank()) paragraph.append(after.trimStart())
                 }
                 else -> {
                     if (paragraph.isNotEmpty()) paragraph.append('\n')
@@ -326,4 +346,6 @@ object RpMarkdown {
     private val RULE = Regex("""^(-{3,}|\*{3,}|_{3,})$""")
     private val BULLET = Regex("""^[-•*]\s+\S.*$""")
     private val ORDERED = Regex("""^(\d{1,3})[.)]\s+(\S.*)$""")
+    /** `![alt](url)` or `![alt](url "title")`; the title is dropped. */
+    private val IMAGE = Regex("""!\[([^\]]*)]\(\s*<?([^\s)>]+)>?(?:\s+"[^"]*")?\s*\)""")
 }

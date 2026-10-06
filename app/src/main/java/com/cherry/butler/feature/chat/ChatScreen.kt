@@ -1008,6 +1008,7 @@ private fun ReplyBody(
                 text = text,
                 style = proseStyle(),
                 color = MaterialTheme.colorScheme.onSurface,
+                images = true,
             )
         }
         if (!writing && message.streamState == MessageStreamState.PARTIAL) {
@@ -1137,6 +1138,7 @@ private fun UserTurn(
                     else -> Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                 },
                 paragraphSpacing = 8.dp,
+                images = true,
             )
         }
         }

@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.core.design.ChatImage
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -98,7 +99,7 @@ fun StreamingProse(
     val styles = rememberRpStyles(color)
     val keepQuotes = LocalRpLook.current.showQuotes
     val ink = narrationInk(color)
-    val blocks = remember(text, keepQuotes) { RpMarkdown.parse(text, keepQuotes) }
+    val blocks = remember(text, keepQuotes) { RpMarkdown.parse(text, keepQuotes, images = true) }
     val total = remember(blocks) { blocks.sumOf { it.length() } }
     val target by rememberUpdatedState(total)
     // Starts at what is already there: a view rebuilt mid-stream (scrolled back into sight) does not replay.
@@ -165,6 +166,7 @@ fun StreamingProse(
                     )
                 }
                 Block.Rule -> HairlineRule(color = ButlerTheme.colors.outlineFaint)
+                is Block.Image -> ChatImage(url = block.url, alt = block.alt)
             }
             start += len
         }
@@ -179,11 +181,12 @@ private fun Block.length(): Int = when (this) {
     is Block.Paragraph -> text.length
     is Block.ListItem -> text.length
     Block.Rule -> 1
+    is Block.Image -> 1
 }
 
 /** [this] cut at [cut], with the last few shown characters fading up. */
 private fun AnnotatedString.revealedTo(cut: Int, block: Block, styles: RpStyles, ink: Color): AnnotatedString {
-    if (block is Block.Rule) return this
+    if (block is Block.Rule || block is Block.Image) return this
     val spans = when (block) {
         is Block.Paragraph -> block.spans
         is Block.ListItem -> block.spans
@@ -238,7 +241,7 @@ private fun Modifier.caret(color: Color, layout: () -> TextLayoutResult?, at: ()
 private fun Block.toAnnotated(styles: RpStyles): AnnotatedString = when (this) {
     is Block.Paragraph -> buildAnnotatedString { append(text); for (s in spans) addStyle(styles.forKind(s.kind), s.start, s.end) }
     is Block.ListItem -> buildAnnotatedString { append(text); for (s in spans) addStyle(styles.forKind(s.kind), s.start, s.end) }
-    Block.Rule -> AnnotatedString("")
+    Block.Rule, is Block.Image -> AnnotatedString("")
 }
 
 /**

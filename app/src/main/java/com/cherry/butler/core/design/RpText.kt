@@ -112,10 +112,12 @@ fun RpText(
     maxLines: Int = Int.MAX_VALUE,
     minLines: Int = 1,
     paragraphSpacing: androidx.compose.ui.unit.Dp = 12.dp,
+    /** Show `![alt](url)` as pictures ([ChatImage]); only the chat asks for this. */
+    images: Boolean = false,
 ) {
     val styles = rememberRpStyles(color)
     val keepQuotes = LocalRpLook.current.showQuotes
-    val blocks = remember(text, keepQuotes) { RpMarkdown.parse(text, keepQuotes) }
+    val blocks = remember(text, keepQuotes, images) { RpMarkdown.parse(text, keepQuotes, images) }
     @Suppress("NAME_SHADOWING") val color = narrationInk(color)
 
     if (maxLines != Int.MAX_VALUE) {
@@ -159,6 +161,7 @@ fun RpText(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = ButlerTheme.colors.outlineFaint,
                 )
+                is Block.Image -> ChatImage(url = block.url, alt = block.alt)
             }
         }
     }
@@ -181,7 +184,7 @@ private fun List<Block>.toCompactAnnotated(styles: RpStyles): AnnotatedString = 
             is Block.Paragraph -> block.text to block.spans
             is Block.ListItem -> (if (block.ordered) "${block.index}. " else "• ") + block.text to
                 block.spans.map { it.copy(start = it.start + (if (block.ordered) "${block.index}. ".length else 2), end = it.end + (if (block.ordered) "${block.index}. ".length else 2)) }
-            Block.Rule -> continue
+            Block.Rule, is Block.Image -> continue
         }
         if (!first) append(' ')
         first = false

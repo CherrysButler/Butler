@@ -163,4 +163,29 @@ class RpMarkdownTest {
         val speech = spans.single { it.kind == InlineKind.Speech }
         assertEquals("\"hi\"", text.substring(speech.start, speech.end))
     }
+
+    @Test
+    fun `images lift out of their line when asked for`() {
+        val blocks = RpMarkdown.parse("Look: ![a cat](https://ella.janitorai.com/x.webp) nice", images = true)
+        assertEquals(
+            listOf(
+                Block.Paragraph("Look:", emptyList()),
+                Block.Image("https://ella.janitorai.com/x.webp", "a cat"),
+                Block.Paragraph("nice", emptyList()),
+            ),
+            blocks,
+        )
+    }
+
+    @Test
+    fun `images stay literal text unless asked for`() {
+        val blocks = RpMarkdown.parse("![a cat](https://example.com/x.png)")
+        assertTrue(blocks.single() is Block.Paragraph)
+    }
+
+    @Test
+    fun `an image title is dropped`() {
+        val image = RpMarkdown.parse("""![](https://example.com/x.png "hover")""", images = true).single()
+        assertEquals(Block.Image("https://example.com/x.png", ""), image)
+    }
 }

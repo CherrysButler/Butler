@@ -30,6 +30,7 @@ object DescriptionLayout {
         for (block in blocks) {
             when (block) {
                 Block.Rule -> out += Doc.Rule
+                is Block.Image -> Unit // never parsed for descriptions
                 is Block.ListItem -> out += Doc.ListItem(block.text, block.spans, block.ordered, block.index)
                 is Block.Paragraph -> {
                     if (isLabel(block)) {

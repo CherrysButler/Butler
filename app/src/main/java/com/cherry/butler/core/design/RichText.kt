@@ -146,6 +146,8 @@ fun RichText(
                     )
                 }
                 Block.Rule -> HairlineRule(color = ButlerTheme.colors.rule, modifier = Modifier.padding(vertical = 4.dp))
+                // Descriptions are parsed without images; the chat is the only place they load.
+                is Block.Image -> Unit
             }
         }
     }
