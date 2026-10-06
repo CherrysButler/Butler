@@ -132,18 +132,18 @@ fun Composer(
         // writing room is the screen's width and not what two keys leave of it.
         Row(
             modifier = Modifier
-                .padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 10.dp)
+                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 10.dp)
                 .fillMaxWidth()
-                .heightIn(min = 52.dp)
+                .heightIn(min = 48.dp)
                 .card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
-                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 6.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             if (onPickPersona != null) {
                 PersonaChip(persona = persona, onClick = onPickPersona)
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
             }
-            Box(modifier = Modifier.weight(1f).heightIn(min = 40.dp).padding(vertical = 7.dp), contentAlignment = Alignment.CenterStart) {
+            Box(modifier = Modifier.weight(1f).heightIn(min = 36.dp).padding(vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
                 if (writing != null) {
                     // Read-only while it arrives, six lines tall at most, and held at its newest
                     // words: clipped at the top, a growing line looked as if it had stopped.
@@ -172,7 +172,7 @@ fun Composer(
                                 typing = st
                                 if (v.text != draft) onDraftChanged(v.text)
                             },
-                            modifier = Modifier.padding(bottom = 8.dp),
+                            modifier = Modifier.padding(bottom = 6.dp),
                         )
                     }
                     BasicTextField(
@@ -215,10 +215,10 @@ fun Composer(
                 }
             }
             if (onWrite != null && (!busy || writing != null)) {
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(2.dp))
                 WriteKey(writing = writing != null, rewrite = draft.isNotBlank(), onWrite = onWrite, onStop = onStopWriting)
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(4.dp))
             AdvanceKey(busy = busy, enabled = draft.isNotBlank() && writing == null, onSend = onSend, onStop = onStop)
         }
     }
@@ -237,7 +237,7 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
             val on = if (quoteKey) innerQuote else mark == lit
             Box(
                 modifier = Modifier
-                    .size(width = 40.dp, height = 32.dp)
+                    .size(width = 36.dp, height = 28.dp)
                     .clip(MaterialTheme.shapes.small)
                     .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
                     .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
@@ -268,16 +268,19 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
 @Composable
 private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
     val name = persona?.name.orEmpty()
-    Avatar(
-        url = persona?.avatarUrl,
-        name = name,
-        size = 40.dp,
-        initialStyle = MaterialTheme.typography.labelLarge,
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = if (name.isEmpty()) "Choose persona" else "Playing as $name. Change persona" },
-    )
+    // As tall as the send key, so the face sits level with it beside a one-line draft.
+    Box(modifier = Modifier.size(width = 32.dp, height = KEY_HEIGHT), contentAlignment = Alignment.Center) {
+        Avatar(
+            url = persona?.avatarUrl,
+            name = name,
+            size = 32.dp,
+            initialStyle = MaterialTheme.typography.labelMedium,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(onClick = onClick)
+                .semantics { contentDescription = if (name.isEmpty()) "Choose persona" else "Playing as $name. Change persona" },
+        )
+    }
 }
 
 /**
@@ -288,20 +291,20 @@ private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
 private fun WriteKey(writing: Boolean, rewrite: Boolean, onWrite: () -> Unit, onStop: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(width = 32.dp, height = KEY_HEIGHT)
             .clip(MaterialTheme.shapes.small)
             .clickable(onClick = if (writing) onStop else onWrite)
             .semantics { contentDescription = if (writing) "Stop writing" else if (rewrite) "Enhance my draft" else "Write for me" },
         contentAlignment = Alignment.Center,
     ) {
         if (writing) {
-            Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
+            Box(Modifier.size(11.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
         } else {
             Icon(
                 Icons.Rounded.AutoAwesome,
                 contentDescription = null,
                 tint = if (rewrite) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
-                modifier = Modifier.size(21.dp),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
@@ -320,7 +323,7 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
     val fill by animateColorAsState(if (live) red else androidx.compose.ui.graphics.Color.Transparent, animationSpec = Motion.enter(Motion.SHORT), label = "key-fill")
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(KEY_HEIGHT)
             .clip(MaterialTheme.shapes.small)
             .background(fill)
             .clickable(enabled = live, onClick = if (busy) onStop else onSend)
@@ -333,18 +336,21 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
             label = "key-glyph",
         ) { stopping ->
             if (stopping) {
-                Box(Modifier.size(14.dp).background(MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(3.dp)))
+                Box(Modifier.size(13.dp).background(MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(3.dp)))
             } else {
                 Icon(
                     Icons.AutoMirrored.Rounded.Send,
                     contentDescription = null,
                     tint = if (enabled) MaterialTheme.colorScheme.onPrimary else ButlerTheme.colors.textLow,
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
     }
 }
+
+/** The send key's size, and the height every key in the field shares so they line up. */
+private val KEY_HEIGHT = 36.dp
 
 /** What the keyboard last reported; read in the edit callback only, so it is no state. */
 private class KeyboardCopy(var value: String? = null)
