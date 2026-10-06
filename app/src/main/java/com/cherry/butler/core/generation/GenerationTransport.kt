@@ -4,6 +4,7 @@ import android.util.Log
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.network.ApiCall
 import com.cherry.butler.core.network.ApiError
+import com.cherry.butler.core.network.CloudflareGate
 import com.cherry.butler.core.network.SseReader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -286,15 +287,14 @@ class HttpGenerationTransport(
                     if (com.cherry.butler.BuildConfig.DEBUG) {
                         Log.w(TAG, "${r.request.url.encodedPath} -> ${r.code} ${r.protocol} server=${r.header("server")} via=${r.header("via")} body=${body.take(300).lines().joinToString(" ")}")
                     }
-                    val error = apiCall.errorFor(r, body)
-                    if (!isFirewallPage(r, body)) throw error
-                    Log.w(TAG, "firewall 403 on ${r.request.url.encodedPath} ray=${r.header("cf-ray")} mitigated=${r.header("cf-mitigated")}")
-                    throw ApiError.Api(
-                        code = 403,
-                        janitorCode = "FIREWALL",
-                        serverMessage = "Janitor's firewall (Cloudflare) turned this send away, not your account. Try again in a minute.",
-                        retryable = true,
-                    )
+                    // Cloudflare's answers are told apart inside errorFor (CloudflareGate).
+                    throw apiCall.errorFor(r, body)
+                }
+                // A page where a stream or a payload belongs: Cloudflare's waiting room can be a 200.
+                if (!direct && r.header("Content-Type").orEmpty().startsWith("text/html")) {
+                    val body = r.body?.string().orEmpty()
+                    throw CloudflareGate.check(r, body)
+                        ?: ApiError.Serialization(IllegalStateException("generateAlpha answered with a web page (${r.code})"))
                 }
                 try {
                     block(r)
@@ -319,13 +319,6 @@ class HttpGenerationTransport(
             else -> ApiError.Api(code, janitorCode = "PROXY_ERROR", serverMessage = body.take(200), retryable = false)
         }
     }
-
-    /**
-     * Cloudflare's own refusal, not Janitor's: a 403 that is a page rather than Janitor's JSON
-     * ("Access Restricted", or a challenge marked `cf-mitigated`). Janitor's refusals are JSON.
-     */
-    private fun isFirewallPage(r: Response, body: String): Boolean =
-        r.code == 403 && (r.header("cf-mitigated") != null || !body.trimStart().startsWith("{"))
 
     private companion object {
         const val TAG = "GenerationTransport"

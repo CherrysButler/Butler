@@ -81,7 +81,10 @@ class ApiCall(
 
         response.use { r ->
             val body = r.body?.string().orEmpty()
-            if (r.isSuccessful) return@withContext body
+            if (r.isSuccessful) {
+                CloudflareGate.check(r, body)?.let { throw it }
+                return@withContext body
+            }
             throw r.toApiError(body)
         }
     }
@@ -99,6 +102,8 @@ class ApiCall(
     fun networkError(e: IOException): ApiError = ApiError.Network(e.toNetworkKind(), e)
 
     private fun Response.toApiError(body: String): ApiError {
+        // Cloudflare's own answers (a challenge, the waiting room, a firewall block) say so.
+        CloudflareGate.check(this, body)?.let { return it }
         val serverRetryable = header("x-error-retryable")?.equals("true", ignoreCase = true)
         val janitorCode = header("x-error-code") ?: body.extractJanitorCode()
         val upstream = header("x-upstream-status")?.toIntOrNull()

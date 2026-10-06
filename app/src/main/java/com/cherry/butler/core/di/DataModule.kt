@@ -34,6 +34,7 @@ object DataModule {
         keeper: SessionKeeper,
     ): OkHttpClient {
         DebugProxy.load(context)
+        com.cherry.butler.core.network.CloudflareGate.init(context)
         return OkHttpClient.Builder()
             // Debug builds only: Settings › Debug can route everything through Burp or mitmproxy.
             .proxySelector(DebugProxy)
