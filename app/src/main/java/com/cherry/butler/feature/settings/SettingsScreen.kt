@@ -332,6 +332,7 @@ private fun ModelSection(
                 subtitle = if (settings.routerEnabled) "On: Janitor's paid models answer" else "Janitor's paid models · needs Janitor Plus",
                 onClick = onOpenRouter,
             )
+            JllmPromptRow(settings, viewModel)
         }
         WriterPicker(settings, viewModel)
         val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
@@ -343,6 +344,31 @@ private fun ModelSection(
         )
         if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration)
         LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts)
+    }
+}
+
+/**
+ * JLLM's custom prompt, as the website has it: one of the saved prompts (Settings › Prompts),
+ * or none. Saved with the rest of the page.
+ */
+@Composable
+private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
+    var picking by remember { mutableStateOf(false) }
+    val systemPrompts = settings.prompts.filter { it.kind == "system" }
+    val name = settings.jllmPromptName ?: settings.jllmPromptId?.let { "Linked prompt" }
+    LinkRow(
+        title = "JLLM prompt",
+        subtitle = name ?: if (systemPrompts.isEmpty()) "None · add one under Prompts" else "None",
+        onClick = { picking = true },
+    )
+    if (picking) {
+        PromptPickerSheet(
+            prompts = systemPrompts,
+            selectedId = settings.jllmPromptId,
+            onPick = { id -> viewModel.setJllmPrompt(id); picking = false },
+            onDismiss = { picking = false },
+            noneSubtitle = "JLLM answers with Janitor's own prompt only",
+        )
     }
 }
 

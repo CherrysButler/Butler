@@ -52,6 +52,9 @@ data class AiSettings(
     val proxies: List<ProxyConfig>,
     val prompts: List<Prompt>,
     val generation: JsonObject,
+    /** JLLM's custom prompt (a library prompt's id), or null for none. */
+    val jllmPromptId: String? = null,
+    val jllmPromptName: String? = null,
 ) {
     val selectedProxy: ProxyConfig? get() = proxies.firstOrNull { it.id == selectedProxyId }
 }
@@ -96,6 +99,12 @@ class SettingsRepository @Inject constructor(
     suspend fun setProvider(provider: Provider) = write { remote.patch(buildJsonObject { put("source", provider.wire) }) }
 
     suspend fun selectProxy(id: String) = write { remote.patch(buildJsonObject { put("selected_proxy_config_id", id) }) }
+
+    /**
+     * JLLM's custom prompt: a library prompt's id, or null to have none. Janitor copies the
+     * text into `llm_prompt`; the profile re-read in [write] brings it to the next send.
+     */
+    suspend fun setJllmPrompt(id: String?) = write { remote.patch(buildJsonObject { put("janitor_prompt_id", id) }) }
 
     /** Several sampler keys in one request; the server merges them into the rest. */
     suspend fun setGeneration(values: Map<String, JsonElement>) = write {
@@ -193,6 +202,8 @@ class SettingsRepository @Inject constructor(
             },
             prompts = dto.prompts?.map { it.toPrompt() } ?: _settings.value?.prompts.orEmpty(),
             generation = dto.settings.generationSettings,
+            jllmPromptId = dto.settings.janitorPrompt?.id,
+            jllmPromptName = dto.settings.janitorPrompt?.name,
         )
         _settings.value = settings
         return settings

@@ -39,6 +39,12 @@ data class SettingsDto(
     @SerialName("selected_proxy_config_id") val selectedProxyConfigId: String? = null,
     /** Kept raw: 14+ keys, written back one key at a time with a partial PATCH. */
     @SerialName("generation_settings") val generationSettings: JsonObject = JsonObject(emptyMap()),
+    /**
+     * JLLM's custom prompt: a prompt-library entry, returned whole. Set with
+     * `PATCH /api-settings {janitor_prompt_id}` (captured on the website 2026-10-07); Janitor then
+     * copies its text into the legacy `llm_prompt`, which JLLM generations carry.
+     */
+    @SerialName("janitor_prompt") val janitorPrompt: PromptDto? = null,
 )
 
 @Serializable

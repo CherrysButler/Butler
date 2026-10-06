@@ -115,9 +115,14 @@ class SettingsViewModel @Inject constructor(
         val provider: Provider? = null,
         val proxyId: String? = null,
         val generation: Map<String, JsonElement> = emptyMap(),
+        /** JLLM's prompt as picked, when it differs from Janitor's; [PromptPick.id] null is "none". */
+        val jllmPrompt: PromptPick? = null,
     ) {
-        val isEmpty: Boolean get() = provider == null && proxyId == null && generation.isEmpty()
+        val isEmpty: Boolean get() = provider == null && proxyId == null && generation.isEmpty() && jllmPrompt == null
     }
+
+    /** A picked prompt; wrapped so "none" (a null id) differs from "no change" (no pick). */
+    data class PromptPick(val id: String?)
 
     private val _draft = MutableStateFlow(Draft())
 
@@ -127,6 +132,8 @@ class SettingsViewModel @Inject constructor(
             provider = d.provider ?: saved.provider,
             selectedProxyId = d.proxyId ?: saved.selectedProxyId,
             generation = if (d.generation.isEmpty()) saved.generation else JsonObject(saved.generation + d.generation),
+            jllmPromptId = d.jllmPrompt?.let { it.id } ?: saved.jllmPromptId,
+            jllmPromptName = d.jllmPrompt?.let { pick -> saved.prompts.firstOrNull { it.id == pick.id }?.name } ?: saved.jllmPromptName,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, repository.settings.value)
 
@@ -176,6 +183,10 @@ class SettingsViewModel @Inject constructor(
         d.copy(proxyId = id.takeIf { it != repository.settings.value?.selectedProxyId })
     }
 
+    fun setJllmPrompt(id: String?) = _draft.update { d ->
+        d.copy(jllmPrompt = PromptPick(id).takeIf { id != repository.settings.value?.jllmPromptId })
+    }
+
     /** A value moved back to what Janitor already has is no longer a change. */
     fun setGeneration(key: String, value: JsonElement) = _draft.update { d ->
         val saved = repository.settings.value?.generation?.get(key)
@@ -200,6 +211,7 @@ class SettingsViewModel @Inject constructor(
             val result = runCatching {
                 d.provider?.let { repository.setProvider(it); _draft.update { x -> x.copy(provider = null) } }
                 d.proxyId?.let { repository.selectProxy(it); _draft.update { x -> x.copy(proxyId = null) } }
+                d.jllmPrompt?.let { repository.setJllmPrompt(it.id); _draft.update { x -> x.copy(jllmPrompt = null) } }
                 if (d.generation.isNotEmpty()) {
                     repository.setGeneration(d.generation)
                     _draft.update { x -> x.copy(generation = x.generation - d.generation.keys) }

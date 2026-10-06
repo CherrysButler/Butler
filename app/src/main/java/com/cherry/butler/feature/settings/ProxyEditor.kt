@@ -321,7 +321,13 @@ fun EditorScaffold(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun PromptPickerSheet(prompts: List<Prompt>, selectedId: String?, onPick: (String?) -> Unit, onDismiss: () -> Unit) {
+fun PromptPickerSheet(
+    prompts: List<Prompt>,
+    selectedId: String?,
+    onPick: (String?) -> Unit,
+    onDismiss: () -> Unit,
+    noneSubtitle: String = "No prompt for this proxy",
+) {
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismiss,
         shape = com.cherry.butler.core.design.SheetShape,
@@ -331,7 +337,7 @@ fun PromptPickerSheet(prompts: List<Prompt>, selectedId: String?, onPick: (Strin
     ) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState())) {
             PlateText("Prompt", PlateLevel.Name, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
-            ChoiceRow(title = "None", subtitle = "No prompt for this proxy", selected = selectedId == null, onClick = { onPick(null) })
+            ChoiceRow(title = "None", subtitle = noneSubtitle, selected = selectedId == null, onClick = { onPick(null) })
             prompts.forEach { p ->
                 ChoiceRow(
                     title = p.name.ifBlank { "Untitled" },
