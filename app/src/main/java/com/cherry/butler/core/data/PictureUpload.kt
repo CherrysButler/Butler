@@ -33,7 +33,7 @@ class PictureUpload @Inject constructor(
     client: OkHttpClient,
 ) {
     /** The presigned URL breaks if Janitor's headers are added to it. */
-    private val plain: OkHttpClient = client.newBuilder().apply { interceptors().clear() }.build()
+    private val plain: OkHttpClient = client.newBuilder().apply { interceptors().clear() }.addInterceptor(com.cherry.butler.core.network.ButlerUserAgent).build()
 
     /** [type] is `avatar` for a persona, `profile-avatar` for the profile (§29). */
     suspend fun upload(uri: Uri, type: String): String = withContext(Dispatchers.IO) {

@@ -234,6 +234,7 @@ private fun SettingsBody(
                 RichTypingSection(viewModel)
                 SpecialsSection(viewModel)
                 AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
+                if (com.cherry.butler.BuildConfig.DEBUG) DebugSection()
             }
             SettingsPage.Model -> {
                 ModelSection(settings, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
@@ -333,6 +334,13 @@ private fun ModelSection(
             )
         }
         WriterPicker(settings, viewModel)
+        val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
+        SwitchRow(
+            title = "NSFW on mobile",
+            subtitle = "Janitor's allow_mobile_nsfw, sent with every reply. Off, as the website sends it",
+            checked = nsfw,
+            onChange = viewModel::setAllowMobileNsfw,
+        )
         if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration)
         LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts)
     }
@@ -508,9 +516,11 @@ private fun proxyLine(model: String, url: String, hasKey: Boolean): String = bui
 }
 
 private fun generationSummary(gen: JsonObject): String {
-    val temp = gen["temperature"]?.jsonPrimitive?.floatOrNull ?: 0.8f
-    val max = gen["max_new_token"]?.jsonPrimitive?.floatOrNull?.toInt() ?: 500
-    return "Temperature ${temp.fixed(2)} · replies up to ${"%,d".format(java.util.Locale.US, max)} tokens"
+    val defaults = com.cherry.butler.core.generation.GenerationEnvelope.WEB_GENERATION_DEFAULTS
+    val temp = gen["temperature"]?.jsonPrimitive?.floatOrNull ?: defaults["temperature"]?.jsonPrimitive?.floatOrNull ?: 1f
+    val max = gen["max_new_token"]?.jsonPrimitive?.floatOrNull?.toInt() ?: defaults["max_new_token"]?.jsonPrimitive?.intOrNull ?: 0
+    val length = if (max <= 0) "no reply limit" else "replies up to ${"%,d".format(java.util.Locale.US, max)} tokens"
+    return "Temperature ${temp.fixed(2)} · $length"
 }
 
 /** The look: three themes as tiles, the chat layout as a choice, and the text styling. */
@@ -1103,11 +1113,12 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
     fun bool(key: String) = gen[key]?.jsonPrimitive?.booleanOrNull ?: false
 
     SettingsSection(title = "Length") {
-        NumberRow("Reply length", "Tokens, at most", int("max_new_token", 500), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 16..65_536)
-        NumberRow("Context", "Tokens of history sent", int("context_length", 8192), { viewModel.setGeneration("context_length", JsonPrimitive(it)) }, 512..1_000_000)
+        // The defaults shown are the ones the website sends when nothing is saved.
+        NumberRow("Reply length", "Tokens, at most; 0 for no limit", int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
+        NumberRow("Context", "Tokens of history sent", int("context_length", 50_000), { viewModel.setGeneration("context_length", JsonPrimitive(it)) }, 512..1_000_000)
     }
     SettingsSection(title = "Sampling") {
-        SliderRow("Temperature", num("temperature", 0.8f), 0f..2f, 0.05f, { it.fixed(2) }, { viewModel.setGeneration("temperature", JsonPrimitive(it)) }, busy = saving == "gen:temperature")
+        SliderRow("Temperature", num("temperature", 1f), 0f..2f, 0.05f, { it.fixed(2) }, { viewModel.setGeneration("temperature", JsonPrimitive(it)) }, busy = saving == "gen:temperature")
         SliderRow("Top P", num("top_p", 1f), 0f..1f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("top_p", JsonPrimitive(it)) }, busy = saving == "gen:top_p")
         SliderRow("Top K", int("top_k", 0).toFloat(), 0f..100f, 1f, { it.toInt().toString() }, { viewModel.setGeneration("top_k", JsonPrimitive(it.toInt())) }, busy = saving == "gen:top_k")
         SliderRow("Repetition penalty", num("repetition_penalty", 0f), 0f..2f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("repetition_penalty", JsonPrimitive(it)) }, busy = saving == "gen:repetition_penalty")
@@ -1265,4 +1276,69 @@ interface WidgetsEntryPoint {
 @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
 interface LockEntryPoint {
     fun lock(): com.cherry.butler.core.security.AppLock
+}
+
+/** Debug builds only: route Butler's traffic through Burp Suite or mitmproxy on a computer. */
+@Composable
+private fun DebugSection() {
+    val proxy = com.cherry.butler.core.network.DebugProxy
+    var on by remember { mutableStateOf(proxy.enabled) }
+    var address by remember { mutableStateOf(proxy.address) }
+    val valid = proxy.parse(address) != null
+    SettingsSection(
+        title = "Debug",
+        footnote = "Debug builds only. Every call goes through the proxy: Janitor, the JLLM socket and your own proxy. " +
+            "Fetch the proxy's certificate (Burp or mitmproxy) so it can read HTTPS; it's trusted by this app only, nothing is installed on the phone.",
+    ) {
+        SwitchRow(
+            title = "Send traffic through a proxy",
+            subtitle = if (on && !valid) "Enter the proxy as host:port first" else null,
+            checked = on && valid,
+            enabled = valid || on,
+            onChange = { turnOn ->
+                on = turnOn
+                proxy.set(turnOn, address)
+            },
+        )
+        androidx.compose.material3.OutlinedTextField(
+            value = address,
+            onValueChange = { text ->
+                address = text
+                proxy.set(on, text)
+            },
+            label = { Text("Proxy (host:port)") },
+            placeholder = { Text("192.168.0.10:8080") },
+            singleLine = true,
+            isError = address.isNotBlank() && !valid,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+        var issuer by remember { mutableStateOf(proxy.certificate?.issuerX500Principal?.name) }
+        var fetching by remember { mutableStateOf(false) }
+        LinkRow(
+            title = if (fetching) "Fetching certificate…" else "Fetch certificate",
+            subtitle = issuer?.let { "Trusted: ${it.substringAfter("CN=").substringBefore(',')}. Tap to fetch again" }
+                ?: "From the proxy above, so it can read HTTPS",
+            onClick = {
+                if (!fetching) {
+                    fetching = true
+                    scope.launch {
+                        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { proxy.fetchCertificate() } }
+                        fetching = false
+                        result.onSuccess { issuer = it }
+                        android.widget.Toast.makeText(
+                            context,
+                            result.fold({ "Certificate fetched and trusted" }, { it.message ?: "Couldn't fetch it" }),
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
+            },
+        )
+        if (issuer != null) {
+            LinkRow(title = "Forget certificate", subtitle = null, onClick = { proxy.forgetCertificate(); issuer = null })
+        }
+    }
 }

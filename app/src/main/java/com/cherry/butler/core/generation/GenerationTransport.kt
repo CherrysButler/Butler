@@ -112,25 +112,45 @@ class HttpGenerationTransport(
      */
     private val proxyClient = client.newBuilder()
         .apply { interceptors().clear(); networkInterceptors().clear() }
+        .addInterceptor(com.cherry.butler.core.network.ButlerUserAgent)
         .build()
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
+    private val webJsonMedia = "application/json".toMediaType()
 
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> = flow {
-        val chat = envelope["chat"]?.jsonObject
-        val request = Request.Builder()
-            .url("${JanitorConfig.WEB_LLM_BASE}/generateAlpha")
-            .post(envelope.toString().toRequestBody(jsonMedia))
-            // The headers the website sends with this call (captured 2026-10-06). Without them
-            // Janitor's firewall answered "Access Restricted"; with them, the same body went
-            // through. No `apikey` here: AuthInterceptor leaves it off this path.
-            .header("Accept", "text/event-stream")
-            .header("Origin", JanitorConfig.WEB_LLM_BASE)
-            .header("Referer", "${JanitorConfig.WEB_LLM_BASE}/chats/${chat?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()}")
-            .header("x-app-version", JanitorConfig.WEB_APP_VERSION)
-            .apply { chat?.get("user_id")?.jsonPrimitive?.contentOrNull?.let { header("X-Request-ID", it) } }
-            .build()
+        streamFrom(webRequest(envelope), proxy)
+    }.flowOn(Dispatchers.IO)
 
+    /**
+     * The website's `/generateAlpha`, with the website's headers in the website's order
+     * (captured from Firefox, 2026-10-07), all but its cookies and its User-Agent, which is
+     * Butler's own ([com.cherry.butler.core.network.ButlerUserAgent]). No `apikey`: AuthInterceptor
+     * leaves it off this path, and adds `Authorization`. `Accept-Encoding` is OkHttp's own
+     * (`gzip`): it can't read the `br`/`zstd` the browser also offers.
+     */
+    private fun webRequest(envelope: JsonObject): Request {
+        val chat = envelope["chat"]?.jsonObject
+        return Request.Builder()
+            .url("${JanitorConfig.WEB_LLM_BASE}/generateAlpha")
+            // `application/json` exactly, as the website's; a String body would add a charset.
+            .post(envelope.toString().toByteArray().toRequestBody(webJsonMedia))
+            .header("Accept", "text/event-stream")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Referer", "${JanitorConfig.WEB_LLM_BASE}/chats/${chat?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()}")
+            .apply { chat?.get("user_id")?.jsonPrimitive?.contentOrNull?.let { header("X-Request-ID", it) } }
+            .header("x-app-version", JanitorConfig.WEB_APP_VERSION)
+            .header("Origin", JanitorConfig.WEB_LLM_BASE)
+            .header("Sec-GPC", "1")
+            .header("Alt-Used", "janitorai.com")
+            .header("Sec-Fetch-Dest", "empty")
+            .header("Sec-Fetch-Mode", "cors")
+            .header("Sec-Fetch-Site", "same-origin")
+            .header("Priority", "u=4")
+            .build()
+    }
+
+    private suspend fun FlowCollector<GenerationEvent>.streamFrom(request: Request, proxy: ProxyTarget?) {
         executeStreaming(request) { response ->
             val contentType = response.header("Content-Type").orEmpty()
             emit(
@@ -175,7 +195,7 @@ class HttpGenerationTransport(
                 }
             }
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
     /** The second hop: the assembled payload goes to the user's proxy host. */
     private suspend fun FlowCollector<GenerationEvent>.streamFromProxy(payload: JsonObject, target: ProxyTarget) {
@@ -262,7 +282,19 @@ class HttpGenerationTransport(
             response.use { r ->
                 if (!r.isSuccessful) {
                     val body = r.body?.string().orEmpty()
-                    throw if (direct) proxyError(r.code, body) else apiCall.errorFor(r, body)
+                    if (direct) throw proxyError(r.code, body)
+                    if (com.cherry.butler.BuildConfig.DEBUG) {
+                        Log.w(TAG, "${r.request.url.encodedPath} -> ${r.code} ${r.protocol} server=${r.header("server")} via=${r.header("via")} body=${body.take(300).lines().joinToString(" ")}")
+                    }
+                    val error = apiCall.errorFor(r, body)
+                    if (!isFirewallPage(r, body)) throw error
+                    Log.w(TAG, "firewall 403 on ${r.request.url.encodedPath} ray=${r.header("cf-ray")} mitigated=${r.header("cf-mitigated")}")
+                    throw ApiError.Api(
+                        code = 403,
+                        janitorCode = "FIREWALL",
+                        serverMessage = "Janitor's firewall (Cloudflare) turned this send away, not your account. Try again in a minute.",
+                        retryable = true,
+                    )
                 }
                 try {
                     block(r)
@@ -287,6 +319,13 @@ class HttpGenerationTransport(
             else -> ApiError.Api(code, janitorCode = "PROXY_ERROR", serverMessage = body.take(200), retryable = false)
         }
     }
+
+    /**
+     * Cloudflare's own refusal, not Janitor's: a 403 that is a page rather than Janitor's JSON
+     * ("Access Restricted", or a challenge marked `cf-mitigated`). Janitor's refusals are JSON.
+     */
+    private fun isFirewallPage(r: Response, body: String): Boolean =
+        r.code == 403 && (r.header("cf-mitigated") != null || !body.trimStart().startsWith("{"))
 
     private companion object {
         const val TAG = "GenerationTransport"

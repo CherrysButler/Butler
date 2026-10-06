@@ -7,6 +7,8 @@ import androidx.room.Room
 import com.cherry.butler.core.data.local.ButlerDatabase
 import com.cherry.butler.core.network.ApiCall
 import com.cherry.butler.core.network.AuthInterceptor
+import com.cherry.butler.core.network.ButlerUserAgent
+import com.cherry.butler.core.network.DebugProxy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,8 +28,17 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(authInterceptor: AuthInterceptor, keeper: SessionKeeper): OkHttpClient =
-        OkHttpClient.Builder()
+    fun provideOkHttpClient(
+        @ApplicationContext context: Context,
+        authInterceptor: AuthInterceptor,
+        keeper: SessionKeeper,
+    ): OkHttpClient {
+        DebugProxy.load(context)
+        return OkHttpClient.Builder()
+            // Debug builds only: Settings › Debug can route everything through Burp or mitmproxy.
+            .proxySelector(DebugProxy)
+            .apply { if (com.cherry.butler.BuildConfig.DEBUG) sslSocketFactory(DebugProxy.socketFactory, DebugProxy.trustManager) }
+            .addInterceptor(ButlerUserAgent)
             .addInterceptor(authInterceptor)
             // A 401 from Janitor: renew the session once and send the call again. Never for
             // another host (the user's proxy shares this builder), and never twice.
@@ -46,6 +57,8 @@ object DataModule {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
+            .also { DebugProxy.track(it.connectionPool) }
+    }
 
     @Provides
     @Singleton

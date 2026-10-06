@@ -5,6 +5,7 @@ import com.cherry.butler.core.data.remote.dto.PersonaDto
 import com.cherry.butler.core.data.remote.dto.PronounsDto
 import com.cherry.butler.core.util.IsoTime
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -81,7 +82,7 @@ object GenerationEnvelope {
          * is put down to the profile.
          */
         knownPersonas: List<PersonaDto> = emptyList(),
-    ): JsonObject = buildJsonObject {
+    ): JsonObject = sortedLikeTheWebsite(buildJsonObject {
         val userLines = history.filter { !it.isBot && it.serverId != null }
         val usedIds = userLines.mapNotNullTo(LinkedHashSet()) { it.personaId }.apply { persona?.let { add(it.id) } }
         val used = usedIds.mapNotNull { id -> if (id == persona?.id) persona else knownPersonas.firstOrNull { it.id == id } }
@@ -95,6 +96,9 @@ object GenerationEnvelope {
             put("summary", summary.orEmpty())
             if (summaryChatId != null) put("summary_chat_id", summaryChatId)
         })
+        // The website fills `{{user}}` in the history itself, with the name being played.
+        val userName = (persona?.name ?: profile.name).takeIf { it.isNotBlank() }
+        fun filled(text: String) = userName?.let { USER_MACRO.replace(text, Regex.escapeReplacement(it)) } ?: text
         put("chatMessages", buildJsonArray {
             for (m in history) {
                 // Only server-confirmed rows have ids the server can resolve.
@@ -102,11 +106,12 @@ object GenerationEnvelope {
                 add(buildJsonObject {
                     put("id", serverId)
                     put("chat_id", m.chatId)
-                    put("character_id", characterId)
+                    // The website names the character on its lines only, not on the user's.
+                    if (m.isBot) put("character_id", characterId)
                     put("created_at", IsoTime.format(m.createdAt))
                     put("is_bot", m.isBot)
                     put("is_main", m.isMain)
-                    put("message", m.text)
+                    put("message", filled(m.text))
                     if (!m.isBot && m.personaId != null) put("persona_id", m.personaId)
                 })
             }
@@ -166,6 +171,20 @@ object GenerationEnvelope {
             for (k in listOf("character", "chat", "profile", "script")) put(k, k in forceRefetch)
         })
         if (memoryReplacesHistory != null) put("memoryReplacesHistory", memoryReplacesHistory)
+    }) as JsonObject
+
+    /**
+     * The website sends its body with every object's keys sorted, `_` before letters and case
+     * aside (`claude_jailbreak_prompt` before `claudeApiKey`, `openAIKey` before `openAiModel`;
+     * captured 2026-10-07). Butler's body is sorted the same way, nested objects included.
+     */
+    private fun sortedLikeTheWebsite(e: JsonElement): JsonElement = when (e) {
+        is JsonObject -> JsonObject(
+            e.keys.sortedWith(compareBy<String> { it.lowercase().replace('_', ' ') }.thenBy { it })
+                .associateWithTo(LinkedHashMap()) { sortedLikeTheWebsite(e.getValue(it)) },
+        )
+        is JsonArray -> JsonArray(e.map(::sortedLikeTheWebsite))
+        else -> e
     }
 
     /**
@@ -174,6 +193,25 @@ object GenerationEnvelope {
      * key and the reader's colours, and that larger body was turned away by Janitor's
      * firewall where the website's was not.
      */
+    private val USER_MACRO = Regex("\\{\\{user\\}\\}", RegexOption.IGNORE_CASE)
+
+    /**
+     * The `generation_settings` the website sends when the account has saved none of them
+     * (captured 2026-10-07, a test account that had changed only `enable_short_responses`).
+     * Saved values go on top. Settings shows these same values as the defaults.
+     */
+    val WEB_GENERATION_DEFAULTS: JsonObject = buildJsonObject {
+        put("context_length", 50000)
+        put("enable_reasoning", true)
+        put("enable_reasoning_chat", false)
+        put("enable_router_temperature", false)
+        put("enable_short_responses", false)
+        put("max_new_token", 0)
+        put("prefill_enabled", false)
+        put("prefill_text", "")
+        put("temperature", 1)
+    }
+
     private val SENT_CONFIG_KEYS = setOf(
         "allow_mobile_nsfw", "api", "bad_words", "claude_jailbreak_prompt", "claudeModel",
         "generation_settings", "llm_prompt", "open_ai_jailbreak_prompt", "open_ai_mode",
@@ -193,6 +231,7 @@ object GenerationEnvelope {
         reverseProxyKey: String?,
         reverseProxyUrl: String?,
         routerEnabled: Boolean,
+        allowMobileNsfw: Boolean = false,
     ): JsonObject = buildJsonObject {
         // A fresh account's config is `{}` until AI settings are first saved; Janitor (and
         // the website) treat that as JLLM, so the envelope says so rather than saying nothing.
@@ -201,6 +240,10 @@ object GenerationEnvelope {
             put("open_ai_mode", "api_key")
         }
         for ((k, v) in profileConfig) if (k in SENT_CONFIG_KEYS) put(k, v)
+        // Janitor keeps only what the user changed; the website sends its defaults under that.
+        val stored = profileConfig["generation_settings"] as? JsonObject ?: JsonObject(emptyMap())
+        put("generation_settings", JsonObject(WEB_GENERATION_DEFAULTS + stored))
+        put("allow_mobile_nsfw", allowMobileNsfw)
         put("reverseProxyKey", reverseProxyKey?.let(::JsonPrimitive) ?: JsonNull)
         if (reverseProxyUrl != null) put("open_ai_reverse_proxy", reverseProxyUrl)
         put("openAIKey", JsonNull as JsonElement)

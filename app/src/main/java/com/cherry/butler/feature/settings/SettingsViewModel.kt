@@ -42,7 +42,12 @@ class SettingsViewModel @Inject constructor(
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
     private val fonts: com.cherry.butler.core.data.FontPrefs,
+    private val content: com.cherry.butler.core.data.ContentPrefs,
 ) : ViewModel() {
+
+    /** `allow_mobile_nsfw`, sent with every reply. */
+    val allowMobileNsfw: StateFlow<Boolean> = content.allowMobileNsfw
+    fun setAllowMobileNsfw(on: Boolean) = content.setAllowMobileNsfw(on)
 
     /** The chat font and the app font (keys, see FontPrefs), and the font files added. */
     val chatFont: StateFlow<String> = fonts.chat

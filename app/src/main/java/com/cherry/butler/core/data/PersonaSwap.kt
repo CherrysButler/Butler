@@ -55,7 +55,7 @@ class PersonaSwap @Inject constructor(
     client: OkHttpClient,
 ) {
     /** Talks to the picture CDN and the presigned upload URL: no Janitor headers, or the upload's signature breaks. */
-    private val plain: OkHttpClient = client.newBuilder().apply { interceptors().clear() }.build()
+    private val plain: OkHttpClient = client.newBuilder().apply { interceptors().clear() }.addInterceptor(com.cherry.butler.core.network.ButlerUserAgent).build()
 
     @Serializable
     private data class Backup(

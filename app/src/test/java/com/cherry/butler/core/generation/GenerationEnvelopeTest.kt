@@ -47,8 +47,10 @@ class GenerationEnvelopeTest {
     fun `chat, message, profile and profiles blocks match the capture`() {
         val env = build()
         assertEquals(setOf("id", "character_id", "user_id", "summary"), env["chat"]!!.jsonObject.keys)
-        val msg = env["chatMessages"]!!.jsonArray.first().jsonObject
-        assertEquals(setOf("id", "chat_id", "character_id", "created_at", "is_bot", "is_main", "message"), msg.keys)
+        val (mine, theirs) = env["chatMessages"]!!.jsonArray.map { it.jsonObject }
+        // As the website sends them: the character is named on its own lines only.
+        assertEquals(setOf("id", "chat_id", "created_at", "is_bot", "is_main", "message"), mine.keys)
+        assertEquals(setOf("id", "chat_id", "character_id", "created_at", "is_bot", "is_main", "message"), theirs.keys)
         assertEquals(setOf("id", "name", "user_name", "user_appearance"), env["profile"]!!.jsonObject.keys)
         val p0 = env["profiles"]!!.jsonArray.first().jsonObject
         assertEquals(setOf("id", "name", "user_name", "appearance", "type"), p0.keys)
@@ -75,9 +77,68 @@ class GenerationEnvelopeTest {
             reverseProxyKey = "k", reverseProxyUrl = "https://p/x", routerEnabled = false,
         )
         assertEquals(
-            setOf("api", "reverseProxyKey", "open_ai_reverse_proxy", "openAIKey", "claudeApiKey", "text_streaming", "janitor_router_enabled"),
+            setOf(
+                "api", "generation_settings", "allow_mobile_nsfw", "reverseProxyKey", "open_ai_reverse_proxy",
+                "openAIKey", "claudeApiKey", "text_streaming", "janitor_router_enabled",
+            ),
             uc.keys,
         )
+    }
+
+    @Test
+    fun `generation settings are the website's defaults with the saved ones on top`() {
+        val uc = GenerationEnvelope.userConfig(
+            profileConfig = buildJsonObject {
+                put("api", JsonPrimitive("openai"))
+                put("generation_settings", buildJsonObject { put("temperature", JsonPrimitive(0.5)) })
+            },
+            reverseProxyKey = null, reverseProxyUrl = null, routerEnabled = false, allowMobileNsfw = true,
+        )
+        val gen = uc["generation_settings"]!!.jsonObject
+        assertEquals(GenerationEnvelope.WEB_GENERATION_DEFAULTS.keys, gen.keys)
+        assertEquals("0.5", gen["temperature"]!!.jsonPrimitive.content)
+        assertEquals("50000", gen["context_length"]!!.jsonPrimitive.content)
+        assertEquals("true", uc["allow_mobile_nsfw"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `keys are sorted as the website sorts them, underscores before letters`() {
+        val env = GenerationEnvelope.build(
+            chatId = 42, characterId = "char", userId = "user", summary = "", summaryChatId = null,
+            history = listOf(row(1, bot = true)),
+            profile = EnvelopeProfile(id = "user", name = "Rain", userName = "abrin", userAppearance = ""),
+            userConfig = GenerationEnvelope.userConfig(
+                profileConfig = buildJsonObject {
+                    for (k in listOf("openAiModel", "claudeModel", "open_ai_mode", "claude_jailbreak_prompt", "api")) put(k, JsonPrimitive(""))
+                },
+                reverseProxyKey = null, reverseProxyUrl = null, routerEnabled = false,
+            ),
+            mode = GenerateMode.New, clientPlatform = "web",
+        )
+        assertEquals(
+            listOf("chat", "chatMessages", "clientPlatform", "forcedPromptGenerationCacheRefetch", "generateMode", "generateType", "profile", "profiles", "userConfig"),
+            env.keys.toList(),
+        )
+        assertEquals(
+            listOf(
+                "allow_mobile_nsfw", "api", "claude_jailbreak_prompt", "claudeApiKey", "claudeModel", "generation_settings",
+                "janitor_router_enabled", "open_ai_mode", "openAIKey", "openAiModel", "reverseProxyKey", "text_streaming",
+            ),
+            env["userConfig"]!!.jsonObject.keys.toList(),
+        )
+        assertEquals(listOf("character_id", "id", "summary", "user_id"), env["chat"]!!.jsonObject.keys.toList())
+    }
+
+    @Test
+    fun `the history's user macro is filled with the name being played`() {
+        val env = GenerationEnvelope.build(
+            chatId = 42, characterId = "char", userId = "user", summary = "", summaryChatId = null,
+            history = listOf(row(1, bot = true, text = "She sees {{user}}. {{USER}} waves.")),
+            profile = EnvelopeProfile(id = "user", name = "Rain", userName = "abrin", userAppearance = ""),
+            userConfig = buildJsonObject { put("api", JsonPrimitive("openai")) },
+            mode = GenerateMode.New, clientPlatform = "web",
+        )
+        assertEquals("She sees Rain. Rain waves.", env["chatMessages"]!!.jsonArray.single().jsonObject["message"]!!.jsonPrimitive.content)
     }
 
     private val sen = PersonaDto(

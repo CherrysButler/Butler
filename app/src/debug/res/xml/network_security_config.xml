@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug builds only (this file replaces src/main's in the debug variant). Besides the
+    system's certificate authorities, it trusts ones the user installed, so an inspecting
+    proxy's CA (Burp Suite, mitmproxy) can read the traffic sent through Settings › Debug.
+    The release build keeps src/main's: system authorities only. Cleartext stays off.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+    <!-- Where an inspecting proxy hands out its CA (Settings › Debug › Fetch certificate). -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">burp</domain>
+        <domain includeSubdomains="false">mitm.it</domain>
+    </domain-config>
+</network-security-config>

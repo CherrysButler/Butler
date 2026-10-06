@@ -30,6 +30,7 @@ import javax.inject.Singleton
 class ProfileRepository @Inject constructor(
     private val remote: ProfileRemoteSource,
     private val openRouter: OpenRouterOptionsStore,
+    private val content: ContentPrefs,
 ) {
     private val mutex = Mutex()
 
@@ -164,6 +165,7 @@ class ProfileRepository @Inject constructor(
                 reverseProxyKey = null,
                 reverseProxyUrl = null,
                 routerEnabled = false,
+                allowMobileNsfw = content.allowMobileNsfw.value,
             ) to null
             is Writer.Proxy -> {
                 val saved = proxy(profile, writer.id) ?: return userConfig(profile) to proxyTarget(profile)
@@ -181,7 +183,10 @@ class ProfileRepository @Inject constructor(
                     val shaped = options?.applyTo(payload) ?: payload
                     p.model?.let { JsonObject(shaped + ("model" to JsonPrimitive(it))) } ?: shaped
                 })
-                GenerationEnvelope.userConfig(profileConfig = config, reverseProxyKey = p.key, reverseProxyUrl = p.url, routerEnabled = false) to target
+                GenerationEnvelope.userConfig(
+                    profileConfig = config, reverseProxyKey = p.key, reverseProxyUrl = p.url, routerEnabled = false,
+                    allowMobileNsfw = content.allowMobileNsfw.value,
+                ) to target
             }
         }
     }
@@ -214,6 +219,7 @@ class ProfileRepository @Inject constructor(
             reverseProxyKey = proxy?.key,
             reverseProxyUrl = proxy?.url,
             routerEnabled = false,
+            allowMobileNsfw = content.allowMobileNsfw.value,
         )
     }
 
