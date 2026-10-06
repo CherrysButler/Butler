@@ -31,8 +31,11 @@ class AuthInterceptor @Inject constructor(
         // them) share this client through Coil and must never see the user's token.
         if (!isJanitorApi(request.url.host)) return chain.proceed(request)
         val builder = request.newBuilder()
-            .header("apikey", JanitorConfig.SUPABASE_ANON_KEY)
-            .header("Accept", "application/json")
+        // The website sends no `apikey` to generation; Janitor's firewall turned away the
+        // call that carried it with Butler's other headers (2026-10-06).
+        if (!request.url.encodedPath.endsWith("/generateAlpha")) builder.header("apikey", JanitorConfig.SUPABASE_ANON_KEY)
+        // A caller that asked for something else (a stream) keeps its own Accept.
+        if (request.header("Accept") == null) builder.header("Accept", "application/json")
 
         authRepository.get().currentAccessToken?.let { token ->
             builder.header("Authorization", "Bearer $token")

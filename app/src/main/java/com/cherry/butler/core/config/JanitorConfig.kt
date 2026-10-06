@@ -27,6 +27,9 @@ object JanitorConfig {
      * or a preset model before sending.
      */
     const val WEB_LLM_BASE = "https://janitorai.com"
+
+    /** The website build's `x-app-version`, sent with generation calls as the website does. */
+    const val WEB_APP_VERSION = "10.0.0.116"
     const val NOTIFS_BASE = "https://janitorai.com/notifs/mobile"
 
     // Media CDN (the only non-Janitor-first-party host we ever contact is Supabase above)

@@ -125,9 +125,21 @@ object GenerationEnvelope {
     }
 
     /**
-     * `userConfig` = the profile's `config` plus the six keys the official client adds
-     * (docs/JANITOR_API.md §18.2). The proxy key is threaded through as an element and never
-     * stringified anywhere but into the request body.
+     * The keys of the profile's `config` the website sends to `/generateAlpha` (captured
+     * 2026-10-06). Everything else stays home: the full config carried every saved proxy's
+     * key and the reader's colours, and that larger body was turned away by Janitor's
+     * firewall where the website's was not.
+     */
+    private val SENT_CONFIG_KEYS = setOf(
+        "allow_mobile_nsfw", "api", "bad_words", "claude_jailbreak_prompt", "claudeModel",
+        "generation_settings", "llm_prompt", "open_ai_jailbreak_prompt", "open_ai_mode",
+        "open_ai_reverse_proxy", "openAiModel", "proxy_global_prompt",
+    )
+
+    /**
+     * `userConfig` = the sent part of the profile's `config` plus the six keys the official
+     * client adds (docs/JANITOR_API.md §18.2). The proxy key is threaded through as an element
+     * and never stringified anywhere but into the request body.
      */
     fun userConfig(
         profileConfig: JsonObject,
@@ -141,7 +153,7 @@ object GenerationEnvelope {
             put("api", "janitor")
             put("open_ai_mode", "api_key")
         }
-        for ((k, v) in profileConfig) put(k, v)
+        for ((k, v) in profileConfig) if (k in SENT_CONFIG_KEYS) put(k, v)
         put("reverseProxyKey", reverseProxyKey?.let(::JsonPrimitive) ?: JsonNull)
         if (reverseProxyUrl != null) put("open_ai_reverse_proxy", reverseProxyUrl)
         put("openAIKey", JsonNull as JsonElement)

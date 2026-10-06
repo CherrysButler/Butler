@@ -117,10 +117,18 @@ class HttpGenerationTransport(
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> = flow {
+        val chat = envelope["chat"]?.jsonObject
         val request = Request.Builder()
             .url("${JanitorConfig.WEB_LLM_BASE}/generateAlpha")
             .post(envelope.toString().toRequestBody(jsonMedia))
-            .header("Accept", "text/event-stream, application/json")
+            // The headers the website sends with this call (captured 2026-10-06). Without them
+            // Janitor's firewall answered "Access Restricted"; with them, the same body went
+            // through. No `apikey` here: AuthInterceptor leaves it off this path.
+            .header("Accept", "text/event-stream")
+            .header("Origin", JanitorConfig.WEB_LLM_BASE)
+            .header("Referer", "${JanitorConfig.WEB_LLM_BASE}/chats/${chat?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()}")
+            .header("x-app-version", JanitorConfig.WEB_APP_VERSION)
+            .apply { chat?.get("user_id")?.jsonPrimitive?.contentOrNull?.let { header("X-Request-ID", it) } }
             .build()
 
         executeStreaming(request) { response ->
