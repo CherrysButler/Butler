@@ -70,12 +70,14 @@ class MoodTagger @Inject constructor(
             summary = chat.summary,
             summaryChatId = chat.summaryChatId,
             history = history,
-            profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = played.appearance),
+            profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty()),
             userConfig = userConfig,
             mode = GenerateMode.New,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
             extraUserLine = if (jllm) "(OOC: Pause the roleplay and do not answer in character. $question The reply is your last message above.)" else null,
+            persona = played.persona,
+            knownPersonas = profileRepository.personas(),
         )
         val target = if (jllm) null else profileRepository.proxyTarget(profile)?.then { payload ->
             JsonObject(

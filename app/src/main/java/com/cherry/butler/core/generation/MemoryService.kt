@@ -121,12 +121,14 @@ class MemoryService @Inject constructor(
             history = history,
             profile = EnvelopeProfile(
                 id = profile.id, name = profile.name, userName = profile.userName,
-                userAppearance = played.appearance,
+                userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty(),
             ),
             userConfig = profileRepository.userConfig(profile),
             mode = GenerateMode.SummaryFull,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = prefs.replacesHistory.value,
+            persona = played.persona,
+            knownPersonas = profileRepository.personas(),
         )
         val text = StringBuilder()
         val parser = TagStreamParser(listOf("think", "thinking"))

@@ -411,7 +411,7 @@ class SendPipeline @Inject constructor(
         val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
         val history = if (addon != null && jllm) addons.intoHistory(baseHistory, addon) else baseHistory
         val profile = profileRepository.profile()
-        val appearance = profileRepository.playedPersona(chat, history).appearance
+        val played = profileRepository.playedPersona(chat, history)
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,
@@ -420,7 +420,7 @@ class SendPipeline @Inject constructor(
             summary = chat.summary,
             summaryChatId = chat.summaryChatId,
             history = history,
-            profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = appearance),
+            profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty()),
             userConfig = profileRepository.userConfig(profile),
             mode = mode,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
@@ -428,6 +428,8 @@ class SendPipeline @Inject constructor(
             // the website does (docs/JANITOR_API.md §27.4); the server then swaps the summarized
             // messages for the summary.
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
+            persona = played.persona,
+            knownPersonas = profileRepository.personas(),
         )
         val proxy = profileRepository.proxyTarget(profile).let { target ->
             if (addon != null && !jllm) target?.then { payload -> addons.intoPayload(payload, addon) } else target

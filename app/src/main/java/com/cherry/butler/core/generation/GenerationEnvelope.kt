@@ -1,7 +1,10 @@
 package com.cherry.butler.core.generation
 
 import com.cherry.butler.core.data.local.MessageEntity
+import com.cherry.butler.core.data.remote.dto.PersonaDto
+import com.cherry.butler.core.data.remote.dto.PronounsDto
 import com.cherry.butler.core.util.IsoTime
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -29,6 +32,8 @@ data class EnvelopeProfile(
     val name: String,
     val userName: String,
     val userAppearance: String,
+    /** The profile's own appearance, for when a persona plays and the profile is listed beside it. */
+    val defaultAppearance: String = userAppearance,
 )
 
 /**
@@ -63,10 +68,29 @@ object GenerationEnvelope {
         draft: String? = null,
         /** A user line after the chat, in this request only (Highlights asks its question here on JLLM). */
         extraUserLine: String? = null,
+        /**
+         * The persona being played now, or null for the profile (the default persona).
+         * Janitor fills `{{user}}` from `chat.persona_id`, so it is this one's id that goes
+         * there, not the persona the chat was started with (tried against `/generateAlpha`,
+         * 2026-10-06).
+         */
+        persona: PersonaDto? = null,
+        /**
+         * The user's personas, to name every one the history speaks as: Janitor labels each
+         * user line by looking its `persona_id` up in `profiles[]`, and a line it can't find
+         * is put down to the profile.
+         */
+        knownPersonas: List<PersonaDto> = emptyList(),
     ): JsonObject = buildJsonObject {
+        val userLines = history.filter { !it.isBot && it.serverId != null }
+        val usedIds = userLines.mapNotNullTo(LinkedHashSet()) { it.personaId }.apply { persona?.let { add(it.id) } }
+        val used = usedIds.mapNotNull { id -> if (id == persona?.id) persona else knownPersonas.firstOrNull { it.id == id } }
+        // The profile is listed when it is being played, or spoke a line the history still has.
+        val profileSpeaks = persona == null || userLines.any { it.personaId == null }
         put("chat", buildJsonObject {
             put("id", chatId)
             put("character_id", characterId)
+            if (persona != null) put("persona_id", persona.id)
             put("user_id", userId)
             put("summary", summary.orEmpty())
             if (summaryChatId != null) put("summary_chat_id", summaryChatId)
@@ -83,6 +107,7 @@ object GenerationEnvelope {
                     put("is_bot", m.isBot)
                     put("is_main", m.isMain)
                     put("message", m.text)
+                    if (!m.isBot && m.personaId != null) put("persona_id", m.personaId)
                 })
             }
             if (extraUserLine != null) add(buildJsonObject {
@@ -102,15 +127,34 @@ object GenerationEnvelope {
             put("id", profile.id)
             put("name", profile.name)
             put("user_name", profile.userName)
-            put("user_appearance", profile.userAppearance)
+            // The profile's appearance rides here only while the profile is the one playing.
+            if (persona == null) put("user_appearance", profile.userAppearance)
         })
+        if (used.isNotEmpty()) {
+            put("personas", buildJsonArray {
+                for (p in used) add(buildJsonObject {
+                    put("appearance", p.appearance.orEmpty())
+                    put("id", p.id)
+                    put("name", p.name)
+                    put("pronouns", p.pronounsJson())
+                    put("user_id", userId)
+                })
+            })
+        }
         put("profiles", buildJsonArray {
-            add(buildJsonObject {
+            if (profileSpeaks || used.isEmpty()) add(buildJsonObject {
                 put("id", profile.id)
                 put("name", profile.name)
                 put("user_name", profile.userName)
-                put("appearance", profile.userAppearance)
+                put("appearance", if (persona == null) profile.userAppearance else profile.defaultAppearance)
                 put("type", "profile")
+            })
+            for (p in used) add(buildJsonObject {
+                put("appearance", p.appearance.orEmpty())
+                put("id", p.id)
+                put("name", p.name)
+                put("pronouns", p.pronounsJson())
+                put("type", "persona")
             })
         })
         put("userConfig", userConfig)
@@ -141,6 +185,9 @@ object GenerationEnvelope {
      * client adds (docs/JANITOR_API.md §18.2). The proxy key is threaded through as an element
      * and never stringified anywhere but into the request body.
      */
+    private fun PersonaDto.pronounsJson(): JsonElement =
+        pronouns?.let { Json.encodeToJsonElement(PronounsDto.serializer(), it) } ?: JsonNull
+
     fun userConfig(
         profileConfig: JsonObject,
         reverseProxyKey: String?,

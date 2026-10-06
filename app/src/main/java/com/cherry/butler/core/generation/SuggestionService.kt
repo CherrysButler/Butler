@@ -146,13 +146,15 @@ class SuggestionService @Inject constructor(
             history = history,
             profile = EnvelopeProfile(
                 id = profile.id, name = profile.name, userName = profile.userName,
-                userAppearance = played.appearance,
+                userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty(),
             ),
             userConfig = inputs.first,
             mode = GenerateMode.Suggestion,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
             draft = if (draft.isBlank()) SCRATCH else "$draft\n\n$REWRITE",
+            persona = played.persona,
+            knownPersonas = profileRepository.personas(),
         )
 
         // A thinking model's reasoning is not part of the line.

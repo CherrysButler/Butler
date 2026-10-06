@@ -96,12 +96,14 @@ class ChoicesService @Inject constructor(
             history = history,
             profile = EnvelopeProfile(
                 id = profile.id, name = profile.name, userName = profile.userName,
-                userAppearance = played.appearance,
+                userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty(),
             ),
             userConfig = profileRepository.userConfig(profile),
             mode = GenerateMode.New,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
+            persona = played.persona,
+            knownPersonas = profileRepository.personas(),
         )
         val proxy = profileRepository.proxyTarget(profile)
             ?: throw ApiError.Api(code = 400, janitorCode = "BUTLER_NO_PROXY", serverMessage = "Choices need a proxy selected.")
