@@ -1,0 +1,1 @@
+Fixed sending (Janitor's firewall was refusing messages) and personas (replies now follow the persona you play, including after a switch). New: pronoun macros like {{sub}} and {{obj}}, images in chat (non-Janitor images wait for a tap, since loading them shares your IP), and a roomier message box.
