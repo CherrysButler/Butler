@@ -2301,9 +2301,17 @@ So: write via `/api-settings`, re-read the profile, keep building envelopes from
 
 ### 27.2 Routes
 
+**JLLM's custom prompt (✅ 2026-10-07, captured on the website):** `PATCH /api-settings
+{"janitor_prompt_id": "<prompt-library id>"}`. The response's `settings.janitor_prompt` is then
+the whole prompt (`{id, user_id, kind, name, content, …}`), and Janitor copies its `content` into
+the legacy `llm_prompt`, which JLLM generations carry in `userConfig`. `{"janitor_prompt_id": null}`
+clears both. `{"janitor_prompt": …}` (no `_id`) is accepted with 200 and does nothing.
+`openai_prompt` / `claude_prompt` look like sibling slots (`…_prompt_id`), not yet tried.
+
+
 | Call | Body | Notes |
 |---|---|---|
-| `PATCH /api-settings` | `{source}` · `{selected_proxy_config_id}` · `{generation_settings: {key: value}}` | Partial. Unknown keys are silently accepted, so "200" proves nothing on its own. Selection verified by switching and switching back. |
+| `PATCH /api-settings` | `{source}` · `{selected_proxy_config_id}` · `{generation_settings: {key: value}}` · `{janitor_prompt_id}` | Partial. Unknown keys are silently accepted, so "200" proves nothing on its own. Selection verified by switching and switching back. |
 | `POST /api-settings/proxy-configs` | `{name, api_url, api_key, model, prompt_id?}` | name ≤ 255 non-empty; api_url ≤ 2048; api_key ≤ 4096; model ≤ 255; prompt_id a UUID. Returns the full settings. |
 | `PATCH /api-settings/proxy-configs/{id}` | any of the above | Captured on the web (§20.3). |
 | `DELETE /api-settings/proxy-configs/{id}` | none | Unknown id → `404 Proxy config not found`. Do not send a JSON content type without a body. |
