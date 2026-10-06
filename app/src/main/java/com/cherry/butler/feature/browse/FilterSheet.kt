@@ -1,40 +1,26 @@
 package com.cherry.butler.feature.browse
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.cherry.butler.core.design.ButlerTheme
-import com.cherry.butler.core.design.Motion
 import com.cherry.butler.core.design.Pill
 import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.core.model.BrowseQuery
@@ -46,7 +32,6 @@ import com.cherry.butler.feature.settings.SwitchRow
 import com.cherry.butler.ui.components.SheetHandle
 import com.cherry.butler.ui.components.SheetScrim
 import com.cherry.butler.ui.components.SegmentedChoice
-import com.cherry.butler.ui.components.TagPill
 
 /**
  * The filter sheet, laid out as Janitor's: View, Source, Tags, and the content minimums.
@@ -57,10 +42,8 @@ import com.cherry.butler.ui.components.TagPill
 @Composable
 fun FilterSheet(
     query: BrowseQuery,
-    tagNames: List<String>,
     onMode: (NsfwMode) -> Unit,
     onSource: (BrowseSource) -> Unit,
-    onOpenTags: () -> Unit,
     onMinMessages: (Long) -> Unit,
     onMinTokens: (Int) -> Unit,
     onProxyOnly: (Boolean) -> Unit,
@@ -96,34 +79,6 @@ fun FilterSheet(
                 selected = BrowseSource.entries.indexOf(query.source),
                 onSelect = { onSource(BrowseSource.entries[it]) },
             )
-
-            Label("Tags")
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .clickable(onClick = onOpenTags)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (tagNames.isEmpty()) "Any tag" else "${tagNames.size} chosen",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(Icons.Rounded.ChevronRight, contentDescription = "Choose tags", tint = ButlerTheme.colors.textLow)
-                }
-                if (tagNames.isNotEmpty()) {
-                    FlowRow(
-                        modifier = Modifier.padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) { tagNames.forEach { TagPill(it) } }
-                }
-            }
 
             SettingsSection(title = "Content", footnote = "Characters that don't match are hidden from the grid.") {
                 SwitchRow("Proxy", "Only characters whose creator allows proxies", query.proxyOnly, onProxyOnly)

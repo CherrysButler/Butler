@@ -286,15 +286,30 @@ fun BrowseTileFooter(
 /** A tag as Janitor shows it: an outlined pill. */
 @Composable
 fun TagPill(text: String, modifier: Modifier = Modifier) {
+    val tint = tagTint(text)
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        color = ButlerTheme.colors.textMed,
+        color = tint,
         maxLines = 1,
         modifier = modifier
-            .border(1.dp, ButlerTheme.colors.rule, Pill)
+            .border(1.dp, tint.copy(alpha = 0.45f), Pill)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
+}
+
+/**
+ * A tag's colour: one of the theme's own accents, always the same one for the same tag, so a
+ * tag is recognisable at a glance on cards, the character page and the browse tag row alike (the
+ * website colours tags too, from a palette of its own). Butler red is left out, as it marks what's
+ * chosen. Each theme sets these accents for its own background, so tags read on Daylight as well
+ * as on the dark looks. `#` and case don't change a tag's colour.
+ */
+@Composable
+fun tagTint(tag: String): androidx.compose.ui.graphics.Color {
+    val c = ButlerTheme.colors
+    val accents = listOf(c.speech, c.thought, c.success, c.warn, c.romance, c.desire)
+    return accents[Math.floorMod(tag.removePrefix("#").trim().lowercase().hashCode(), accents.size)]
 }
 
 /** A card-shaped placeholder: the grid's own silhouette, breathing. */

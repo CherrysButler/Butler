@@ -29,7 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreInterceptKeyBeforeSoftKeyboard
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -43,7 +50,14 @@ import com.cherry.butler.core.design.Motion
  * red while it has focus, a glass at the start and a clear at the end once there is
  * something to clear. Search on the keyboard means "done looking": [onSubmit] puts it
  * away; results already follow the typing.
+ *
+ * Back while the keyboard is up lets go of the box too. Screens also let go when the keyboard
+ * hides ([rememberLetGoOfField]), but that hears of it through the window's insets, which a
+ * floating or split keyboard (and some third-party ones) never reports: the box then kept its
+ * focus, and the keyboard rose again each time the box redrew (reported on 0.2.3). Back is
+ * seen here before the keyboard takes it, whatever the keyboard.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun SearchBox(
     value: String,
@@ -53,6 +67,7 @@ fun SearchBox(
     onSubmit: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val edge by animateColorAsState(
         if (focused) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule,
         animationSpec = Motion.enter(Motion.SHORT),
@@ -87,6 +102,12 @@ fun SearchBox(
             modifier = Modifier
                 .weight(1f)
                 .onFocusChanged { focused = it.isFocused }
+                // Not consumed: the keyboard still closes as it would, the box just doesn't
+                // hold on to it.
+                .onPreInterceptKeyBeforeSoftKeyboard { e ->
+                    if (e.key == Key.Back && e.type == KeyEventType.KeyUp) focusManager.clearFocus()
+                    false
+                }
                 .semantics { contentDescription = placeholder },
             decorationBox = { inner ->
                 Box(contentAlignment = Alignment.CenterStart) {

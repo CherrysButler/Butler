@@ -22,7 +22,24 @@ import javax.inject.Singleton
 class CharacterRepository @Inject constructor(
     private val remote: CharacterRemoteSource,
     private val db: ButlerDatabase,
+    @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
 ) {
+    private val prefs = context.getSharedPreferences("butler_prefs", android.content.Context.MODE_PRIVATE)
+
+    // Kept on the phone: results served from the cache bring no new ones, and the cache only
+    // ever holds the latest query, so the latest suggestions are the ones that belong to it.
+    private val _topCustomTags = kotlinx.coroutines.flow.MutableStateFlow(
+        prefs.getString(KEY_TOP_TAGS, null)?.split(',')?.filter { it.isNotBlank() }.orEmpty(),
+    )
+
+    /** The custom tags most used in the latest results (`top_custom_tags`), for suggestions. */
+    val topCustomTags: kotlinx.coroutines.flow.StateFlow<List<String>> = _topCustomTags
+
+    private fun keepTopCustomTags(tags: List<String>) {
+        _topCustomTags.value = tags
+        prefs.edit().putString(KEY_TOP_TAGS, tags.joinToString(",")).apply()
+    }
+
 
     /**
      * Paged characters for [query], served from the Room mirror and refreshed behind it.
@@ -31,6 +48,10 @@ class CharacterRepository @Inject constructor(
      * its configured size as the end of the list, so a mismatch would stop paging after
      * the first load.
      */
+    private companion object {
+        const val KEY_TOP_TAGS = "browse_top_custom_tags"
+    }
+
     @OptIn(ExperimentalPagingApi::class)
     fun browse(query: BrowseQuery): Flow<PagingData<Character>> = Pager(
         config = PagingConfig(
@@ -39,7 +60,7 @@ class CharacterRepository @Inject constructor(
             initialLoadSize = CharacterRemoteSource.PAGE_SIZE,
             enablePlaceholders = false,
         ),
-        remoteMediator = CharacterRemoteMediator(query, remote, db),
+        remoteMediator = CharacterRemoteMediator(query, remote, db, ::keepTopCustomTags),
         pagingSourceFactory = { db.characterDao().pagingSource(query.cacheKey) },
     ).flow.map { paging -> paging.map(CharacterEntity::toDomain) }
 }

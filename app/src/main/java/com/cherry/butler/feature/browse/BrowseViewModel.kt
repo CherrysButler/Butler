@@ -33,7 +33,7 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
-    repository: CharacterRepository,
+    private val repository: CharacterRepository,
     private val tagRemoteSource: TagRemoteSource,
     private val lastPlace: LastPlace,
 ) : ViewModel() {
@@ -104,6 +104,21 @@ class BrowseViewModel @Inject constructor(
         _query.value = _query.value.copy(tagIds = emptyList())
     }
 
+    /** The custom tags most used in the results on screen, offered as one-tap additions. */
+    val topCustomTags: StateFlow<List<String>> get() = repository.topCustomTags
+
+    /** Adds a creator's tag as typed: `#`, spaces and case don't matter. */
+    fun onCustomTagAdded(raw: String) {
+        val tag = normalizeCustomTag(raw) ?: return
+        val current = _query.value.customTags
+        if (tag in current || current.size >= MAX_CUSTOM_TAGS) return
+        _query.value = _query.value.copy(customTags = current + tag)
+    }
+
+    fun onCustomTagRemoved(tag: String) {
+        _query.value = _query.value.copy(customTags = _query.value.customTags - tag)
+    }
+
     /** A "Popular" dropdown pick; leaves Trending and Hidden Gems. */
     fun onSortSelected(sort: CharacterSort) {
         _query.value = _query.value.copy(sort = sort, special = null)
@@ -136,12 +151,18 @@ class BrowseViewModel @Inject constructor(
 
     /** The filter sheet's eraser: back to Janitor's defaults, search and dropdowns untouched. */
     fun onResetFilters() {
-        _query.value = _query.value.copy(mode = NsfwMode.All, source = BrowseSource.All, tagIds = emptyList(), minMessages = 0, minTokens = 0, proxyOnly = false)
+        _query.value = _query.value.copy(mode = NsfwMode.All, source = BrowseSource.All, minMessages = 0, minTokens = 0, proxyOnly = false)
     }
 
-    private companion object {
-        const val SEARCH_DEBOUNCE_MS = 350L
+    companion object {
+        private const val SEARCH_DEBOUNCE_MS = 350L
         /** `tag_id[] must contain no more than 53 elements` — server-enforced. */
-        const val MAX_TAGS = 53
+        private const val MAX_TAGS = 53
+        /** A guard, not Janitor's limit (none seen): past a few, nothing matches anyway. */
+        private const val MAX_CUSTOM_TAGS = 10
+
+        /** Custom tags come back lowercase with no spaces (`kinktober2026`); typed ones match that. */
+        fun normalizeCustomTag(raw: String): String? =
+            raw.trim().removePrefix("#").lowercase().filterNot { it.isWhitespace() }.takeIf { it.isNotEmpty() }
     }
 }

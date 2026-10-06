@@ -92,6 +92,7 @@ fun BrowseScreen(
     val characters = viewModel.characters.collectAsLazyPagingItems()
     val query by viewModel.query.collectAsStateWithLifecycle()
     val searchInput by viewModel.searchInput.collectAsStateWithLifecycle()
+    val topCustomTags by viewModel.topCustomTags.collectAsStateWithLifecycle()
     val tags by viewModel.tags.collectAsStateWithLifecycle()
     var showTagPicker by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
@@ -103,15 +104,14 @@ fun BrowseScreen(
             onToggle = viewModel::onTagToggled,
             onClearAll = viewModel::onClearTags,
             onDismiss = { showTagPicker = false },
+            onAddCustom = viewModel::onCustomTagAdded,
         )
     }
     if (showFilters) {
         FilterSheet(
             query = query,
-            tagNames = remember(tags, query.tagIds) { tags.filter { it.id in query.tagIds }.map { it.name } },
             onMode = viewModel::onModeSelected,
             onSource = viewModel::onSourceSelected,
-            onOpenTags = { showTagPicker = true },
             onMinMessages = viewModel::onMinMessages,
             onMinTokens = viewModel::onMinTokens,
             onProxyOnly = viewModel::onProxyOnly,
@@ -142,6 +142,15 @@ fun BrowseScreen(
             special = query.special,
             onSort = viewModel::onSortSelected,
             onSpecial = viewModel::onSpecialSelected,
+        )
+        TagStrip(
+            chosen = remember(tags, query.tagIds) { tags.filter { it.id in query.tagIds }.map { it.id to it.name } },
+            customTags = query.customTags,
+            suggested = remember(topCustomTags, query.customTags) { topCustomTags.filter { it !in query.customTags } },
+            onOpenPicker = { showTagPicker = true },
+            onRemoveTag = viewModel::onTagToggled,
+            onRemoveCustom = viewModel::onCustomTagRemoved,
+            onAddCustom = viewModel::onCustomTagAdded,
         )
         CharacterRoster(
             characters = characters,
@@ -219,6 +228,76 @@ private fun ModeBar(
             modifier = Modifier.weight(1.25f),
         )
     }
+}
+
+/**
+ * Tags, under the sort bar: a key to pick them (Janitor's own, or a creator's typed in), the
+ * chosen ones (tap to drop), then the creators' tags most used in these results (tap to add).
+ * Every chosen tag must match.
+ */
+@Composable
+private fun TagStrip(
+    chosen: List<Pair<Int, String>>,
+    customTags: List<String>,
+    suggested: List<String>,
+    onOpenPicker: () -> Unit,
+    onRemoveTag: (Int) -> Unit,
+    onRemoveCustom: (String) -> Unit,
+    onAddCustom: (String) -> Unit,
+) {
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        item(key = "pick") {
+            StripChip(text = if (chosen.isEmpty() && customTags.isEmpty()) "+ Tags" else "+", selected = false, emphasis = true, onClick = onOpenPicker)
+        }
+        items(chosen.size, key = { "t${chosen[it].first}" }) { i ->
+            val (id, name) = chosen[i]
+            StripChip(text = "$name  ×", selected = true, onClick = { onRemoveTag(id) })
+        }
+        items(customTags.size, key = { "c${customTags[it]}" }) { i ->
+            val tag = customTags[i]
+            StripChip(text = "#$tag  ×", selected = true, tint = com.cherry.butler.ui.components.tagTint(tag), onClick = { onRemoveCustom(tag) })
+        }
+        items(suggested.size, key = { "s${suggested[it]}" }) { i ->
+            val tag = suggested[i]
+            StripChip(text = "#$tag", selected = false, tint = com.cherry.butler.ui.components.tagTint(tag), onClick = { onAddCustom(tag) })
+        }
+    }
+}
+
+@Composable
+private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emphasis: Boolean = false, tint: Color? = null) {
+    val shape = com.cherry.butler.core.design.Pill
+    val edge = when {
+        tint != null -> if (selected) tint else tint.copy(alpha = 0.45f)
+        selected || emphasis -> MaterialTheme.colorScheme.primary
+        else -> ButlerTheme.colors.rule
+    }
+    val fill = when {
+        tint != null && selected -> tint.copy(alpha = 0.18f)
+        selected -> MaterialTheme.colorScheme.primaryContainer
+        else -> Color.Transparent
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = when {
+            tint != null -> tint
+            selected -> ButlerTheme.colors.onAccentSoft
+            emphasis -> MaterialTheme.colorScheme.primary
+            else -> ButlerTheme.colors.textMed
+        },
+        maxLines = 1,
+        modifier = Modifier
+            .clip(shape)
+            .background(fill)
+            .border(if (selected) 1.5.dp else 1.dp, edge, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }
 
 @Composable

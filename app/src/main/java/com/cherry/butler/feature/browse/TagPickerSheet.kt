@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,6 +53,8 @@ fun TagPickerSheet(
     onToggle: (Int) -> Unit,
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
+    /** Adds what was typed as a creator's own tag (`custom_tags[]`). */
+    onAddCustom: (String) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var filter by remember { mutableStateOf("") }
@@ -72,7 +76,7 @@ fun TagPickerSheet(
         Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Filter by tag",
+                    text = "Tags",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -89,7 +93,7 @@ fun TagPickerSheet(
                 value = filter,
                 onValueChange = { filter = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Find a tag") },
+                placeholder = { Text("Find a tag, or type a creator's tag") },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -101,9 +105,31 @@ fun TagPickerSheet(
 
             Spacer(Modifier.height(8.dp))
 
+            // Creators tag their characters freely too; anything typed can be searched as one.
+            val custom = BrowseViewModel.normalizeCustomTag(filter)
+            if (custom != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onAddCustom(custom); filter = "" }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Add #$custom",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("a creator's tag", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
+                }
+            }
+
             if (visible.isEmpty()) {
                 Text(
-                    text = if (tags.isEmpty()) "Tags couldn't be loaded." else "No tag matches that.",
+                    text = if (tags.isEmpty()) "Tags couldn't be loaded." else "No Janitor tag matches that.",
                     style = MaterialTheme.typography.bodySmall,
                     color = ButlerTheme.colors.textLow,
                     modifier = Modifier.padding(vertical = 24.dp),

@@ -24,6 +24,11 @@ data class BrowseQuery(
     val mode: NsfwMode = NsfwMode.All,
     val source: BrowseSource = BrowseSource.All,
     val tagIds: List<Int> = emptyList(),
+    /**
+     * Creators' own tags (`custom_tags[]`), lowercase. Each one narrows the results further
+     * (all must match), as on the website (captured 2026-10-07).
+     */
+    val customTags: List<String> = emptyList(),
     val minMessages: Long = 0,
     val minTokens: Int = 0,
     /** The filter sheet's Proxy switch: only characters whose creator allows proxies. Applied on the phone. */
@@ -42,7 +47,7 @@ data class BrowseQuery(
 
     /** How many filter-sheet settings differ from the defaults (for the filter key's dot). */
     val filterCount: Int
-        get() = listOf(mode != NsfwMode.All, source != BrowseSource.All, tagIds.isNotEmpty(), minMessages > 0, minTokens > 0, proxyOnly).count { it }
+        get() = listOf(mode != NsfwMode.All, source != BrowseSource.All, minMessages > 0, minTokens > 0, proxyOnly).count { it }
 
     /** Stable identity for the Room `remote_keys` table and mirror partitioning. */
     val cacheKey: String
@@ -51,6 +56,7 @@ data class BrowseQuery(
             append('|').append(source.name)
             append('|').append(search?.trim()?.lowercase().orEmpty())
             append('|').append(tagIds.sorted().joinToString(","))
+            if (customTags.isNotEmpty()) append('|').append(customTags.sorted().joinToString(","))
         }
 }
 

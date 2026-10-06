@@ -46,6 +46,12 @@ class CharacterRemoteSource @Inject constructor(
             // validator wants an array and a single bare value isn't parsed as one.
             // `tag_id[]` works for one or many, and is what the web client sends.
             query.tagIds.forEach { addQueryParameter("tag_id[]", it.toString()) }
+            // Creators' own tags, by name; the website sends one `custom_tags[]` each.
+            query.customTags.forEach { addQueryParameter("custom_tags[]", it) }
+            // As the website asks (2026-10-07): the answer then carries `top_custom_tags`, the
+            // custom tags most used in these results, which the filter sheet offers.
+            addQueryParameter("count_mode", "bounded")
+            addQueryParameter("include_top_custom_tags", "true")
         }.build()
 
         val request = Request.Builder().url(url).get().build()

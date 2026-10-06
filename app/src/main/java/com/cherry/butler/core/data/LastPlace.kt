@@ -89,6 +89,7 @@ class LastPlace @Inject constructor(@ApplicationContext context: Context) {
             ?.let { saved -> NsfwMode.entries.firstOrNull { it.wire == saved } } ?: NsfwMode.All,
         source = BrowseSource.entries.firstOrNull { it.name == prefs.getString(KEY_SOURCE, null) } ?: BrowseSource.All,
         tagIds = prefs.getString(KEY_TAGS, null)?.split(',')?.mapNotNull { it.toIntOrNull() }.orEmpty(),
+        customTags = prefs.getString(KEY_CUSTOM_TAGS, null)?.split(',')?.filter { it.isNotBlank() }.orEmpty(),
         minMessages = prefs.getLong(KEY_MIN_MESSAGES, 0L),
         minTokens = prefs.getInt(KEY_MIN_TOKENS, 0),
         proxyOnly = prefs.getBoolean(KEY_PROXY_ONLY, false),
@@ -102,6 +103,7 @@ class LastPlace @Inject constructor(@ApplicationContext context: Context) {
             .putString(KEY_MODE, query.mode.wire)
             .putString(KEY_SOURCE, query.source.name)
             .putString(KEY_TAGS, query.tagIds.joinToString(","))
+            .putString(KEY_CUSTOM_TAGS, query.customTags.joinToString(","))
             .putLong(KEY_MIN_MESSAGES, query.minMessages)
             .putInt(KEY_MIN_TOKENS, query.minTokens)
             .putBoolean(KEY_PROXY_ONLY, query.proxyOnly)
@@ -124,6 +126,7 @@ class LastPlace @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_SORT = "browse_sort"
         const val KEY_MODE = "browse_mode"
         const val KEY_TAGS = "browse_tags"
+        const val KEY_CUSTOM_TAGS = "browse_custom_tags"
         const val KEY_SPECIAL = "browse_special"
         const val KEY_SOURCE = "browse_source"
         const val KEY_MIN_MESSAGES = "browse_min_messages"

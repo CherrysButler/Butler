@@ -28,6 +28,8 @@ class CharacterRemoteMediator(
     private val query: BrowseQuery,
     private val remote: CharacterRemoteSource,
     private val db: ButlerDatabase,
+    /** The custom tags most used in these results, from each page Janitor sends. */
+    private val onTopCustomTags: (List<String>) -> Unit = {},
 ) : RemoteMediator<Int, CharacterEntity>() {
 
     private val characterDao = db.characterDao()
@@ -66,6 +68,7 @@ class CharacterRemoteMediator(
 
         return try {
             val response = remote.browse(query, page)
+            if (page == FIRST_PAGE) onTopCustomTags(response.topCustomTags)
 
             // `total` is a lower bound capped at 10000, so it cannot tell us when to stop.
             // A short page is the only trustworthy end-of-list signal.
