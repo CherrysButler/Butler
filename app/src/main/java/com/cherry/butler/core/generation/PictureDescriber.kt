@@ -183,7 +183,9 @@ class PictureDescriber @Inject constructor(
     private fun shrink(uri: Uri): ByteArray? {
         val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        // Bounds only: the decode itself comes back null here by design; the size is what counts.
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
         while (bounds.outWidth / sample > MAX_SIDE * 2 || bounds.outHeight / sample > MAX_SIDE * 2) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
