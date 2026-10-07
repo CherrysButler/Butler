@@ -6,14 +6,15 @@ import kotlin.random.Random
  * What the thinking line says while the model works: "Thinking" or one of these, picked at
  * random per reply. Playful and human; nothing that sounds like a machine at work
  * (computing, processing, synthesizing, hashing and their kind are left out on purpose).
- * The user can add lists of their own, or switch Butler's off (Settings; kept by ChatPrefs).
+ * In Settings the user can add to this list or take from it, add lists of their own, and
+ * switch any of them off (ChatPrefs keeps all that and hands [pool] over).
  */
 object ThinkingWords {
-    /** The user's own words, from every list of theirs that is on. */
-    @Volatile var custom: List<String> = emptyList()
+    /** What the line draws from right now; with nothing on, [defaults]. */
+    @Volatile var pool: List<String> = emptyList()
 
-    /** Whether Butler's own words are in the pool. With nothing else on, they are anyway. */
-    @Volatile var butlerOn: Boolean = true
+    /** Claude's list, as shipped. */
+    val defaults: List<String> get() = words
 
     private val words = listOf(
         "Thinking", "Baking", "Beaming", "Beboppin'", "Befuddling", "Billowing", "Blanching", "Bloviating",
@@ -39,12 +40,9 @@ object ThinkingWords {
         "Whisking", "Wibbling", "Wrangling", "Zesting", "Zigzagging",
     )
 
-    /** How many words Butler's own list has. */
-    val count: Int get() = words.size
-
     /** A word for [seed] (a message's id), so one reply keeps its word across recompositions. */
     fun forSeed(seed: Long): String {
-        val pool = (if (butlerOn) words + custom else custom).ifEmpty { words }
-        return pool[Random(seed).nextInt(pool.size)]
+        val from = pool.ifEmpty { words }
+        return from[Random(seed).nextInt(from.size)]
     }
 }

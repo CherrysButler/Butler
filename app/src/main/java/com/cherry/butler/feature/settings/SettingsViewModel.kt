@@ -52,9 +52,13 @@ class SettingsViewModel @Inject constructor(
     val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend
     fun setCloseKeyboardOnSend(on: Boolean) = chat.setCloseKeyboardOnSend(on)
 
-    /** Thinking words: Butler's own list on or off, and the user's lists. */
-    val butlerWordsOn: StateFlow<Boolean> = chat.butlerWordsOn
-    fun setButlerWordsOn(on: Boolean) = chat.setButlerWordsOn(on)
+    /** Thinking words: Claude's list (on or off, added to or taken from) and the user's lists. */
+    val claudeOn: StateFlow<Boolean> = chat.claudeOn
+    fun setClaudeOn(on: Boolean) = chat.setClaudeOn(on)
+    val claudeWords: StateFlow<List<String>> = chat.claudeWords
+    val claudeEdited: Boolean get() = chat.claudeEdited
+    fun saveClaudeList(text: String) = chat.saveClaudeList(text)
+    fun resetClaudeList() = chat.resetClaudeList()
     val thinkingLists: StateFlow<List<com.cherry.butler.core.data.ChatPrefs.WordList>> = chat.thinkingLists
     fun saveThinkingList(id: String?, name: String, text: String) = chat.saveList(id, name, text)
     fun setThinkingListOn(id: String, on: Boolean) = chat.setListOn(id, on)

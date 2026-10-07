@@ -294,42 +294,70 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
 }
 
 /**
- * The thinking line's words as lists: Butler's own, on or off, and the user's, each on or
- * off and opened to edit. Everything that is on goes into one pool.
+ * The thinking line's words as lists: Claude's (Butler's default), which opens to be added
+ * to or taken from, and the user's, each on or off and opened to edit. Everything that is on
+ * goes into one pool.
  */
 @Composable
 private fun ThinkingListsSection(viewModel: SettingsViewModel) {
-    val butlerOn by viewModel.butlerWordsOn.collectAsStateWithLifecycle()
+    val claudeOn by viewModel.claudeOn.collectAsStateWithLifecycle()
+    val claudeWords by viewModel.claudeWords.collectAsStateWithLifecycle()
     val lists by viewModel.thinkingLists.collectAsStateWithLifecycle()
-    // null: closed; a list to edit; or a blank new one (id null).
+    // null: closed; a list to edit; a blank new one (id empty); or Claude's (id CLAUDE_LIST).
     var editing by remember { mutableStateOf<com.cherry.butler.core.data.ChatPrefs.WordList?>(null) }
     SettingsSection(title = "Thinking words", footnote = "What the thinking line says while a reply is on its way. Every list that is on is used.") {
-        SwitchRow("Butler's own", "${com.cherry.butler.feature.chat.ThinkingWords.count} words", butlerOn, viewModel::setButlerWordsOn)
+        WordListRow(
+            name = CLAUDE_LIST_NAME,
+            words = claudeWords,
+            on = claudeOn,
+            onToggle = viewModel::setClaudeOn,
+            onOpen = { editing = com.cherry.butler.core.data.ChatPrefs.WordList(id = CLAUDE_LIST, name = CLAUDE_LIST_NAME, words = claudeWords) },
+        )
         lists.forEach { list ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.weight(1f)) {
-                    LinkRow(title = list.name, subtitle = "${list.words.size} words · ${list.words.take(4).joinToString(", ")}", onClick = { editing = list })
-                }
-                androidx.compose.material3.Switch(
-                    checked = list.on,
-                    onCheckedChange = { viewModel.setThinkingListOn(list.id, it) },
-                    modifier = Modifier.padding(end = 16.dp),
-                )
-            }
+            WordListRow(
+                name = list.name,
+                words = list.words,
+                on = list.on,
+                onToggle = { viewModel.setThinkingListOn(list.id, it) },
+                onOpen = { editing = list },
+            )
         }
         LinkRow(title = "Add a list", subtitle = null, onClick = { editing = com.cherry.butler.core.data.ChatPrefs.WordList(id = "", name = "", words = emptyList()) })
     }
     editing?.let { list ->
+        val claude = list.id == CLAUDE_LIST
         WordListSheet(
             list = list,
-            onSave = { name, text -> viewModel.saveThinkingList(list.id.ifEmpty { null }, name, text); editing = null },
-            onDelete = if (list.id.isEmpty()) null else ({ viewModel.deleteThinkingList(list.id); editing = null }),
+            nameLocked = claude,
+            onSave = { name, text ->
+                if (claude) viewModel.saveClaudeList(text) else viewModel.saveThinkingList(list.id.ifEmpty { null }, name, text)
+                editing = null
+            },
+            onDelete = if (list.id.isEmpty() || claude) null else ({ viewModel.deleteThinkingList(list.id); editing = null }),
+            onReset = if (claude && viewModel.claudeEdited) ({ viewModel.resetClaudeList(); editing = null }) else null,
             onDismiss = { editing = null },
         )
     }
 }
 
-/** One list: its name and its words, one per line. Save keeps it; Delete removes it. */
+private const val CLAUDE_LIST = "claude"
+private const val CLAUDE_LIST_NAME = "Claude's list (Butler default)"
+
+/** A list: its name, how many words and the first few, a switch; the row opens it. */
+@Composable
+private fun WordListRow(name: String, words: List<String>, on: Boolean, onToggle: (Boolean) -> Unit, onOpen: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.weight(1f)) {
+            LinkRow(title = name, subtitle = "${words.size} words · ${words.take(4).joinToString(", ")}", onClick = onOpen)
+        }
+        androidx.compose.material3.Switch(checked = on, onCheckedChange = onToggle, modifier = Modifier.padding(end = 16.dp))
+    }
+}
+
+/**
+ * One list: its name and its words, one per line. Save keeps it; Delete removes it. Claude's
+ * list has its name fixed and Reset instead of Delete, back to the words as shipped.
+ */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun WordListSheet(
@@ -337,6 +365,8 @@ private fun WordListSheet(
     onSave: (String, String) -> Unit,
     onDelete: (() -> Unit)?,
     onDismiss: () -> Unit,
+    nameLocked: Boolean = false,
+    onReset: (() -> Unit)? = null,
 ) {
     var name by remember { mutableStateOf(list.name) }
     var text by remember { mutableStateOf(list.words.joinToString("\n")) }
@@ -355,12 +385,13 @@ private fun WordListSheet(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            FieldBlock(label = "Name", value = name, onChange = { name = it.take(40) }, placeholder = "My words")
+            if (!nameLocked) FieldBlock(label = "Name", value = name, onChange = { name = it.take(40) }, placeholder = "My words")
             FieldBlock(label = "Words, one per line", value = text, onChange = { text = it }, placeholder = "Pondering\nBrewing\nNoodling", singleLine = false, minLines = 5)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
+                if (onReset != null) KeyButton(label = "Reset", onClick = onReset)
                 if (onDelete != null) KeyButton(label = "Delete", onClick = onDelete)
                 KeyButton(label = "Save", onClick = { onSave(name, text) }, primary = true, enabled = text.isNotBlank())
             }

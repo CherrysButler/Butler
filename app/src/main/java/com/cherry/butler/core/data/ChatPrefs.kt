@@ -17,9 +17,11 @@ import javax.inject.Singleton
  * Small chat habits kept on the phone: whether the keyboard goes down when a message is
  * sent, and the thinking words (what the thinking line says while a reply is on its way).
  *
- * The words come in lists: Butler's own, which can be switched off, and any number of the
- * user's, each on or off. Every list that is on goes into one pool; with none on, Butler's
- * is used anyway, so the line never has nothing to say.
+ * The words come in lists: Claude's (Butler's default), which the user can add to, take
+ * from or switch off, and any number of the user's own, each on or off. Every list that is
+ * on goes into one pool; with none on, Claude's as shipped is used anyway, so the line
+ * never has nothing to say. Claude's edits are kept as what was added and what was taken
+ * out, so a new word in a later Butler still arrives.
  */
 @Singleton
 class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
@@ -33,9 +35,16 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
     private val _closeKeyboardOnSend = MutableStateFlow(prefs.getBoolean(KEY_CLOSE_KEYBOARD, true))
     val closeKeyboardOnSend: StateFlow<Boolean> = _closeKeyboardOnSend.asStateFlow()
 
-    private val _butlerWordsOn = MutableStateFlow(prefs.getBoolean(KEY_BUTLER_ON, true))
-    /** Whether Butler's own words are in the pool. */
-    val butlerWordsOn: StateFlow<Boolean> = _butlerWordsOn.asStateFlow()
+    private val _claudeOn = MutableStateFlow(prefs.getBoolean(KEY_BUTLER_ON, true))
+    /** Whether Claude's list is in the pool. */
+    val claudeOn: StateFlow<Boolean> = _claudeOn.asStateFlow()
+
+    private val _claudeWords = MutableStateFlow(claudeNow())
+    /** Claude's list as the user has it: the shipped words less those taken out, plus those added. */
+    val claudeWords: StateFlow<List<String>> = _claudeWords.asStateFlow()
+
+    /** Whether Claude's list differs from the shipped one. */
+    val claudeEdited: Boolean get() = prefs.contains(KEY_CLAUDE_ADDED) || prefs.contains(KEY_CLAUDE_REMOVED)
 
     private val _lists = MutableStateFlow(load())
     /** The user's lists, in the order made. */
@@ -50,10 +59,37 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putBoolean(KEY_CLOSE_KEYBOARD, on).apply()
     }
 
-    fun setButlerWordsOn(on: Boolean) {
-        _butlerWordsOn.value = on
+    fun setClaudeOn(on: Boolean) {
+        _claudeOn.value = on
         prefs.edit().putBoolean(KEY_BUTLER_ON, on).apply()
         apply()
+    }
+
+    /** Claude's list as [text] now (one word per line or comma): kept as what changed against the shipped list. */
+    fun saveClaudeList(text: String) {
+        val words = parse(text)
+        val shipped = ThinkingWords.defaults
+        val added = words.filter { it !in shipped }
+        val removed = shipped.filter { it !in words }
+        prefs.edit()
+            .putString(KEY_CLAUDE_ADDED, added.joinToString("\n"))
+            .putString(KEY_CLAUDE_REMOVED, removed.joinToString("\n"))
+            .apply()
+        _claudeWords.value = claudeNow()
+        apply()
+    }
+
+    /** Claude's list as shipped again. */
+    fun resetClaudeList() {
+        prefs.edit().remove(KEY_CLAUDE_ADDED).remove(KEY_CLAUDE_REMOVED).apply()
+        _claudeWords.value = claudeNow()
+        apply()
+    }
+
+    private fun claudeNow(): List<String> {
+        val added = parse(prefs.getString(KEY_CLAUDE_ADDED, null).orEmpty())
+        val removed = parse(prefs.getString(KEY_CLAUDE_REMOVED, null).orEmpty()).toSet()
+        return ThinkingWords.defaults.filter { it !in removed } + added
     }
 
     /**
@@ -84,8 +120,8 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
 
     /** Hands the pool to the thinking line. */
     private fun apply() {
-        ThinkingWords.butlerOn = _butlerWordsOn.value
-        ThinkingWords.custom = _lists.value.filter { it.on }.flatMap { it.words }.distinct()
+        val claude = if (_claudeOn.value) _claudeWords.value else emptyList()
+        ThinkingWords.pool = (claude + _lists.value.filter { it.on }.flatMap { it.words }).distinct()
     }
 
     private fun load(): List<WordList> {
@@ -110,6 +146,8 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
     private companion object {
         const val KEY_CLOSE_KEYBOARD = "close_keyboard_on_send"
         const val KEY_BUTLER_ON = "thinking_words_butler"
+        const val KEY_CLAUDE_ADDED = "thinking_claude_added"
+        const val KEY_CLAUDE_REMOVED = "thinking_claude_removed"
         const val KEY_LISTS = "thinking_word_lists"
         const val KEY_OLD_WORDS = "thinking_words"
     }
