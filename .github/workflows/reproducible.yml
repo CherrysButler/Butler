@@ -43,6 +43,9 @@ jobs:
       - name: Compare, signature aside
         run: |
           pip install --quiet apksigcopier
+          # apksigcopier drives apksigner from the Android build tools.
+          export PATH="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1):$PATH"
+          apksigner --version
           sha256sum released.apk app/build/outputs/apk/release/app-release-unsigned.apk
           apksigcopier compare released.apk --unsigned app/build/outputs/apk/release/app-release-unsigned.apk \
             && echo "::notice::Reproducible: the clean build matches the published APK" \
