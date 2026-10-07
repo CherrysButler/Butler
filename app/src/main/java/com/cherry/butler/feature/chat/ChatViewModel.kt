@@ -105,7 +105,11 @@ class ChatViewModel @Inject constructor(
     /** One picture: `[pic]` goes into the draft where it belongs, and the model is asked to write it. */
     fun attachPicture(uri: android.net.Uri) {
         viewModelScope.launch {
-            val file = runCatching { describer.keep(chatId, uri) }.getOrElse { _notices.send("Couldn\u2019t read that picture."); return@launch }
+            val file = runCatching { describer.keep(chatId, uri) }.getOrElse { e ->
+                android.util.Log.w("ChatViewModel", "picture $uri unreadable", e)
+                _notices.send("Couldn\u2019t read that picture.")
+                return@launch
+            }
             val before = draft.value
             val marked = if (before.contains(PIC, ignoreCase = true)) before else (before.trimEnd() + (if (before.isBlank()) "" else " ") + PIC)
             if (marked != before) onDraftChanged(marked)
