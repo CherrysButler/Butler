@@ -40,7 +40,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Search
@@ -78,7 +80,6 @@ import com.cherry.butler.ui.components.SkeletonTile
 import com.cherry.butler.ui.components.StickToTop
 import com.cherry.butler.ui.components.TileGrid
 import com.cherry.butler.ui.components.isRetryable
-import com.cherry.butler.ui.components.rememberFlingGridState
 import com.cherry.butler.ui.components.userMessage
 import com.cherry.butler.ui.components.userTitle
 
@@ -156,13 +157,32 @@ fun BrowseScreen(
             onRemoveCustom = viewModel::onCustomTagRemoved,
             onAddCustom = viewModel::onCustomTagAdded,
         )
-        CharacterRoster(
-            characters = characters,
-            hasSearch = !query.search.isNullOrBlank(),
-            onCharacterClick = onCharacterClick,
-            query = query,
-            letGo = letGo,
-        )
+        val paged by viewModel.paged.collectAsStateWithLifecycle()
+        if (paged) {
+            val page by viewModel.page.collectAsStateWithLifecycle()
+            PagedRoster(
+                page = page,
+                hasSearch = !query.search.isNullOrBlank(),
+                gridState = viewModel.gridState,
+                onPrevious = viewModel::previousPage,
+                onNext = viewModel::nextPage,
+                onRetry = viewModel::retryPage,
+                onCharacterClick = onCharacterClick,
+                letGo = letGo,
+            )
+        } else {
+            CharacterRoster(
+                characters = characters,
+                hasSearch = !query.search.isNullOrBlank(),
+                onCharacterClick = onCharacterClick,
+                query = query,
+                letGo = letGo,
+                gridState = viewModel.gridState,
+                freshQuery = viewModel::takeFreshQuery,
+                hadItems = viewModel.hadItems(query),
+                onItems = { viewModel.sawItems(query) },
+            )
+        }
     }
 }
 
@@ -409,20 +429,28 @@ private fun CharacterRoster(
     characters: LazyPagingItems<Character>,
     hasSearch: Boolean,
     onCharacterClick: (String) -> Unit,
-    query: com.cherry.butler.core.model.BrowseQuery? = null,
+    query: com.cherry.butler.core.model.BrowseQuery,
     letGo: NestedScrollConnection? = null,
+    gridState: LazyGridState,
+    /** Whether [query] is new since the grid last went to the top (once per query, not per visit). */
+    freshQuery: (com.cherry.butler.core.model.BrowseQuery) -> Boolean,
+    hadItems: Boolean,
+    onItems: () -> Unit,
 ) {
     val status = PagingStatus(characters)
-    val gridState = rememberFlingGridState()
     StickToTop(gridState, firstKey = if (characters.itemCount > 0) characters.peek(0)?.id else null)
     // A new search, sort or filter starts at the top: once now, and again when its first
-    // results replace the old ones (the old list may still be showing for a moment).
+    // results replace the old ones (the old list may still be showing for a moment). Coming
+    // back from a character is not a new query: the grid stays where it was.
     var awaitingTop by remember { mutableStateOf(false) }
     val firstId = if (characters.itemCount > 0) characters.peek(0)?.id else null
     LaunchedEffect(query) {
-        awaitingTop = true
-        gridState.scrollToItem(0)
+        if (freshQuery(query)) {
+            awaitingTop = true
+            gridState.scrollToItem(0)
+        }
     }
+    LaunchedEffect(characters.itemCount) { if (characters.itemCount > 0) onItems() }
     LaunchedEffect(firstId) {
         if (awaitingTop && firstId != null) {
             gridState.scrollToItem(0)
@@ -443,6 +471,8 @@ private fun CharacterRoster(
         when {
             status.initialLoading -> SkeletonGrid(tileWidth)
             status.itemCount == 0 && status.refreshError != null -> ErrorState(status.refreshError, onRetry = characters::retry)
+            // Back from a character the cached pages take a moment to re-read: blank, not "nothing found".
+            status.empty && hadItems -> Unit
             status.empty -> EmptyState(hasSearch)
             else -> LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
@@ -457,26 +487,7 @@ private fun CharacterRoster(
                     key = { index -> characters.peek(index)?.id ?: index },
                     contentType = { "character" },
                 ) { index ->
-                    characters[index]?.let { character ->
-                        CharacterTile(
-                            name = character.name,
-                            avatarUrl = character.avatarUrl,
-                            width = tileWidth,
-                            onClick = { onCharacterClick(character.id) },
-                            // The server flags image NSFW separately from character NSFW; obscuring follows the image.
-                            obscured = character.isImageNsfw,
-                            nsfw = character.isNsfw,
-                            chatCount = character.chatCount.compactCount(),
-                        ) {
-                            BrowseTileFooter(
-                                creatorName = character.creatorName,
-                                creatorVerified = character.creatorVerified,
-                                creatorColor = character.creatorColor,
-                                blurb = character.blurb,
-                                tags = character.tagNames,
-                            )
-                        }
-                    }
+                    characters[index]?.let { character -> RosterTile(character, tileWidth) { onCharacterClick(character.id) } }
                 }
                 if (status.appending) {
                     items(2, contentType = { "skeleton" }) { SkeletonTile(tileWidth) }
@@ -484,6 +495,84 @@ private fun CharacterRoster(
                 status.appendError?.let { error ->
                     item(span = { GridItemSpan(maxLineSpan) }, contentType = "error") {
                         InlineErrorCard(error, onRetry = characters::retry)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RosterTile(character: Character, tileWidth: Dp, onClick: () -> Unit) {
+    CharacterTile(
+        name = character.name,
+        avatarUrl = character.avatarUrl,
+        width = tileWidth,
+        onClick = onClick,
+        // The server flags image NSFW separately from character NSFW; obscuring follows the image.
+        obscured = character.isImageNsfw,
+        nsfw = character.isNsfw,
+        chatCount = character.chatCount.compactCount(),
+    ) {
+        BrowseTileFooter(
+            creatorName = character.creatorName,
+            creatorVerified = character.creatorVerified,
+            creatorColor = character.creatorColor,
+            blurb = character.blurb,
+            tags = character.tagNames,
+        )
+    }
+}
+
+/**
+ * Home one page at a time: this page's tiles, then "Previous · Page N · Next" under them.
+ * A page change goes back to the top; the grid state is the same one the endless list keeps.
+ */
+@Composable
+private fun PagedRoster(
+    page: BrowseViewModel.Page,
+    hasSearch: Boolean,
+    gridState: LazyGridState,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onRetry: () -> Unit,
+    onCharacterClick: (String) -> Unit,
+    letGo: NestedScrollConnection? = null,
+) {
+    val tileWidth = TileGrid.tileWidth()
+    LaunchedEffect(page.number, page.loading) { if (!page.loading) gridState.scrollToItem(0) }
+    com.cherry.butler.ui.components.PrefetchTilePortraits(gridState, page.items.size, tileWidth) { i ->
+        page.items.getOrNull(i)?.let { it.avatarUrl to it.isImageNsfw }
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        when {
+            page.loading -> SkeletonGrid(tileWidth)
+            page.error != null -> ErrorState(page.error, onRetry = onRetry)
+            page.items.isEmpty() && page.number == 1 -> EmptyState(hasSearch)
+            else -> LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                state = gridState,
+                modifier = Modifier.fillMaxSize().then(if (letGo != null) Modifier.nestedScroll(letGo) else Modifier),
+                contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter),
+                horizontalArrangement = Arrangement.spacedBy(TileGrid.gap),
+                verticalArrangement = Arrangement.spacedBy(TileGrid.gap),
+            ) {
+                items(page.items, key = { it.id }, contentType = { "character" }) { character ->
+                    RosterTile(character, tileWidth) { onCharacterClick(character.id) }
+                }
+                item(span = { GridItemSpan(maxLineSpan) }, contentType = "pager") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        com.cherry.butler.feature.chats.KeyButton(label = "Previous", onClick = onPrevious, enabled = page.number > 1, modifier = Modifier.weight(1f))
+                        Text(
+                            text = "Page ${page.number}",
+                            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        com.cherry.butler.feature.chats.KeyButton(label = "Next", onClick = onNext, enabled = page.hasMore, primary = page.hasMore, modifier = Modifier.weight(1f))
                     }
                 }
             }

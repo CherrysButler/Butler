@@ -63,6 +63,19 @@ class CharacterRepository @Inject constructor(
         remoteMediator = CharacterRemoteMediator(query, remote, db, ::keepTopCustomTags),
         pagingSourceFactory = { db.characterDao().pagingSource(query.cacheKey) },
     ).flow.map { paging -> paging.map(CharacterEntity::toDomain) }
+
+    /**
+     * One page of [query] straight from Janitor, for the paged Home: its characters and
+     * whether a page follows (a full page says there may be one; the server's total is only
+     * a lower bound, so no page count is ever derived from it).
+     */
+    suspend fun page(query: BrowseQuery, page: Int): Pair<List<Character>, Boolean> {
+        val dto = remote.browse(query, page)
+        if (dto.topCustomTags.isNotEmpty()) keepTopCustomTags(dto.topCustomTags)
+        val now = System.currentTimeMillis()
+        val items = dto.data.mapIndexed { i, c -> c.toEntity(query.cacheKey, i, now).toDomain() }
+        return items to (dto.data.size >= CharacterRemoteSource.PAGE_SIZE)
+    }
 }
 
 internal fun CharacterEntity.toDomain() = Character(

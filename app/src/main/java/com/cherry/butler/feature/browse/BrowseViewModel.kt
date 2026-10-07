@@ -28,6 +28,7 @@ import com.cherry.butler.core.model.SpecialMode
 import androidx.paging.filter
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.drop
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -36,7 +37,71 @@ class BrowseViewModel @Inject constructor(
     private val repository: CharacterRepository,
     private val tagRemoteSource: TagRemoteSource,
     private val lastPlace: LastPlace,
+    browsePrefs: com.cherry.butler.core.data.BrowsePrefs,
 ) : ViewModel() {
+
+    /**
+     * The grid's scroll state lives here, not in the screen: opening a character takes the
+     * tab out of composition, and a state remembered there came back at the top.
+     */
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    val gridState = androidx.compose.foundation.lazy.grid.LazyGridState(
+        prefetchStrategy = com.cherry.butler.ui.components.AheadGridPrefetchStrategy(2),
+    )
+
+    private var scrolledFor: BrowseQuery? = null
+
+    /** True once per new search, sort or filter, when the grid should go back to the top. */
+    fun takeFreshQuery(query: BrowseQuery): Boolean {
+        if (scrolledFor == query) return false
+        scrolledFor = query
+        return true
+    }
+
+    private var itemsSeenFor: BrowseQuery? = null
+    fun sawItems(query: BrowseQuery) { itemsSeenFor = query }
+    /** Results for [query] were on screen before: a momentary empty list is a re-read, not "nothing". */
+    fun hadItems(query: BrowseQuery): Boolean = itemsSeenFor == query
+
+    /** One page at a time instead of the endless scroll (Settings › Look). */
+    val paged: StateFlow<Boolean> = browsePrefs.paged
+
+    /** The paged Home's page: its number, what's on it, and whether another follows. */
+    data class Page(
+        val number: Int = 1,
+        val items: List<Character> = emptyList(),
+        val loading: Boolean = true,
+        val error: Throwable? = null,
+        val hasMore: Boolean = false,
+    )
+
+    private val _page = MutableStateFlow(Page())
+    val page: StateFlow<Page> = _page.asStateFlow()
+    private var pageJob: kotlinx.coroutines.Job? = null
+    private var pageQuery: BrowseQuery? = null
+
+    fun nextPage() { if (_page.value.hasMore && !_page.value.loading) loadPage(_page.value.number + 1) }
+    fun previousPage() { if (_page.value.number > 1 && !_page.value.loading) loadPage(_page.value.number - 1) }
+    fun retryPage() = loadPage(_page.value.number)
+
+    private fun loadPage(number: Int) {
+        val query = pageQuery ?: _query.value.server()
+        pageJob?.cancel()
+        pageJob = viewModelScope.launch {
+            _page.value = Page(number = number, loading = true)
+            val result = runCatching { repository.page(query, number) }
+            val filters = _query.value
+            _page.value = result.fold(
+                onSuccess = { (items, more) ->
+                    val kept = items.filter {
+                        it.messageCount >= filters.minMessages && it.totalTokens >= filters.minTokens && (!filters.proxyOnly || it.isProxyEnabled)
+                    }
+                    Page(number = number, items = kept, loading = false, hasMore = more)
+                },
+                onFailure = { Page(number = number, loading = false, error = it) },
+            )
+        }
+    }
 
     /** Opens on the search, sort and filters the user left, not the defaults. */
     private val _query = MutableStateFlow(lastPlace.browseQuery())
@@ -87,6 +152,20 @@ class BrowseViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { _query.collect { lastPlace.saveBrowseQuery(it) } }
+        // Paged Home: a new query starts over at page 1; the phone-side minimums re-filter in place.
+        viewModelScope.launch {
+            combine(
+                _query.map { it.server() }.debounce { if (it.search.isNullOrBlank()) 0L else SEARCH_DEBOUNCE_MS }.distinctUntilChanged(),
+                paged,
+            ) { q, on -> q to on }.collect { (q, on) ->
+                pageQuery = q
+                if (on) loadPage(1)
+            }
+        }
+        viewModelScope.launch {
+            _query.map { Triple(it.minMessages, it.minTokens, it.proxyOnly) }.distinctUntilChanged().drop(1)
+                .collect { if (paged.value) loadPage(_page.value.number) }
+        }
         viewModelScope.launch {
             runCatching { tagRemoteSource.tags() }
                 .onSuccess { loaded -> _tags.value = loaded.sortedBy { it.name.lowercase() } }
