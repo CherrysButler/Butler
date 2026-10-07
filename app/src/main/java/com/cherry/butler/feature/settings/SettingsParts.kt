@@ -12,6 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -77,15 +84,35 @@ import kotlin.math.roundToInt
  * divider under the last row is tucked away so the card ends on its own edge.
  */
 @Composable
-fun SettingsSection(title: String, footnote: String? = null, content: @Composable () -> Unit) {
+fun SettingsSection(
+    title: String,
+    footnote: String? = null,
+    /** A small mark before the title. */
+    icon: ImageVector? = null,
+    /** Says so with a tag: the section is a beta. */
+    beta: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = ButlerTheme.colors.textMed,
+        Row(
             modifier = Modifier.padding(start = 28.dp, end = 16.dp, bottom = 8.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = ButlerTheme.colors.textMed,
+            )
+            if (beta) {
+                Spacer(Modifier.width(8.dp))
+                BetaTag()
+            }
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -171,7 +198,7 @@ fun ChoiceRow(
 
 /** A row that opens another screen. */
 @Composable
-fun LinkRow(title: String, subtitle: String?, onClick: () -> Unit) {
+fun LinkRow(title: String, subtitle: String?, onClick: () -> Unit, icon: ImageVector? = null) {
     Column {
         Row(
             modifier = Modifier
@@ -181,6 +208,10 @@ fun LinkRow(title: String, subtitle: String?, onClick: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 if (subtitle != null) {
@@ -194,7 +225,7 @@ fun LinkRow(title: String, subtitle: String?, onClick: () -> Unit) {
 }
 
 @Composable
-fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true) {
+fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, icon: ImageVector? = null) {
     Column {
         Row(
             modifier = Modifier
@@ -204,6 +235,10 @@ fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boo
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(14.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = if (enabled) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.textLow)
                 if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
@@ -398,6 +433,8 @@ fun DropRow(
     value: String?,
     busy: Boolean = false,
     valueIsWarning: Boolean = false,
+    icon: ImageVector? = null,
+    beta: Boolean = false,
     items: @Composable ColumnScope.(close: () -> Unit) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
@@ -413,14 +450,25 @@ fun DropRow(
                     .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (icon != null) {
+                    Icon(icon, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(14.dp))
+                }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (beta) {
+                            Spacer(Modifier.width(8.dp))
+                            BetaTag()
+                        }
+                    }
                     if (value != null || busy) {
                         Text(
                             text = if (busy) "Saving…" else value.orEmpty(),
@@ -491,4 +539,44 @@ fun DropItem(
 @Composable
 fun DropDivider() {
     HairlineRule(color = ButlerTheme.colors.outlineFaint, modifier = Modifier.padding(vertical = 4.dp))
+}
+
+/** The beta tag: a small outlined BETA in the accent, next to a title. */
+@Composable
+fun BetaTag(modifier: Modifier = Modifier) {
+    Text(
+        text = "BETA",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
+
+/**
+ * A row that only means something while the row above it is on: drawn as that row's branch,
+ * a line down from it and a tick into this one. [last] ends the line at this row; a run of
+ * branches passes false for all but the last.
+ */
+@Composable
+fun Branch(last: Boolean = true, content: @Composable () -> Unit) {
+    val line = ButlerTheme.colors.rule
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(
+            modifier = Modifier
+                .width(32.dp)
+                .fillMaxHeight()
+                .drawBehind {
+                    val x = 24.dp.toPx()
+                    val stroke = 1.5.dp.toPx()
+                    val mid = size.height / 2
+                    drawLine(line, Offset(x, 0f), Offset(x, if (last) mid else size.height), stroke)
+                    drawLine(line, Offset(x, mid), Offset(size.width, mid), stroke)
+                },
+        )
+        Box(modifier = Modifier.weight(1f)) { content() }
+    }
 }

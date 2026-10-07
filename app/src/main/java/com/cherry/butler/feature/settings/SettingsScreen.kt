@@ -27,6 +27,34 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Update
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Label
+import androidx.compose.material.icons.rounded.Highlight
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.material.icons.rounded.ViewList
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Notes
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.AltRoute
+import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
@@ -283,18 +311,18 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
 @Composable
 private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: Boolean) {
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
-    SettingsSection(title = "Sending") {
-        SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend)
+    SettingsSection(title = "Sending", icon = Icons.Rounded.Keyboard) {
+        SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend, icon = Icons.Rounded.Keyboard)
     }
-    SettingsSection(title = "Memory") {
-        SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory)
-        SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
+    SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
+        SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory, icon = Icons.Rounded.History)
+        SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize, icon = Icons.Rounded.Autorenew)
     }
     val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
-    SettingsSection(title = "Pictures (beta)", footnote = "A picture in your message, written into the line by a model that can see (Settings › Model › Pictures use).") {
-        SwitchRow("Picture key in the chat", null, picturesOn, viewModel::setPicturesOn)
-        if (picturesOn) SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto)
+    SettingsSection(title = "Pictures", beta = true, icon = Icons.Rounded.Image, footnote = "A picture in your message, written into the line by a model that can see (Settings › Model › Pictures use).") {
+        SwitchRow("Picture key in the chat", null, picturesOn, viewModel::setPicturesOn, icon = Icons.Rounded.Image)
+        if (picturesOn) Branch { SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto) }
     }
     ThinkingListsSection(viewModel)
 }
@@ -311,7 +339,7 @@ private fun ThinkingListsSection(viewModel: SettingsViewModel) {
     val lists by viewModel.thinkingLists.collectAsStateWithLifecycle()
     // null: closed; a list to edit; a blank new one (id empty); or Claude's (id CLAUDE_LIST).
     var editing by remember { mutableStateOf<com.cherry.butler.core.data.ChatPrefs.WordList?>(null) }
-    SettingsSection(title = "Thinking words", footnote = "What the thinking line says while a reply is on its way. Every list that is on is used.") {
+    SettingsSection(title = "Thinking words", icon = Icons.Rounded.Psychology, footnote = "What the thinking line says while a reply is on its way. Every list that is on is used.") {
         WordListRow(
             name = CLAUDE_LIST_NAME,
             words = claudeWords,
@@ -484,7 +512,7 @@ private fun ModelSection(
     onOpenGeneration: (() -> Unit)?,
     onOpenRouter: () -> Unit = {},
 ) {
-    SettingsSection(title = "Model") {
+    SettingsSection(title = "Model", icon = Icons.Rounded.SmartToy) {
         Box(modifier = Modifier.padding(vertical = 12.dp)) {
             SegmentedChoice(
                 options = listOf("Your proxy", if (settings.routerEnabled) "Janitor Router" else "JLLM"),
@@ -500,6 +528,7 @@ private fun ModelSection(
         if (settings.provider == Provider.Janitor) {
             LinkRow(
                 title = "Janitor Router",
+                icon = Icons.Rounded.AltRoute,
                 subtitle = if (settings.routerEnabled) "On" else "Needs Janitor Plus",
                 onClick = onOpenRouter,
             )
@@ -510,12 +539,13 @@ private fun ModelSection(
         val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
         SwitchRow(
             title = "NSFW on mobile",
+            icon = Icons.Rounded.Visibility,
             subtitle = null,
             checked = nsfw,
             onChange = viewModel::setAllowMobileNsfw,
         )
-        if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration)
-        LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts)
+        if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration, icon = Icons.Rounded.Tune)
+        LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts, icon = Icons.Rounded.Description)
     }
 }
 
@@ -530,6 +560,7 @@ private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
     val name = settings.jllmPromptName ?: settings.jllmPromptId?.let { "Linked prompt" }
     LinkRow(
         title = "JLLM prompt",
+        icon = Icons.Rounded.Notes,
         subtitle = name ?: if (systemPrompts.isEmpty()) "None · add one under Prompts" else "None",
         onClick = { picking = true },
     )
@@ -561,7 +592,7 @@ private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
         asProxy != null -> "Same as the chat (that proxy is gone)"
         else -> "Same as the chat"
     }
-    DropRow(title = "Write for me uses", value = value) { close ->
+    DropRow(title = "Write for me uses", value = value, icon = Icons.Rounded.AutoAwesome) { close ->
         DropItem(
             title = "Same as the chat",
             subtitle = null,
@@ -608,7 +639,7 @@ private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
         pick != null -> "Same as Write for me (that preset is gone)"
         else -> "Same as Write for me"
     }
-    DropRow(title = "Pictures use (beta)", value = value) { close ->
+    DropRow(title = "Pictures use", value = value, icon = Icons.Rounded.Image, beta = true) { close ->
         DropItem(
             title = "Same as Write for me",
             subtitle = "Has to be a proxy whose model can see",
@@ -763,7 +794,7 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
     val chatStyle by viewModel.chatStyle.collectAsStateWithLifecycle()
     val custom by viewModel.custom.collectAsStateWithLifecycle()
     var customizing by remember { mutableStateOf(false) }
-    SettingsSection(title = "Look") {
+    SettingsSection(title = "Look", icon = Icons.Rounded.Palette) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -777,16 +808,16 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
             }
         }
         if (current == AppTheme.Custom) {
-            LinkRow(title = "Custom colours", subtitle = null, onClick = { customizing = true })
+            Branch { LinkRow(title = "Custom colours", subtitle = null, onClick = { customizing = true }, icon = Icons.Rounded.Palette) }
         }
         RowDivider()
-        DropRow(title = "Chat layout", value = chatStyle.label) { close ->
+        DropRow(title = "Chat layout", value = chatStyle.label, icon = Icons.Rounded.ViewAgenda) { close ->
             ChatStyle.entries.forEach { style ->
                 DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
             }
         }
         val paged by viewModel.pagedHome.collectAsStateWithLifecycle()
-        DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll") { close ->
+        DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll", icon = Icons.Rounded.ViewList) { close ->
             DropItem(title = "Endless scroll", subtitle = "More arrives as you reach the end", selected = !paged, onClick = { close(); viewModel.setPagedHome(false) })
             DropItem(title = "Pages", subtitle = "Previous and Next under each page", selected = paged, onClick = { close(); viewModel.setPagedHome(true) })
         }
@@ -801,7 +832,7 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
             format = { "${(it * 100).toInt()}%" },
             onCommit = viewModel::setAppTextScale,
         )
-        LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize)
+        LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize, icon = Icons.Rounded.FormatSize)
         BackgroundRow()
     }
     if (customizing) CustomLookSheet(viewModel, onDismiss = { customizing = false })
@@ -1027,6 +1058,7 @@ private fun RichTypingSection(viewModel: SettingsViewModel) {
     val default by viewModel.richDefault.collectAsStateWithLifecycle()
     SettingsSection(
         title = "Rich typing",
+        icon = Icons.Rounded.FormatQuote,
         footnote = if (on) "Tap past a closing mark to step out of it." else null,
     ) {
         SwitchRow(
@@ -1034,8 +1066,9 @@ private fun RichTypingSection(viewModel: SettingsViewModel) {
             "\" * B keys over the message box",
             on,
             viewModel::setRich,
+            icon = Icons.Rounded.FormatQuote,
         )
-        if (on) {
+        if (on) Branch { Column {
             Text(
                 "Typing starts as",
                 style = MaterialTheme.typography.labelMedium,
@@ -1049,7 +1082,7 @@ private fun RichTypingSection(viewModel: SettingsViewModel) {
                 onSelect = { i -> viewModel.setRichDefault(keys[i]) },
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
             )
-        }
+        } }
     }
 }
 
@@ -1068,14 +1101,16 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
     var askingHighlights by remember { mutableStateOf(false) }
     SettingsSection(
         title = "Butler specials",
+        icon = Icons.Rounded.Star,
     ) {
         SwitchRow(
             "Butter mode",
             "Tap the butter on a reply to read just its key beats",
             butter,
             { on -> if (on) asking = true else viewModel.setButter(false) },
+            icon = Icons.Rounded.Star,
         )
-        if (butter) {
+        if (butter) Branch {
             SwitchRow(
                 "Tint the butter",
                 null,
@@ -1088,14 +1123,15 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
             "Marks lines by mood after each reply",
             highlights,
             { on -> if (on) askingHighlights = true else viewModel.setHighlights(false) },
+            icon = Icons.Rounded.Highlight,
         )
-        if (highlights) {
+        if (highlights) Branch { Column {
             MoodChips(moods, viewModel::setMood)
             val custom by viewModel.highlightsPrompt.collectAsStateWithLifecycle()
             HighlightsPromptField(custom, viewModel::setHighlightsPrompt)
-        }
+        } }
         if (butter || highlights) {
-            DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too") { close ->
+            DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too", icon = Icons.Rounded.Label) { close ->
                 DropItem(title = "Kept on this phone", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
                 DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
@@ -1299,7 +1335,7 @@ private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewMode
 @Composable
 private fun BackgroundRow() {
     var open by remember { mutableStateOf(false) }
-    LinkRow(title = "Chat background", subtitle = null, onClick = { open = true })
+    LinkRow(title = "Chat background", subtitle = null, onClick = { open = true }, icon = Icons.Rounded.Wallpaper)
     if (open) BackgroundsSheet(chatId = null, onDismiss = { open = false })
 }
 
@@ -1347,12 +1383,12 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
     fun int(key: String, default: Int) = gen[key]?.jsonPrimitive?.intOrNull ?: gen[key]?.jsonPrimitive?.floatOrNull?.toInt() ?: default
     fun bool(key: String) = gen[key]?.jsonPrimitive?.booleanOrNull ?: false
 
-    SettingsSection(title = "Length") {
+    SettingsSection(title = "Length", icon = Icons.Rounded.FormatSize) {
         // The defaults shown are the ones the website sends when nothing is saved.
         NumberRow("Reply length", "0 = no limit", int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
         NumberRow("Context", null, int("context_length", 50_000), { viewModel.setGeneration("context_length", JsonPrimitive(it)) }, 512..1_000_000)
     }
-    SettingsSection(title = "Sampling") {
+    SettingsSection(title = "Sampling", icon = Icons.Rounded.Tune) {
         SliderRow("Temperature", num("temperature", 1f), 0f..2f, 0.05f, { it.fixed(2) }, { viewModel.setGeneration("temperature", JsonPrimitive(it)) }, busy = saving == "gen:temperature")
         SliderRow("Top P", num("top_p", 1f), 0f..1f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("top_p", JsonPrimitive(it)) }, busy = saving == "gen:top_p")
         SliderRow("Top K", int("top_k", 0).toFloat(), 0f..100f, 1f, { it.toInt().toString() }, { viewModel.setGeneration("top_k", JsonPrimitive(it.toInt())) }, busy = saving == "gen:top_k")
@@ -1393,14 +1429,14 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
             }
         }
     }
-    SettingsSection(title = "Replies") {
+    SettingsSection(title = "Replies", icon = Icons.Rounded.Notes) {
         SwitchRow(
             "Prefill",
             "Replies start with your text",
             bool("prefill_enabled"),
             { viewModel.setGeneration("prefill_enabled", JsonPrimitive(it)) },
         )
-        if (bool("prefill_enabled")) {
+        if (bool("prefill_enabled")) Branch {
             PrefillField(gen["prefill_text"]?.jsonPrimitive?.contentOrNull.orEmpty()) { viewModel.setGeneration("prefill_text", JsonPrimitive(it)) }
         }
     }
@@ -1480,12 +1516,13 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
     val grace by lock.graceMs.collectAsStateWithLifecycle()
     val activity = context as? androidx.fragment.app.FragmentActivity
 
-    SettingsSection(title = "App") {
-        LinkRow(title = "Notifications", subtitle = null, onClick = onOpenNotifications)
-        LinkRow(title = "Blocked", subtitle = null, onClick = onOpenBlocked)
-        LinkRow(title = "Report a problem", subtitle = null, onClick = onOpenDiagnostics)
+    SettingsSection(title = "App", icon = Icons.Rounded.PhoneAndroid) {
+        LinkRow(title = "Notifications", subtitle = null, onClick = onOpenNotifications, icon = Icons.Rounded.Notifications)
+        LinkRow(title = "Blocked", subtitle = null, onClick = onOpenBlocked, icon = Icons.Rounded.Block)
+        LinkRow(title = "Report a problem", subtitle = null, onClick = onOpenDiagnostics, icon = Icons.Rounded.BugReport)
         SwitchRow(
             title = "Finish replies in the background",
+            icon = Icons.Rounded.Autorenew,
             subtitle = null,
             checked = on,
             onChange = { turnOn ->
@@ -1504,6 +1541,7 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
         )
         SwitchRow(
             title = "Lock Butler",
+            icon = Icons.Rounded.Lock,
             subtitle = if (lock.canLock() || locked) null else "Set a screen lock on your phone first",
             checked = locked,
             enabled = lock.canLock() || locked,
@@ -1514,7 +1552,7 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
                 }
             },
         )
-        if (locked) {
+        if (locked) Branch {
             val graces = listOf(0L to "Right away", 60_000L to "After 1 minute away", 300_000L to "After 5 minutes away", 900_000L to "After 15 minutes away")
             DropRow(title = "Lock", value = graces.firstOrNull { it.first == grace }?.second ?: "Right away") { close ->
                 graces.forEach { (ms, label) -> DropItem(title = label, selected = grace == ms, onClick = { close(); lock.setGrace(ms) }) }
@@ -1544,9 +1582,9 @@ private fun UpdatesSection(viewModel: SettingsViewModel) {
     val auto by viewModel.updateAuto.collectAsStateWithLifecycle()
     val checking by viewModel.checkingUpdate.collectAsStateWithLifecycle()
     val result by viewModel.update.collectAsStateWithLifecycle()
-    SettingsSection(title = "Updates") {
-        LinkRow(title = if (checking) "Checking…" else "Check for updates", subtitle = null, onClick = viewModel::checkForUpdate)
-        SwitchRow(title = "Check on every open", subtitle = null, checked = auto, onChange = viewModel::setUpdateAuto)
+    SettingsSection(title = "Updates", icon = Icons.Rounded.Update) {
+        LinkRow(title = if (checking) "Checking…" else "Check for updates", subtitle = null, onClick = viewModel::checkForUpdate, icon = Icons.Rounded.Update)
+        SwitchRow(title = "Check on every open", subtitle = null, checked = auto, onChange = viewModel::setUpdateAuto, icon = Icons.Rounded.Autorenew)
     }
     result?.let { UpdateResult(it, viewModel.currentVersion, onDone = viewModel::clearUpdate) }
 }
@@ -1560,10 +1598,12 @@ private fun DebugSection() {
     val valid = proxy.parse(address) != null
     SettingsSection(
         title = "Debug",
+        icon = Icons.Rounded.Dns,
         footnote = "Debug builds only.",
     ) {
         SwitchRow(
             title = "Send traffic through a proxy",
+            icon = Icons.Rounded.Dns,
             subtitle = if (on && !valid) "Enter the proxy as host:port first" else null,
             checked = on && valid,
             enabled = valid || on,

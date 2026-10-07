@@ -371,8 +371,10 @@ private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onA
                 style = MaterialTheme.typography.labelMedium,
                 color = ButlerTheme.colors.textLow,
             )
-            Text("Pictures are a beta", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow.copy(alpha = 0.7f))
         }
+        Spacer(Modifier.width(8.dp))
+        com.cherry.butler.feature.settings.BetaTag()
+        Spacer(Modifier.width(4.dp))
         if (picture.status == ChatViewModel.PictureStatus.Described) StateAction(label = "Undo", onClick = onUndo)
         when (picture.status) {
             ChatViewModel.PictureStatus.Attached -> StateAction(label = "Write it in", onClick = onAgain, emphasis = true)
