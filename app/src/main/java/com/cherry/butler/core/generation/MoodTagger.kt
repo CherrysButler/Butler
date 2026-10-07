@@ -61,7 +61,7 @@ class MoodTagger @Inject constructor(
         val played = profileRepository.playedPersona(chat, history)
         val userConfig = profileRepository.userConfig(profile)
         val jllm = userConfig["api"]?.let { (it as? JsonPrimitive)?.contentOrNull }.let { it == null || it == "janitor" }
-        val question = question(moods)
+        val question = question(moods, addons.highlightsPrompt.value)
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,
@@ -124,11 +124,20 @@ class MoodTagger @Inject constructor(
         const val MIN_WORDS = 60
         const val MAX_PICKS = 4
 
-        fun question(moods: Set<Mood>): String {
+        /** What Highlights looks for, in Butler's words; the user can replace it in Settings. */
+        const val DEFAULT_GUIDANCE =
+            "You are tagging a roleplay reply by mood. Do not rewrite, continue or judge it. From the reply, " +
+                "pick the sentences that most clearly carry one of the moods below."
+
+        /**
+         * [guidance] (the user's, or [DEFAULT_GUIDANCE]) and then the part the marking depends on,
+         * always Butler's: the moods asked for, the limit, and the answer format [parse] reads.
+         */
+        fun question(moods: Set<Mood>, guidance: String? = null): String {
             val list = Mood.entries.filter { it in moods }.joinToString(", ") { "${it.tag} (${it.meaning})" }
-            return "You are tagging a roleplay reply by mood. Do not rewrite, continue or judge it. From the reply, " +
-                "pick at most $MAX_PICKS sentences that clearly carry one of these moods: $list. Copy each sentence " +
-                "exactly as written. Answer only with lines like `mood: sentence`. If none fits, answer NONE."
+            val ask = guidance?.trim()?.takeIf { it.isNotEmpty() } ?: DEFAULT_GUIDANCE
+            return "$ask\n\nMoods: $list. Pick at most $MAX_PICKS sentences. Copy each sentence exactly as written. " +
+                "Answer only with lines like `mood: sentence`. If none fits, answer NONE."
         }
 
         /** `mood: sentence` lines, kept only for moods that were asked for. */

@@ -79,20 +79,27 @@ fun CharacterTile(
     obscured: Boolean = false,
     nsfw: Boolean = false,
     chatCount: String? = null,
+    /** A creator's own card look on their profile (see CreatorCss); null keeps the theme's. */
+    containerColor: Color? = null,
+    edgeColor: Color? = null,
+    corner: Dp? = null,
+    nameColor: Color? = null,
     footer: @Composable () -> Unit,
 ) {
     val height = portraitHeight(width)
+    val shape = corner?.let { RoundedCornerShape(it) }
     Column(
         modifier = modifier
             .width(width)
-            .card(clip = false)
+            .card(shape = shape, color = containerColor, clip = false)
+            .then(if (edgeColor != null) Modifier.border(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
             .clickable(onClick = onClick),
     ) {
         Text(
             text = name,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = nameColor ?: MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -238,6 +245,7 @@ fun BrowseTileFooter(
     blurb: String,
     tags: List<String>,
     creatorColor: String? = null,
+    textColor: Color? = null,
 ) {
     // The creator's own username colour, as Janitor shows it, when it reads on this ground.
     val red = MaterialTheme.colorScheme.primary
@@ -269,7 +277,7 @@ fun BrowseTileFooter(
     Text(
         text = blurb,
         style = MaterialTheme.typography.bodySmall,
-        color = ButlerTheme.colors.textMed,
+        color = textColor ?: ButlerTheme.colors.textMed,
         minLines = 3,
         maxLines = 3,
         overflow = TextOverflow.Ellipsis,

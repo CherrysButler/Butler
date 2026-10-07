@@ -64,6 +64,11 @@ fun RichText(
     }
     val isDark = color.luminance() > 0.5f
     val personaColor = MaterialTheme.colorScheme.primary
+    // A colour the creator set for the whole text in a <style> block (see RichHtml.pageLook),
+    // under the same rule as every other creator colour: as written on the dark looks, and on
+    // Daylight only when it reads on white.
+    val pageInk = remember(text) { RichHtml.pageLook(text).color }?.let { Color(it) }?.takeIf { isDark || it.readableOn(darkGround = false) }
+    @Suppress("NAME_SHADOWING") val color = pageInk ?: color
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (block in blocks) {

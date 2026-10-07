@@ -87,6 +87,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** Highlights' own wording (null: Butler's), editable in Settings. */
+    val highlightsPrompt: StateFlow<String?> = addons.highlightsPrompt
+    fun setHighlightsPrompt(text: String?) = addons.setHighlightsPrompt(text)
+
     /** Butler's specials: instructions added to the user's model (see PromptAddons). */
     val butter: StateFlow<Boolean> = addons.butter
     val stripTags: StateFlow<Boolean> = addons.stripTags

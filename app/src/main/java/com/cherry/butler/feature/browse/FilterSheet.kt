@@ -24,7 +24,6 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Pill
 import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.core.model.BrowseQuery
-import com.cherry.butler.core.model.BrowseSource
 import com.cherry.butler.core.model.NsfwMode
 import com.cherry.butler.feature.settings.NumberRow
 import com.cherry.butler.feature.settings.SettingsSection
@@ -43,7 +42,6 @@ import com.cherry.butler.ui.components.SegmentedChoice
 fun FilterSheet(
     query: BrowseQuery,
     onMode: (NsfwMode) -> Unit,
-    onSource: (BrowseSource) -> Unit,
     onMinMessages: (Long) -> Unit,
     onMinTokens: (Int) -> Unit,
     onProxyOnly: (Boolean) -> Unit,
@@ -71,13 +69,6 @@ fun FilterSheet(
                 options = NsfwMode.entries.map { it.label },
                 selected = NsfwMode.entries.indexOf(query.mode),
                 onSelect = { onMode(NsfwMode.entries[it]) },
-            )
-
-            Label("Source")
-            SegmentedChoice(
-                options = BrowseSource.entries.map { it.label },
-                selected = BrowseSource.entries.indexOf(query.source),
-                onSelect = { onSource(BrowseSource.entries[it]) },
             )
 
             SettingsSection(title = "Content") {

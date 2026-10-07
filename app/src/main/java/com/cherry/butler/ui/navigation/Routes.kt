@@ -7,6 +7,7 @@ object Routes {
 
     const val ARG_CHARACTER_ID = "characterId"
     const val ARG_CHAT_ID = "chatId"
+    const val ARG_USER_ID = "userId"
 
     const val CHARACTER = "character/{$ARG_CHARACTER_ID}"
     const val CHAT = "chat/{$ARG_CHAT_ID}"
@@ -26,6 +27,7 @@ object Routes {
     const val ROUTER = "settings/router"
     const val PERSONA = "persona/{personaId}"
     const val PUBLISHED_LIST = "published-list/{characterId}?name={name}"
+    const val CREATOR = "creator/{$ARG_USER_ID}"
 
     fun character(characterId: String) = "character/$characterId"
     fun chat(chatId: Long) = "chat/$chatId"
@@ -35,6 +37,7 @@ object Routes {
     fun comments(characterId: String, name: String) = "comments/$characterId?name=${android.net.Uri.encode(name)}"
     fun publishedList(characterId: String, name: String) = "published-list/$characterId?name=${android.net.Uri.encode(name)}"
     fun published(slug: String) = "published/${android.net.Uri.encode(slug)}"
+    fun creator(userId: String) = "creator/$userId"
 
     /** Whether the bottom navigation bar belongs on this route. */
     fun isTopLevel(route: String?): Boolean = route == TABS

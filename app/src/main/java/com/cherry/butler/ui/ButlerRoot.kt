@@ -257,6 +257,16 @@ fun ButlerRoot() {
                         onOpenPublished = { navController.navigate(Routes.published(it)) },
                         onOpenCharacter = { navController.navigate(Routes.character(it)) },
                         onSeeAllPublished = { id, name -> navController.navigate(Routes.publishedList(id, name)) },
+                        onOpenCreator = { navController.navigate(Routes.creator(it)) },
+                    )
+                }
+                composable(
+                    route = Routes.CREATOR,
+                    arguments = listOf(navArgument(Routes.ARG_USER_ID) { type = NavType.StringType }),
+                ) {
+                    com.cherry.butler.feature.creator.CreatorScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenCharacter = { navController.navigate(Routes.character(it)) },
                     )
                 }
                 composable(

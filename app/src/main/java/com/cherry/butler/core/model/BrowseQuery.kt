@@ -47,7 +47,7 @@ data class BrowseQuery(
 
     /** How many filter-sheet settings differ from the defaults (for the filter key's dot). */
     val filterCount: Int
-        get() = listOf(mode != NsfwMode.All, source != BrowseSource.All, minMessages > 0, minTokens > 0, proxyOnly).count { it }
+        get() = listOf(mode != NsfwMode.All, minMessages > 0, minTokens > 0, proxyOnly).count { it }
 
     /** Stable identity for the Room `remote_keys` table and mirror partitioning. */
     val cacheKey: String

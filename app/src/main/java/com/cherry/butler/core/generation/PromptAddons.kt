@@ -70,6 +70,21 @@ class PromptAddons @Inject constructor(@ApplicationContext context: Context) {
         prefs.getStringSet(KEY_MOODS, null)?.mapNotNull { Mood.of(it) }?.toSet() ?: Mood.entries.toSet(),
     )
 
+    private val _highlightsPrompt = MutableStateFlow(prefs.getString(KEY_HIGHLIGHTS_PROMPT, null))
+
+    /**
+     * The user's own wording for what Highlights looks for, or null for Butler's. Only the
+     * guidance: the moods and the answer format are always added after it (see MoodTagger), so
+     * an edit can't break the marking. Asked for on Reddit when picks felt hit or miss.
+     */
+    val highlightsPrompt: StateFlow<String?> = _highlightsPrompt.asStateFlow()
+
+    fun setHighlightsPrompt(text: String?) {
+        val kept = text?.trim()?.takeIf { it.isNotEmpty() && it != MoodTagger.DEFAULT_GUIDANCE }
+        _highlightsPrompt.value = kept
+        prefs.edit().apply { if (kept == null) remove(KEY_HIGHLIGHTS_PROMPT) else putString(KEY_HIGHLIGHTS_PROMPT, kept) }.apply()
+    }
+
     /** Which moods Highlights asks for; only these go into the instruction. */
     val moods: StateFlow<Set<Mood>> = _moods.asStateFlow()
 
@@ -153,6 +168,7 @@ class PromptAddons @Inject constructor(@ApplicationContext context: Context) {
         private const val KEY_BUTTER_TINT = "addon_butter_tint"
         private const val KEY_HIGHLIGHTS = "addon_highlights"
         private const val KEY_MOODS = "addon_moods"
+        private const val KEY_HIGHLIGHTS_PROMPT = "addon_highlights_prompt"
     }
 }
 

@@ -116,6 +116,7 @@ fun CharacterDetailScreen(
     onOpenPublished: (String) -> Unit = {},
     onOpenCharacter: (String) -> Unit = {},
     onSeeAllPublished: (characterId: String, name: String) -> Unit = { _, _ -> },
+    onOpenCreator: (userId: String) -> Unit = {},
     viewModel: CharacterDetailViewModel = hiltViewModel(),
 ) {
     val mirror by viewModel.mirror.collectAsStateWithLifecycle()
@@ -218,6 +219,7 @@ fun CharacterDetailScreen(
                         onOpenCharacter = onOpenCharacter,
                         onSeeAllPublished = { onSeeAllPublished(viewModel.characterId, header.name) },
                         onFollow = viewModel::toggleFollow,
+                        onOpenCreator = { state.detail?.creatorId?.takeIf { it.isNotBlank() }?.let(onOpenCreator) },
                         listState = listState,
                     )
                 }
@@ -368,6 +370,7 @@ private fun Content(
     onOpenCharacter: (String) -> Unit = {},
     onSeeAllPublished: () -> Unit = {},
     onFollow: () -> Unit = {},
+    onOpenCreator: () -> Unit = {},
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
     LazyColumn(
@@ -403,7 +406,9 @@ private fun Content(
                     Row(
                         modifier = Modifier
                             .weight(1f, fill = false)
-                            .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable(onClickLabel = "Open profile", onClick = onOpenCreator)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

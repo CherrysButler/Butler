@@ -63,10 +63,30 @@ object RichHtml {
     /** True when the text is editor HTML rather than plain or markdown prose. */
     fun looksLikeHtml(text: String): Boolean = TAG_HINT.containsMatchIn(text)
 
-    fun parse(html: String): List<Block> = Parser(html).run()
+    /**
+     * [html] as blocks. `<style>` and `<script>` contents are never text; page-level rules in a
+     * `<style>` block (see [pageLook]) set the alignment of paragraphs that don't set their own.
+     */
+    fun parse(html: String): List<Block> =
+        Parser(withoutCode(html), defaultAlign = pageLook(html).align ?: Align.Start).run()
+
+    private val STYLE_BLOCK = Regex("""<style[^>]*>(.*?)</style\s*>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+    private val SCRIPT_BLOCK = Regex("""<script[^>]*>.*?</script\s*>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+
+    /** [html] without `<style>` and `<script>` blocks, which a page runs or applies but never shows. */
+    fun withoutCode(html: String): String = html.replace(STYLE_BLOCK, "").replace(SCRIPT_BLOCK, "")
+
+    /**
+     * What the `<style>` blocks inside [html] ask of the text as a whole: rules aimed at the
+     * page around it (Janitor's own container classes, `body`), which the website shows as the
+     * look of the whole description. ShyLoL's profile centres everything this way.
+     */
+    fun pageLook(html: String): CreatorCss.Look =
+        STYLE_BLOCK.findAll(html).fold(CreatorCss.Look()) { look, m -> look + CreatorCss.pageLook(withoutCode(html), m.groupValues[1]) }
 
     /** The text with every tag removed and entities decoded; line breaks become spaces. */
-    fun toPlainText(html: String): String {
+    fun toPlainText(raw: String): String {
+        val html = withoutCode(raw)
         val sb = StringBuilder(html.length)
         var i = 0
         while (i < html.length) {
@@ -86,12 +106,12 @@ object RichHtml {
 
     // ---- parser --------------------------------------------------------------------
 
-    private class Parser(private val src: String) {
+    private class Parser(private val src: String, private val defaultAlign: Align = Align.Start) {
         private val blocks = ArrayList<Block>()
         private val text = StringBuilder()
         private val open = ArrayList<Pair<Style, Int>>()   // style stack with run starts
         private val runs = ArrayList<Run>()
-        private var align = Align.Start
+        private var align = defaultAlign
         private var heading = 0
         private var inList: Boolean? = null                 // ordered?
         private var listIndex = 0
@@ -167,11 +187,11 @@ object RichHtml {
                 "br" -> { text.append('\n'); pendingSpace = false }
                 "p", "div" -> if (closing) flush() else {
                     flush()
-                    align = parseAlign(attrs)
+                    align = parseAlign(attrs) ?: defaultAlign
                     role = parseRole(attrs)
                     if (role == "dividerLine") { blocks += Block.Rule; role = null }
                 }
-                "h1", "h2", "h3", "h4", "h5", "h6" -> if (closing) flush() else { flush(); heading = name[1] - '0'; align = parseAlign(attrs) }
+                "h1", "h2", "h3", "h4", "h5", "h6" -> if (closing) flush() else { flush(); heading = name[1] - '0'; align = parseAlign(attrs) ?: defaultAlign }
                 "ul", "ol" -> if (closing) { flush(); inList = null } else { flush(); inList = name == "ol"; listIndex = parseStart(attrs) - 1 }
                 "li" -> if (closing) { flush(); inItem = false } else { flush(); inItem = true; listIndex++ }
                 "blockquote" -> if (closing) { flush(); inQuote = false } else { flush(); inQuote = true }
@@ -233,7 +253,7 @@ object RichHtml {
             runs.clear()
             pendingSpace = false
             heading = 0
-            align = Align.Start
+            align = defaultAlign
             role = null
             for (style in reopen) push(style)
         }
@@ -251,10 +271,12 @@ object RichHtml {
         style?.split(';')?.map { it.trim() }?.firstOrNull { it.startsWith(prop, ignoreCase = true) && it.substringAfter(prop).trimStart().startsWith(":") }
             ?.substringAfter(':')?.trim()?.lowercase()
 
-    private fun parseAlign(attrs: String): Align = when (styleProp(attr(attrs, "style"), "text-align")) {
+    /** A tag's own `text-align`, or null when it sets none (the page's default then applies). */
+    private fun parseAlign(attrs: String): Align? = when (styleProp(attr(attrs, "style"), "text-align")) {
         "center" -> Align.Center
         "right", "end" -> Align.End
-        else -> Align.Start
+        "left", "start", "justify" -> Align.Start
+        else -> null
     }
 
     private fun parseStart(attrs: String): Int = attr(attrs, "start")?.toIntOrNull() ?: 1

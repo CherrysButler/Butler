@@ -872,7 +872,11 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
             highlights,
             { on -> if (on) askingHighlights = true else viewModel.setHighlights(false) },
         )
-        if (highlights) MoodChips(moods, viewModel::setMood)
+        if (highlights) {
+            MoodChips(moods, viewModel::setMood)
+            val custom by viewModel.highlightsPrompt.collectAsStateWithLifecycle()
+            HighlightsPromptField(custom, viewModel::setHighlightsPrompt)
+        }
         if (butter || highlights) {
             DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too") { close ->
                 DropItem(title = "Kept on this phone", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
@@ -1181,6 +1185,28 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
         )
         if (bool("prefill_enabled")) {
             PrefillField(gen["prefill_text"]?.jsonPrimitive?.contentOrNull.orEmpty()) { viewModel.setGeneration("prefill_text", JsonPrimitive(it)) }
+        }
+    }
+}
+
+/**
+ * What Highlights looks for, in the user's words. The moods and the answer format are added
+ * after it by Butler, so this can't break the marking; Reset goes back to Butler's wording.
+ */
+@Composable
+private fun HighlightsPromptField(custom: String?, onCommit: (String?) -> Unit) {
+    val shown = custom ?: com.cherry.butler.core.generation.MoodTagger.DEFAULT_GUIDANCE
+    var text by rememberSynced(shown)
+    Column {
+        FieldBlock(label = "Highlights prompt", value = text, onChange = { text = it }, singleLine = false, minLines = 3)
+        if (text != shown || custom != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                if (custom != null) KeyButton(label = "Reset", onClick = { onCommit(null) })
+                if (text != shown) KeyButton(label = "Save", onClick = { onCommit(text) }, primary = true)
+            }
         }
     }
 }

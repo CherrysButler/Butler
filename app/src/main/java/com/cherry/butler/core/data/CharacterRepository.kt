@@ -65,7 +65,7 @@ class CharacterRepository @Inject constructor(
     ).flow.map { paging -> paging.map(CharacterEntity::toDomain) }
 }
 
-private fun CharacterEntity.toDomain() = Character(
+internal fun CharacterEntity.toDomain() = Character(
     id = id,
     name = name,
     description = description,

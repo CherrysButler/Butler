@@ -113,7 +113,7 @@ class CharacterRemoteMediator(
     }
 }
 
-private fun CharacterDto.toEntity(queryKey: String, position: Int, now: Long) = CharacterEntity(
+internal fun CharacterDto.toEntity(queryKey: String, position: Int, now: Long) = CharacterEntity(
     queryKey = queryKey,
     id = id,
     position = position,

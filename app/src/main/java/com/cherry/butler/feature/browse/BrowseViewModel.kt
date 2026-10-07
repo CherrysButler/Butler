@@ -151,7 +151,7 @@ class BrowseViewModel @Inject constructor(
 
     /** The filter sheet's eraser: back to Janitor's defaults, search and dropdowns untouched. */
     fun onResetFilters() {
-        _query.value = _query.value.copy(mode = NsfwMode.All, source = BrowseSource.All, minMessages = 0, minTokens = 0, proxyOnly = false)
+        _query.value = _query.value.copy(mode = NsfwMode.All, minMessages = 0, minTokens = 0, proxyOnly = false)
     }
 
     companion object {

@@ -13,6 +13,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Diamond
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.StarBorder
@@ -24,6 +26,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import com.cherry.butler.core.design.Motion
 import com.cherry.butler.core.model.SpecialMode
+import com.cherry.butler.core.model.BrowseSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,7 +114,6 @@ fun BrowseScreen(
         FilterSheet(
             query = query,
             onMode = viewModel::onModeSelected,
-            onSource = viewModel::onSourceSelected,
             onMinMessages = viewModel::onMinMessages,
             onMinTokens = viewModel::onMinTokens,
             onProxyOnly = viewModel::onProxyOnly,
@@ -144,6 +146,8 @@ fun BrowseScreen(
             onSpecial = viewModel::onSpecialSelected,
         )
         TagStrip(
+            source = query.source,
+            onSource = { picked -> viewModel.onSourceSelected(if (query.source == picked) BrowseSource.All else picked) },
             chosen = remember(tags, query.tagIds) { tags.filter { it.id in query.tagIds }.map { it.id to it.name } },
             customTags = query.customTags,
             suggested = remember(topCustomTags, query.customTags) { topCustomTags.filter { it !in query.customTags } },
@@ -231,12 +235,15 @@ private fun ModeBar(
 }
 
 /**
- * Tags, under the sort bar: a key to pick them (Janitor's own, or a creator's typed in), the
+ * Under the sort bar: Favorites and Following (tap to narrow to them, again to undo), then tags:
+ * a key to pick them (Janitor's own, or a creator's typed in), the
  * chosen ones (tap to drop), then the creators' tags most used in these results (tap to add).
  * Every chosen tag must match.
  */
 @Composable
 private fun TagStrip(
+    source: BrowseSource,
+    onSource: (BrowseSource) -> Unit,
     chosen: List<Pair<Int, String>>,
     customTags: List<String>,
     suggested: List<String>,
@@ -250,6 +257,20 @@ private fun TagStrip(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Your favourites and the creators you follow, where they can be seen (they used to sit in
+        // the filter sheet, and people couldn't find them: asked on Reddit, 0.2 thread).
+        item(key = "favorites") {
+            val on = source == BrowseSource.Favorites
+            StripChip(
+                text = "Favorites",
+                selected = on,
+                onClick = { onSource(BrowseSource.Favorites) },
+                icon = if (on) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+            )
+        }
+        item(key = "following") {
+            StripChip(text = "Following", selected = source == BrowseSource.Following, onClick = { onSource(BrowseSource.Following) })
+        }
         item(key = "pick") {
             StripChip(text = if (chosen.isEmpty() && customTags.isEmpty()) "+ Tags" else "+", selected = false, emphasis = true, onClick = onOpenPicker)
         }
@@ -269,7 +290,7 @@ private fun TagStrip(
 }
 
 @Composable
-private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emphasis: Boolean = false, tint: Color? = null) {
+private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emphasis: Boolean = false, tint: Color? = null, icon: ImageVector? = null) {
     val shape = com.cherry.butler.core.design.Pill
     val edge = when {
         tint != null -> if (selected) tint else tint.copy(alpha = 0.45f)
@@ -281,23 +302,27 @@ private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emph
         selected -> MaterialTheme.colorScheme.primaryContainer
         else -> Color.Transparent
     }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = when {
-            tint != null -> tint
-            selected -> ButlerTheme.colors.onAccentSoft
-            emphasis -> MaterialTheme.colorScheme.primary
-            else -> ButlerTheme.colors.textMed
-        },
-        maxLines = 1,
+    val ink = when {
+        tint != null -> tint
+        selected -> ButlerTheme.colors.onAccentSoft
+        emphasis -> MaterialTheme.colorScheme.primary
+        else -> ButlerTheme.colors.textMed
+    }
+    Row(
         modifier = Modifier
             .clip(shape)
             .background(fill)
             .border(if (selected) 1.5.dp else 1.dp, edge, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.primary else ink, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+        }
+        Text(text = text, style = MaterialTheme.typography.labelLarge, color = ink, maxLines = 1)
+    }
 }
 
 @Composable
