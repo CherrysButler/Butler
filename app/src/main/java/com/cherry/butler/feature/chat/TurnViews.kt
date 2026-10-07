@@ -49,6 +49,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.AutoFixHigh
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.FactCheck
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
@@ -388,14 +395,15 @@ fun ThinkingSheet(text: String, streaming: Boolean, onDismiss: () -> Unit, word:
                     .navigationBarsPadding()
                     .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
             ) {
-                if (streaming) {
-                    StreamingProse(
+                val steps = remember(text) { com.cherry.butler.core.generation.AgentSteps.parse(text) }
+                when {
+                    steps != null -> AgentStepsView(steps, streaming)
+                    streaming -> StreamingProse(
                         text = text,
                         style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                         color = ButlerTheme.colors.textMed,
                     )
-                } else {
-                    RpText(
+                    else -> RpText(
                         text = text,
                         style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
                         color = ButlerTheme.colors.textMed,
@@ -476,4 +484,90 @@ fun guidanceFor(summary: String?): String = when {
         "Your proxy or router has no balance left. Top it up, then retry."
     summary.startsWith("Stopped") -> "You stopped the reply. Continue it or send something new."
     else -> "Retry when ready. Your message is saved."
+}
+
+/**
+ * Agent mode's thought as events: one row per step with its mark, name and state (a
+ * breathing dot while it runs, a check once done), and what happened inside it under a tap.
+ * The running step and the last one start open; an empty reasoning step is left out.
+ */
+@Composable
+private fun AgentStepsView(steps: List<com.cherry.butler.core.generation.AgentSteps.Step>, streaming: Boolean) {
+    val shown = steps.filterIndexed { i, s -> s.detail.isNotBlank() || (!s.done && i == steps.lastIndex) }
+    var opened by remember { mutableStateOf(setOf<Int>()) }
+    var touched by remember { mutableStateOf(false) }
+    val lastIndex = shown.lastIndex
+    val red = MaterialTheme.colorScheme.primary
+    val transition = rememberInfiniteTransition(label = "agent-step")
+    val breath by transition.animateFloat(
+        initialValue = 0.35f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "agent-breath",
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.forEachIndexed { i, step ->
+            val running = !step.done && streaming
+            val open = if (touched) i in opened else (running || i == lastIndex)
+            val icon = when (step.kind) {
+                com.cherry.butler.core.generation.AgentSteps.Kind.Reasoning -> androidx.compose.material.icons.Icons.Rounded.Psychology
+                com.cherry.butler.core.generation.AgentSteps.Kind.Draft -> androidx.compose.material.icons.Icons.Rounded.Edit
+                com.cherry.butler.core.generation.AgentSteps.Kind.Check -> androidx.compose.material.icons.Icons.Rounded.FactCheck
+                com.cherry.butler.core.generation.AgentSteps.Kind.Fix -> androidx.compose.material.icons.Icons.Rounded.Build
+                com.cherry.butler.core.generation.AgentSteps.Kind.Rewrite -> androidx.compose.material.icons.Icons.Rounded.AutoFixHigh
+                com.cherry.butler.core.generation.AgentSteps.Kind.Finish -> androidx.compose.material.icons.Icons.Rounded.CheckCircle
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .hairlineFrame(if (running) ButlerTheme.colors.rule else ButlerTheme.colors.outlineFaint)
+                    .clickable {
+                        touched = true
+                        opened = if (open) opened - i else opened + i
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (running) red else ButlerTheme.colors.textMed,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    PlateText(
+                        text = (if (running) step.kind.doing else step.kind.title) + (step.label?.let { " $it" } ?: ""),
+                        level = PlateLevel.Small,
+                        color = if (running) red else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (running) {
+                        Box(Modifier.size(8.dp).graphicsLayer { alpha = breath }.background(red, androidx.compose.foundation.shape.CircleShape))
+                    } else if (step.done) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Rounded.Check,
+                            contentDescription = "Done",
+                            tint = ButlerTheme.colors.textLow,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+                if (open && step.detail.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    if (running) {
+                        StreamingProse(
+                            text = step.detail,
+                            style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                            color = ButlerTheme.colors.textMed,
+                        )
+                    } else {
+                        Text(
+                            text = step.detail,
+                            style = MaterialTheme.typography.bodySmall.copy(fontStyle = if (step.kind == com.cherry.butler.core.generation.AgentSteps.Kind.Draft || step.kind == com.cherry.butler.core.generation.AgentSteps.Kind.Rewrite) FontStyle.Normal else FontStyle.Italic),
+                            color = ButlerTheme.colors.textMed,
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

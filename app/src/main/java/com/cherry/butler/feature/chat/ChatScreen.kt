@@ -308,10 +308,12 @@ fun ChatScreen(
         val row = transcript.firstOrNull { it.localId == id }
         val liveRow = live[id]
         val text = (liveRow?.thinking?.takeIf { it.isNotEmpty() } ?: row?.thinking).orEmpty()
+        val sheetStreaming = liveRow != null && liveRow.text.isEmpty()
+        val steps = remember(text) { com.cherry.butler.core.generation.AgentSteps.parse(text) }
         ThinkingSheet(
             text = text.fillNames(user = personaName, char = name, markUser = true, pronouns = personaPronouns),
-            streaming = liveRow != null && liveRow.text.isEmpty(),
-            word = ThinkingWords.forSeed(id),
+            streaming = sheetStreaming,
+            word = if (steps != null) com.cherry.butler.core.generation.AgentSteps.summary(steps, sheetStreaming) else ThinkingWords.forSeed(id),
             onDismiss = { openThought = null },
         )
     }
@@ -1004,10 +1006,11 @@ private fun ReplyBody(
             .then(if (growing) Modifier.animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) else Modifier),
     ) {
         if (thinking != null) {
+            val steps = remember(thinking) { com.cherry.butler.core.generation.AgentSteps.parse(thinking) }
             ThinkingLine(
-                text = thinking.fillNames(user = personaName, char = characterName, pronouns = personaPronouns),
+                text = if (steps != null) com.cherry.butler.core.generation.AgentSteps.summary(steps, false) else thinking.fillNames(user = personaName, char = characterName, pronouns = personaPronouns),
                 streaming = thinkingOnly,
-                word = remember(message.localId) { ThinkingWords.forSeed(message.localId) },
+                word = if (steps != null) com.cherry.butler.core.generation.AgentSteps.summary(steps, true) else remember(message.localId) { ThinkingWords.forSeed(message.localId) },
                 onOpen = { actions.onOpenThought(message.localId) },
                 modifier = Modifier.padding(bottom = 10.dp),
             )

@@ -31,22 +31,20 @@ import javax.inject.Singleton
  *    a failing verdict, fall back to the rewrite, or to asking for one.
  * 4. Again, up to the effort's rounds, until the check passes. Then the text is delivered.
  *
- * The goals are Butler's rubric for a roleplay reply plus the user's own lines. Progress
- * goes out as reasoning, so the thought panel shows what the agent did. Proxies only (the
- * loop needs the payload in hand), and meant for reasoning models; the check is asked at a
- * low temperature.
+ * The goals are Butler's rubric for a roleplay reply plus the user's own lines. Every call
+ * streams, so a reasoning model's thinking shows as it happens and Stop cuts it at once.
+ * Progress goes out as the reply's thought, marked as steps ([AgentSteps]) that the thought
+ * panel shows as events with what happened inside each. Proxies only (the loop needs the
+ * payload in hand), and meant for reasoning models; the check is asked at a low temperature.
  */
 @Singleton
 class AgentLoop @Inject constructor(
     private val prefs: AgentPrefs,
     private val json: Json,
 ) {
-    /** The two kinds of call the loop makes to the proxy, provided by the transport. */
-    interface Hop {
-        /** Streams [payload]'s reply, handing each event over as it comes. */
+    /** The loop's way to the proxy, provided by the transport: a streamed reply to [payload]. */
+    fun interface Hop {
         suspend fun stream(payload: JsonObject, onEvent: suspend (GenerationEvent) -> Unit)
-        /** [payload]'s whole reply text, in one piece. */
-        suspend fun complete(payload: JsonObject): String
     }
 
     /** Whether a generation in [mode] goes through the loop. */
@@ -54,7 +52,10 @@ class AgentLoop @Inject constructor(
 
     suspend fun run(out: FlowCollector<GenerationEvent>, payload: JsonObject, mode: String?, hop: Hop) {
         val effort = prefs.effort.value
-        out.emit(GenerationEvent.Reasoning("Agent · drafting\n"))
+        suspend fun say(text: String) = out.emit(GenerationEvent.Reasoning(text))
+
+        // Draft: the model's own reasoning shows as it comes; the text is kept for the panel.
+        say(AgentSteps.open(AgentSteps.Kind.Reasoning))
         val draft = StringBuilder()
         hop.stream(payload) { e ->
             when (e) {
@@ -64,45 +65,62 @@ class AgentLoop @Inject constructor(
                 GenerationEvent.Done -> Unit
             }
         }
+        say(AgentSteps.close(AgentSteps.Kind.Reasoning))
         var text = strip(draft.toString()).trim()
         if (text.isEmpty()) throw ApiError.Api(0, janitorCode = "AGENT_EMPTY", serverMessage = "Nothing came back for the draft.", retryable = true)
+        say(AgentSteps.open(AgentSteps.Kind.Draft) + text + AgentSteps.close(AgentSteps.Kind.Draft))
 
         val goals = goals(mode)
+        var checks = 0
         for (round in 1..effort.rounds) {
-            out.emit(GenerationEvent.Reasoning("\nAgent · check $round of ${effort.rounds}\n"))
-            val verdict = runCatching { check(payload, text, goals, hop) }
+            checks++
+            say(AgentSteps.open(AgentSteps.Kind.Check, "$round of ${effort.rounds}"))
+            val verdict = runCatching { check(payload, text, goals, hop, out) }
                 .onFailure { Log.w(TAG, "check $round failed", it) }
                 .getOrNull()
             if (verdict == null) {
-                out.emit(GenerationEvent.Reasoning("The check didn't answer in form; delivering the draft as it is.\n"))
+                say("\nThe check didn't answer in form; the draft stands." + AgentSteps.close(AgentSteps.Kind.Check))
                 break
             }
             if (verdict.pass) {
-                out.emit(GenerationEvent.Reasoning("Every goal met.\n"))
+                say("\nEvery goal met." + AgentSteps.close(AgentSteps.Kind.Check))
                 break
             }
-            if (verdict.problems.isNotEmpty()) {
-                out.emit(GenerationEvent.Reasoning(verdict.problems.joinToString("") { "· ${it.take(200)}\n" }))
+            say(buildString {
+                append("\n")
+                if (verdict.problems.isEmpty()) append("Something to fix.\n")
+                verdict.problems.forEach { append("· ").append(it.take(300)).append('\n') }
+            } + AgentSteps.close(AgentSteps.Kind.Check))
+
+            val (edited, applied, missed, placed) = apply(text, verdict.edits)
+            val rewriteOk = !verdict.rewrite.isNullOrBlank()
+            when {
+                applied > 0 && (missed == 0 || !rewriteOk) -> {
+                    text = edited
+                    say(AgentSteps.open(AgentSteps.Kind.Fix) + buildString {
+                        append(if (applied == 1) "1 edit placed" else "$applied edits placed")
+                        if (missed > 0) append(", $missed couldn't be")
+                        append('\n')
+                        placed.forEach { (f, r) -> append("− ").append(f.take(160)).append("\n+ ").append(r.take(160)).append('\n') }
+                    } + AgentSteps.close(AgentSteps.Kind.Fix))
+                }
+                rewriteOk -> {
+                    text = verdict.rewrite!!.trim()
+                    say(AgentSteps.open(AgentSteps.Kind.Rewrite) + "The whole reply, rewritten:\n" + text + AgentSteps.close(AgentSteps.Kind.Rewrite))
+                }
+                else -> {
+                    say(AgentSteps.open(AgentSteps.Kind.Rewrite))
+                    val again = rewrite(payload, text, verdict.problems, hop, out)?.trim()?.ifEmpty { null }
+                    if (again != null) {
+                        text = again
+                        say("\nRewritten:\n$text" + AgentSteps.close(AgentSteps.Kind.Rewrite))
+                    } else {
+                        say("\nNo rewrite came back; the draft stands." + AgentSteps.close(AgentSteps.Kind.Rewrite))
+                    }
+                }
             }
-            val (edited, applied, missed) = apply(text, verdict.edits)
-            val rewriteOk = verdict.rewrite != null && verdict.rewrite.isNotBlank()
-            text = when {
-                applied > 0 && missed == 0 -> edited
-                rewriteOk -> verdict.rewrite!!.trim()
-                applied > 0 -> edited
-                else -> rewrite(payload, text, verdict.problems, hop)?.trim()?.ifEmpty { null } ?: text
-            }
-            out.emit(
-                GenerationEvent.Reasoning(
-                    when {
-                        applied > 0 && missed == 0 -> "Fixed: $applied edit${if (applied == 1) "" else "s"} placed.\n"
-                        applied > 0 -> "Fixed: $applied placed, $missed couldn't be.\n"
-                        rewriteOk -> "Rewritten.\n"
-                        else -> "Asked for a rewrite.\n"
-                    },
-                ),
-            )
         }
+        say(AgentSteps.open(AgentSteps.Kind.Finish) + "After ${if (checks == 1) "1 check" else "$checks checks"}." + AgentSteps.close(AgentSteps.Kind.Finish))
         out.emit(GenerationEvent.Delta(text))
         out.emit(GenerationEvent.Done)
     }
@@ -110,16 +128,16 @@ class AgentLoop @Inject constructor(
     private class Verdict(val pass: Boolean, val problems: List<String>, val edits: List<Pair<String, String>>, val rewrite: String?)
 
     /** The check: the context, the draft as the assistant, the goals as one more user turn; JSON back. */
-    private suspend fun check(payload: JsonObject, draft: String, goals: String, hop: Hop): Verdict? {
+    private suspend fun check(payload: JsonObject, draft: String, goals: String, hop: Hop, out: FlowCollector<GenerationEvent>): Verdict? {
         val ask = buildString {
             append(CHECK_HEAD).append("\n\nGOALS\n").append(goals)
-            append("\n\nDRAFT\n<draft>\n").append(draft).append("\n</draft>\n\n").append(CHECK_TAIL)
+            append("\n\nDRAFT\n<draft>\n").append(draft).append("\n</draft>\n\n").append(CHECK_TAIL.trimIndent())
         }
-        val answer = hop.complete(judging(payload, draft, ask))
+        val answer = collect(judging(payload, draft, ask), hop, out)
         val obj = jsonIn(answer, json) ?: return null
         val verdict = obj["verdict"]?.jsonPrimitive?.contentOrNull?.lowercase()
         val problems = obj["problems"]?.let { runCatching { it.jsonArray.mapNotNull { p -> p.jsonPrimitive.contentOrNull } }.getOrNull() }.orEmpty()
-        val edits = obj["edits"]?.let { runCatching { it.jsonArray } .getOrNull() }.orEmpty().mapNotNull { e ->
+        val edits = obj["edits"]?.let { runCatching { it.jsonArray }.getOrNull() }.orEmpty().mapNotNull { e ->
             val o = runCatching { e.jsonObject }.getOrNull() ?: return@mapNotNull null
             val find = o["find"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val replace = o["replace"]?.jsonPrimitive?.contentOrNull ?: ""
@@ -131,13 +149,26 @@ class AgentLoop @Inject constructor(
     }
 
     /** A whole new reply when edits couldn't be placed: the problems named, the reply only. */
-    private suspend fun rewrite(payload: JsonObject, draft: String, problems: List<String>, hop: Hop): String? {
+    private suspend fun rewrite(payload: JsonObject, draft: String, problems: List<String>, hop: Hop, out: FlowCollector<GenerationEvent>): String? {
         val ask = buildString {
             append("Rewrite the draft reply below so that these problems are gone, changing nothing else that works:\n")
             problems.forEach { append("- ").append(it).append('\n') }
             append("\n<draft>\n").append(draft).append("\n</draft>\n\nAnswer with the corrected reply only: no notes, no tags, no preamble.")
         }
-        return runCatching { strip(hop.complete(judging(payload, draft, ask, temperature = 0.6))) }.getOrNull()
+        return runCatching { strip(collect(judging(payload, draft, ask, temperature = 0.6), hop, out)) }.getOrNull()
+    }
+
+    /** Streams one judging call: its reasoning into the thought as it comes, its text returned whole. */
+    private suspend fun collect(payload: JsonObject, hop: Hop, out: FlowCollector<GenerationEvent>): String {
+        val text = StringBuilder()
+        hop.stream(payload) { e ->
+            when (e) {
+                is GenerationEvent.Delta -> text.append(e.text)
+                is GenerationEvent.Reasoning -> out.emit(e)
+                else -> Unit
+            }
+        }
+        return text.toString()
     }
 
     /** The payload for a judging call: the same context, the draft as the assistant's turn, [ask] as the user's. */
@@ -148,7 +179,7 @@ class AgentLoop @Inject constructor(
         return JsonObject(
             payload.toMutableMap().apply {
                 put("messages", JsonArray(messages))
-                put("stream", JsonPrimitive(false))
+                put("stream", JsonPrimitive(true))
                 put("temperature", JsonPrimitive(temperature))
                 remove("stop")
             },
@@ -165,47 +196,52 @@ class AgentLoop @Inject constructor(
         }
     }
 
+    /** What applying edits gave: the text, how many were placed, how many weren't, and the ones placed. */
+    data class Applied(val text: String, val applied: Int, val missed: Int, val placed: List<Pair<String, String>>)
+
     internal companion object {
         const val TAG = "AgentLoop"
-
-    /** Edits applied in order: exact text first, then the same words across any whitespace. */
-    internal fun apply(text: String, edits: List<Pair<String, String>>): Triple<String, Int, Int> {
-        var out = text
-        var applied = 0
-        var missed = 0
-        for ((find, replace) in edits) {
-            val at = out.indexOf(find)
-            if (at >= 0) {
-                out = out.substring(0, at) + replace + out.substring(at + find.length)
-                applied++
-                continue
-            }
-            val loose = Regex(find.trim().split(Regex("\\s+")).joinToString("\\s+") { Regex.escape(it) })
-            val m = loose.find(out)
-            if (m != null) {
-                out = out.substring(0, m.range.first) + replace + out.substring(m.range.last + 1)
-                applied++
-            } else {
-                missed++
-            }
-        }
-        return Triple(out, applied, missed)
-    }
-
-    /** The first JSON object in [text], reasoning and fences aside. */
-    internal fun jsonIn(text: String, json: Json): JsonObject? {
-        val cleaned = strip(text)
-        val start = cleaned.indexOf('{')
-        val end = cleaned.lastIndexOf('}')
-        if (start < 0 || end <= start) return null
-        return runCatching { json.parseToJsonElement(cleaned.substring(start, end + 1)).jsonObject }.getOrNull()
-    }
-
-    internal fun strip(text: String): String = text
-        .replace(Regex("(?is)<think(?:ing)?>.*?</think(?:ing)?>"), "")
-        .replace(Regex("(?s)```(?:json)?\\s*(.*?)```")) { it.groupValues[1] }
-
         val REPLY_MODES = setOf("NEW", "ALTERNATIVE", "CONTINUE")
+
+        /** Edits applied in order: exact text first, then the same words across any whitespace. */
+        internal fun apply(text: String, edits: List<Pair<String, String>>): Applied {
+            var out = text
+            var applied = 0
+            var missed = 0
+            val placed = mutableListOf<Pair<String, String>>()
+            for ((find, replace) in edits) {
+                val at = out.indexOf(find)
+                if (at >= 0) {
+                    out = out.substring(0, at) + replace + out.substring(at + find.length)
+                    applied++
+                    placed += find to replace
+                    continue
+                }
+                val loose = Regex(find.trim().split(Regex("\\s+")).joinToString("\\s+") { Regex.escape(it) })
+                val m = loose.find(out)
+                if (m != null) {
+                    out = out.substring(0, m.range.first) + replace + out.substring(m.range.last + 1)
+                    applied++
+                    placed += find to replace
+                } else {
+                    missed++
+                }
+            }
+            return Applied(out, applied, missed, placed)
+        }
+
+        /** The first JSON object in [text], reasoning and fences aside. */
+        internal fun jsonIn(text: String, json: Json): JsonObject? {
+            val cleaned = strip(text)
+            val start = cleaned.indexOf('{')
+            val end = cleaned.lastIndexOf('}')
+            if (start < 0 || end <= start) return null
+            return runCatching { json.parseToJsonElement(cleaned.substring(start, end + 1)).jsonObject }.getOrNull()
+        }
+
+        internal fun strip(text: String): String = text
+            .replace(Regex("(?is)<think(?:ing)?>.*?</think(?:ing)?>"), "")
+            .replace(Regex("(?s)```(?:json)?\\s*(.*?)```")) { it.groupValues[1] }
 
         val RUBRIC = """
             - Stays in character as the character defined in the system prompt, consistent with that definition and with everything that has happened so far.
