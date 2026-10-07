@@ -33,6 +33,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Butter mode.** The model marks the parts of a reply that actually hold the juicy stuff that's required to progress the scene. Tap the butter and the reply folds down to just those, perfect for catching up on a long scene.
 * **Highlights.** After a reply, Butler asks your model which lines are romantic, dangerous, sad, funny or spicy, and gives them a soft highlight. The reply itself never changes.
 * **Rich typing.** " * B keys right on the message box, and the formatting shows as you type, like Discord. *Actions* have never been this easy to write.
+* **Description writer.** Write a few lines about your persona, tap ✦ Enhance, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote. Undo if you liked yours better.
   
   
   

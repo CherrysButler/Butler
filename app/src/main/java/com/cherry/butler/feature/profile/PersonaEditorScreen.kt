@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.profile
 
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -79,7 +82,72 @@ class PersonaEditorViewModel @Inject constructor(
     private val editing: PersonaEditing,
     private val profiles: ProfileRepository,
     private val personas: PersonaRepository,
+    private val writer: com.cherry.butler.core.generation.DescriptionWriter,
 ) : ViewModel() {
+
+    /** The description writer (the ✦): which presets can write, and the run under way. */
+    data class Enhance(
+        val presets: List<com.cherry.butler.core.data.ProxyConfig>? = null,
+        val running: Boolean = false,
+        /** What the user had, for Undo; null when there's nothing to undo. */
+        val original: String? = null,
+        val error: String? = null,
+    )
+
+    private val _enhance = MutableStateFlow(Enhance())
+    val enhance: StateFlow<Enhance> = _enhance.asStateFlow()
+    private var job: kotlinx.coroutines.Job? = null
+
+    val lastPreset: String? get() = writer.lastPreset
+
+    fun loadPresets() {
+        viewModelScope.launch {
+            val list = runCatching { writer.presets() }.getOrDefault(emptyList())
+            _enhance.update { it.copy(presets = list, error = null) }
+        }
+    }
+
+    fun startEnhance(preset: com.cherry.butler.core.data.ProxyConfig) {
+        val f = _form.value
+        if (_enhance.value.running) return
+        writer.lastPreset = preset.id
+        val original = f.appearance
+        _enhance.update { it.copy(running = true, original = original, error = null) }
+        job = viewModelScope.launch {
+            val text = StringBuilder()
+            val result = runCatching {
+                writer.enhance(original, f.name, f.pronouns?.takeIf { it != PronounSet.None }?.label, preset).collect { piece ->
+                    text.append(piece)
+                    _form.update { it.copy(appearance = text.toString().trimStart()) }
+                }
+            }
+            val written = text.toString().trim()
+            _form.update { it.copy(appearance = written.ifEmpty { original }) }
+            _enhance.update {
+                it.copy(
+                    running = false,
+                    original = original.takeIf { written.isNotEmpty() },
+                    error = when {
+                        result.exceptionOrNull() is kotlinx.coroutines.CancellationException -> null
+                        result.isFailure -> (result.exceptionOrNull() as? ApiError ?: ApiError.Unknown(result.exceptionOrNull()!!)).userMessage()
+                        written.isEmpty() -> "Nothing came back. Try again."
+                        else -> null
+                    },
+                )
+            }
+        }
+    }
+
+    fun stopEnhance() { job?.cancel() }
+
+    fun undoEnhance() {
+        val original = _enhance.value.original ?: return
+        _form.update { it.copy(appearance = original) }
+        _enhance.update { it.copy(original = null) }
+    }
+
+    /** Typing in the box after an enhance makes the result the user's own: no more Undo. */
+    fun keepEnhance() = _enhance.update { it.copy(original = null, error = null) }
     private val arg: String = savedStateHandle.get<String>(ARG) ?: NEW
     val isNew: Boolean = arg == NEW
     val isDefault: Boolean = arg == DEFAULT
@@ -238,13 +306,27 @@ fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = 
                 )
             }
         }
+        val enhance by viewModel.enhance.collectAsStateWithLifecycle()
         FieldBlock(
             label = "Who you are in chats",
             value = form.appearance,
-            onChange = { v -> viewModel.update { it.copy(appearance = v) } },
+            onChange = { v ->
+                if (enhance.running) return@FieldBlock
+                viewModel.update { it.copy(appearance = v) }
+                if (enhance.original != null) viewModel.keepEnhance()
+            },
             singleLine = false,
             minLines = 6,
             textStyle = MaterialTheme.typography.bodyMedium,
+        )
+        EnhanceBar(
+            enhance = enhance,
+            words = com.cherry.butler.core.generation.DescriptionWriter.words(form.appearance),
+            lastPreset = viewModel.lastPreset,
+            onOpen = viewModel::loadPresets,
+            onPick = viewModel::startEnhance,
+            onStop = viewModel::stopEnhance,
+            onUndo = viewModel::undoEnhance,
         )
         if (viewModel.isDefault) {
             FieldBlock(
@@ -256,5 +338,94 @@ fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = 
                 textStyle = MaterialTheme.typography.bodyMedium,
             )
         }
+    }
+}
+
+/**
+ * The description writer, under the persona's description (a Butler special): once there are
+ * enough words to work from, ✦ Enhance asks which preset writes, then streams the richer
+ * version into the box. Stop while it writes; Undo after, until the user types again.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun EnhanceBar(
+    enhance: PersonaEditorViewModel.Enhance,
+    words: Int,
+    lastPreset: String?,
+    onOpen: () -> Unit,
+    onPick: (com.cherry.butler.core.data.ProxyConfig) -> Unit,
+    onStop: () -> Unit,
+    onUndo: () -> Unit,
+) {
+    var picking by remember { mutableStateOf(false) }
+    val enough = words >= com.cherry.butler.core.generation.DescriptionWriter.MIN_WORDS
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = enhance.error ?: if (enhance.running) "Writing\u2026" else "",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (enhance.error != null) ButlerTheme.colors.danger else ButlerTheme.colors.textLow,
+            modifier = Modifier.weight(1f),
+        )
+        when {
+            enhance.running -> TextKey("Stop", onClick = onStop)
+            enhance.original != null -> TextKey("Undo", onClick = onUndo)
+            enough -> TextKey("Enhance", icon = Icons.Rounded.AutoAwesome, onClick = { onOpen(); picking = true })
+        }
+    }
+    if (picking) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { picking = false },
+            shape = com.cherry.butler.core.design.SheetShape,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            scrimColor = com.cherry.butler.ui.components.SheetScrim,
+            dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+        ) {
+            Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+                Text(
+                    "Enhance with",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                )
+                val presets = enhance.presets
+                when {
+                    presets == null -> Text("\u2026", color = ButlerTheme.colors.textLow, modifier = Modifier.padding(20.dp))
+                    presets.isEmpty() -> Text(
+                        "Add a proxy preset in Settings \u203A Model first.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ButlerTheme.colors.textMed,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    )
+                    else -> presets.sortedByDescending { it.id == lastPreset }.forEach { p ->
+                        com.cherry.butler.feature.settings.ChoiceRow(
+                            title = p.name.ifBlank { p.model },
+                            subtitle = p.model.takeIf { p.name.isNotBlank() },
+                            selected = p.id == lastPreset,
+                            onClick = { picking = false; onPick(p) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextKey(label: String, onClick: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector? = null) {
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            androidx.compose.material3.Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }
