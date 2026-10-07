@@ -44,7 +44,21 @@ class SettingsViewModel @Inject constructor(
     private val fonts: com.cherry.butler.core.data.FontPrefs,
     private val content: com.cherry.butler.core.data.ContentPrefs,
     private val updates: com.cherry.butler.core.update.UpdateChecker,
+    private val chat: com.cherry.butler.core.data.ChatPrefs,
+    private val browse: com.cherry.butler.core.data.BrowsePrefs,
 ) : ViewModel() {
+
+    /** The keyboard goes down as a message is sent. */
+    val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend
+    fun setCloseKeyboardOnSend(on: Boolean) = chat.setCloseKeyboardOnSend(on)
+
+    /** The user's own thinking words (empty: Butler's). */
+    val thinkingWords: StateFlow<List<String>> = chat.thinkingWords
+    fun setThinkingWords(text: String) = chat.setThinkingWords(text)
+
+    /** Home one page at a time instead of the endless scroll. */
+    val pagedHome: StateFlow<Boolean> = browse.paged
+    fun setPagedHome(on: Boolean) = browse.setPaged(on)
 
     /** Asking GitHub for a newer Butler: on a tap, or on every open when switched on. */
     val updateAuto: StateFlow<Boolean> = updates.auto

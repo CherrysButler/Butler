@@ -174,9 +174,32 @@ fun ButlerRoot() {
                                 onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
                                 onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
                                 onOpenRouter = { navController.navigate(Routes.ROUTER) },
+                                onOpenPage = { navController.navigate(Routes.settingsPage(it.name)) },
                             )
                         }
                     }
+                }
+                composable(
+                    route = Routes.SETTINGS_PAGE,
+                    arguments = listOf(navArgument("page") { type = NavType.StringType }),
+                ) { entry ->
+                    val page = entry.arguments?.getString("page")
+                        ?.let { name -> com.cherry.butler.feature.settings.SettingsPage.entries.firstOrNull { it.name == name } }
+                        ?: com.cherry.butler.feature.settings.SettingsPage.Main
+                    SettingsScreen(
+                        contentPadding = PaddingValues(),
+                        onEditProxy = { navController.navigate(Routes.proxy(it)) },
+                        onOpenPrompts = { navController.navigate(Routes.SETTINGS_PROMPTS) },
+                        onOpenCustomize = { navController.navigate(Routes.CUSTOMIZE) },
+                        onOpenGeneration = { navController.navigate(Routes.GENERATION) },
+                        onOpenNotifications = { navController.navigate(Routes.NOTIFICATION_PREFS) },
+                        onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
+                        onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
+                        onOpenRouter = { navController.navigate(Routes.ROUTER) },
+                        onOpenPage = { navController.navigate(Routes.settingsPage(it.name)) },
+                        page = page,
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable(
                     route = Routes.PERSONA,

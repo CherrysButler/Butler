@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Icon
@@ -99,7 +100,9 @@ fun SettingsScreen(
     onOpenBlocked: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
     onOpenRouter: () -> Unit = {},
-    /** [SettingsPage.Model] from a chat's menu, [SettingsPage.Generation] from the tab; both with a back arrow. */
+    /** Opens one of the pages listed on the main page. */
+    onOpenPage: (SettingsPage) -> Unit = {},
+    /** Which page: the main list on the tab, or one page with a back arrow. */
     page: SettingsPage = SettingsPage.Main,
     onBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -147,22 +150,18 @@ fun SettingsScreen(
                     IconButton(onClick = { if (dirty) leaving = onBack else onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
-                    Text(
-                        when (page) {
-                            SettingsPage.Main -> "Settings"
-                            SettingsPage.Model -> "Model settings"
-                            SettingsPage.Generation -> "Generation"
-                        }, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f))
+                    Text(page.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     saveKey()
                 }
             } else {
                 ScreenHead(title = "Settings", trailing = saveKey)
             }
             val s = settings
+            // Only the model pages wait on Janitor's settings; the rest are the phone's own.
+            val needsJanitor = page == SettingsPage.Model || page == SettingsPage.Generation
             when {
-                s == null && loading -> Column { repeat(5) { SkeletonRosterRow(withMargin = false) } }
-                s == null && loadError != null -> CenteredMessage(
+                needsJanitor && s == null && loading -> Column { repeat(5) { SkeletonRosterRow(withMargin = false) } }
+                needsJanitor && s == null && loadError != null -> CenteredMessage(
                     icon = Icons.Rounded.CloudOff,
                     title = loadError!!.userTitle(),
                     body = loadError!!.userMessage(),
@@ -172,7 +171,7 @@ fun SettingsScreen(
                         KeyButton(label = "Try again", onClick = viewModel::refresh)
                     }
                 }
-                s != null -> SettingsBody(
+                else -> SettingsBody(
                     settings = s,
                     saving = saving,
                     replaces = replaces,
@@ -186,6 +185,7 @@ fun SettingsScreen(
                     onOpenBlocked = onOpenBlocked,
                     onOpenDiagnostics = onOpenDiagnostics,
                     onOpenRouter = onOpenRouter,
+                    onOpenPage = onOpenPage,
                     page = page,
                 )
             }
@@ -207,7 +207,7 @@ fun SettingsScreen(
 
 @Composable
 private fun SettingsBody(
-    settings: AiSettings,
+    settings: AiSettings?,
     saving: String?,
     replaces: Boolean,
     auto: Boolean,
@@ -220,28 +220,96 @@ private fun SettingsBody(
     onOpenBlocked: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenRouter: () -> Unit,
+    onOpenPage: (SettingsPage) -> Unit,
     page: SettingsPage,
 ) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
         when (page) {
-            SettingsPage.Main -> {
-                ModelSection(settings, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration, onOpenRouter)
-                SettingsSection(title = "Memory") {
-                    SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory)
-                    SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
+            SettingsPage.Main -> SettingsHome(onOpenPage)
+            SettingsPage.Model -> settings?.let { s ->
+                ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
+                GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor)
+            }
+            SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
+            SettingsPage.Chat -> ChatSection(viewModel, replaces, auto)
+            SettingsPage.Look -> LookSection(viewModel, onOpenCustomize)
+            SettingsPage.RichTyping -> RichTypingSection(viewModel)
+            SettingsPage.Specials -> SpecialsSection(viewModel)
+            SettingsPage.App -> AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
+            SettingsPage.Updates -> UpdatesSection(viewModel)
+            SettingsPage.Debug -> DebugSection()
+        }
+    }
+}
+
+/** The main page: each settings page as a row with its own mark, a title and a line on what's inside. */
+@Composable
+private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
+    val pages = SettingsPage.entries.filter { it.listed && (it != SettingsPage.Debug || com.cherry.butler.BuildConfig.DEBUG) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .card(color = ButlerTheme.colors.surfaceHigh),
+    ) {
+        pages.forEachIndexed { i, p ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenPage(p) }
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(p.icon),
+                    contentDescription = null,
+                    tint = androidx.compose.ui.graphics.Color.Unspecified,
+                    modifier = Modifier.size(30.dp),
+                )
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(p.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(p.blurb, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
-                LookSection(viewModel, onOpenCustomize)
-                RichTypingSection(viewModel)
-                SpecialsSection(viewModel)
-                AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
-                UpdatesSection(viewModel)
-                if (com.cherry.butler.BuildConfig.DEBUG) DebugSection()
+                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = ButlerTheme.colors.textLow)
             }
-            SettingsPage.Model -> {
-                ModelSection(settings, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
-                GenerationSections(settings.generation, saving, viewModel, jllm = settings.provider == Provider.Janitor)
+            if (i < pages.lastIndex) RowDivider()
+        }
+    }
+}
+
+/** Chat habits kept on the phone: the keyboard, memory, and what the thinking line says. */
+@Composable
+private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: Boolean) {
+    val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
+    val words by viewModel.thinkingWords.collectAsStateWithLifecycle()
+    SettingsSection(title = "Sending") {
+        SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend)
+    }
+    SettingsSection(title = "Memory") {
+        SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory)
+        SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
+    }
+    SettingsSection(title = "Thinking words", footnote = "What the thinking line says while a reply is on its way. One per line; empty for Butler's own.") {
+        ThinkingWordsField(words, viewModel::setThinkingWords)
+    }
+}
+
+@Composable
+private fun ThinkingWordsField(words: List<String>, onCommit: (String) -> Unit) {
+    val shown = words.joinToString("\n")
+    var text by rememberSynced(shown)
+    Column {
+        FieldBlock(label = "Your words", value = text, onChange = { text = it }, placeholder = "Pondering\nBrewing\nNoodling", singleLine = false, minLines = 3)
+        if (text != shown || words.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                if (words.isNotEmpty()) KeyButton(label = "Butler's own", onClick = { onCommit("") })
+                if (text != shown) KeyButton(label = "Save", onClick = { onCommit(text) }, primary = true)
             }
-            SettingsPage.Generation -> GenerationSections(settings.generation, saving, viewModel, jllm = settings.provider == Provider.Janitor)
         }
     }
 }
@@ -297,8 +365,19 @@ private fun UnsavedDialog(saving: Boolean, onSave: () -> Unit, onDiscard: () -> 
     }
 }
 
-/** Which of the settings pages this is. */
-enum class SettingsPage { Main, Model, Generation }
+/** The settings pages: the main list, and one page each, with its mark and a line on what's inside. */
+enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val listed: Boolean = true) {
+    Main("Settings", "", 0, listed = false),
+    Model("Model", "Where replies come from, prompts, generation", com.cherry.butler.R.drawable.ic_set_model),
+    Generation("Generation", "Length, sampling, replies", com.cherry.butler.R.drawable.ic_set_model, listed = false),
+    Chat("Chat", "Keyboard, memory, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
+    Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
+    RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
+    Specials("Butler specials", "Butter, highlights, tags", com.cherry.butler.R.drawable.ic_set_specials),
+    App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
+    Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates),
+    Debug("Debug", "Proxy for Burp or mitmproxy", com.cherry.butler.R.drawable.ic_set_debug),
+}
 
 /**
  * Where replies come from: proxy or Janitor's own, then the one proxy in use. The others wait
@@ -572,6 +651,11 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
             ChatStyle.entries.forEach { style ->
                 DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
             }
+        }
+        val paged by viewModel.pagedHome.collectAsStateWithLifecycle()
+        DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll") { close ->
+            DropItem(title = "Endless scroll", subtitle = "More arrives as you reach the end", selected = !paged, onClick = { close(); viewModel.setPagedHome(false) })
+            DropItem(title = "Pages", subtitle = "Previous and Next under each page", selected = paged, onClick = { close(); viewModel.setPagedHome(true) })
         }
         FontRow(title = "Chat font", forChat = true, viewModel = viewModel)
         FontRow(title = "App font", forChat = false, viewModel = viewModel)

@@ -19,6 +19,8 @@ object Routes {
     const val COMMENTS = "comments/{characterId}?name={name}"
     const val PUBLISHED = "published/{slug}"
     const val MODEL_SETTINGS = "model-settings"
+    /** One settings page (a [com.cherry.butler.feature.settings.SettingsPage] name). */
+    const val SETTINGS_PAGE = "settings/page/{page}"
     const val GENERATION = "settings/generation"
     const val CUSTOMIZE = "customize"
     const val NOTIFICATION_PREFS = "settings/notifications"
@@ -38,6 +40,7 @@ object Routes {
     fun publishedList(characterId: String, name: String) = "published-list/$characterId?name=${android.net.Uri.encode(name)}"
     fun published(slug: String) = "published/${android.net.Uri.encode(slug)}"
     fun creator(userId: String) = "creator/$userId"
+    fun settingsPage(page: String) = "settings/page/$page"
 
     /** Whether the bottom navigation bar belongs on this route. */
     fun isTopLevel(route: String?): Boolean = route == TABS
