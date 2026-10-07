@@ -290,6 +290,12 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
         SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory)
         SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
     }
+    val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
+    val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
+    SettingsSection(title = "Pictures (beta)", footnote = "A picture in your message, written into the line by a model that can see (Settings › Model › Pictures use).") {
+        SwitchRow("Picture key in the chat", null, picturesOn, viewModel::setPicturesOn)
+        if (picturesOn) SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto)
+    }
     ThinkingListsSection(viewModel)
 }
 
@@ -455,7 +461,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Main("Settings", "", 0, listed = false),
     Model("Model", "Where replies come from, prompts, generation", com.cherry.butler.R.drawable.ic_set_model),
     Generation("Generation", "Length, sampling, replies", com.cherry.butler.R.drawable.ic_set_model, listed = false),
-    Chat("Chat", "Keyboard, memory, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
+    Chat("Chat", "Keyboard, memory, pictures, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
     Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
     RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
     Specials("Butler specials", "Butter, highlights, tags", com.cherry.butler.R.drawable.ic_set_specials),
