@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import java.util.concurrent.ConcurrentHashMap
@@ -28,10 +29,12 @@ import javax.inject.Singleton
 /**
  * Four things the user could do next, offered as buttons under the last reply.
  *
- * Janitor assembles the prompt for the chat as it stands (docs/JANITOR_API.md §30); Butler adds one
- * closing instruction and sends it to the user's proxy itself, then reads the answer. Nothing
- * is posted or stored on Janitor: the choices live in memory, tied to the reply they were
- * made for. Needs the proxy path (JLLM never hands back a payload to add to).
+ * On a proxy, Janitor assembles the prompt for the chat as it stands (docs/JANITOR_API.md §30),
+ * Butler adds one closing instruction and sends it to the proxy itself, then reads the answer.
+ * On JLLM, which never hands a payload back, the same instruction rides as one extra user line
+ * after the chat, the way Highlights asks its question there, and JLLM's stream is the answer.
+ * Nothing is posted or stored on Janitor either way: the choices live in memory, tied to the
+ * reply they were made for. (JLLM was left out at first; flagged on Reddit by u/Key_Coffee_4684.)
  */
 @Singleton
 class ChoicesService @Inject constructor(
@@ -86,6 +89,8 @@ class ChoicesService @Inject constructor(
         val profile = profileRepository.profile()
         val played = profileRepository.playedPersona(chat, history)
         val who = played.persona?.name ?: chat.personaName ?: profile.name.ifBlank { profile.userName }
+        val userConfig = profileRepository.userConfig(profile)
+        val jllm = userConfig["api"]?.let { (it as? JsonPrimitive)?.contentOrNull }.let { it == null || it == "janitor" }
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,
@@ -98,16 +103,19 @@ class ChoicesService @Inject constructor(
                 id = profile.id, name = profile.name, userName = profile.userName,
                 userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty(),
             ),
-            userConfig = profileRepository.userConfig(profile),
+            userConfig = userConfig,
             mode = GenerateMode.New,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
+            extraUserLine = if (jllm) instruction(who) else null,
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
-        val proxy = profileRepository.proxyTarget(profile)
-            ?: throw ApiError.Api(code = 400, janitorCode = "BUTLER_NO_PROXY", serverMessage = "Choices need a proxy selected.")
-        val target = proxy.then { payload -> ask(payload, who) }
+        val target = if (jllm) null else {
+            val proxy = profileRepository.proxyTarget(profile)
+                ?: throw ApiError.Api(code = 400, janitorCode = "BUTLER_NO_PROXY", serverMessage = "Choices need a proxy selected.")
+            proxy.then { payload -> ask(payload, who) }
+        }
 
         val text = StringBuilder()
         val parser = TagStreamParser(listOf("think", "thinking"))

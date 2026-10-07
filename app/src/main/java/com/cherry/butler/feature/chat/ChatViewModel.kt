@@ -134,10 +134,8 @@ class ChatViewModel @Inject constructor(
         choices.states.map { it[chatId] }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     }
 
-    /** Choices need the proxy path: JLLM never hands back a payload to add the question to. */
-    val choicesAvailable: StateFlow<Boolean> = aiSettings.settings
-        .map { it?.provider == Provider.Proxy }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    /** Choices work on a proxy and on JLLM alike (see ChoicesService). */
+    val choicesAvailable: StateFlow<Boolean> = MutableStateFlow(true)
 
     fun requestChoices(forReply: Long) = choices.request(chatId, forReply)
 
