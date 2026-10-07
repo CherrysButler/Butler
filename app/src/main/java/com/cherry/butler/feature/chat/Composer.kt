@@ -88,7 +88,8 @@ fun Composer(
     richDefault: Mark? = Mark.Action,
     /** A picture in the draft (beta), and its keys; [onAddPicture] null hides the picture key. */
     picture: ChatViewModel.Picture? = null,
-    onAddPicture: (() -> Unit)? = null,
+    /** Called with the caret's place in the draft, so the picture lands where the user is. */
+    onAddPicture: ((cursor: Int) -> Unit)? = null,
     onUndoPicture: () -> Unit = {},
     onDescribeAgain: () -> Unit = {},
     onRemovePicture: () -> Unit = {},
@@ -224,7 +225,7 @@ fun Composer(
             }
             if (onAddPicture != null && !busy && writing == null) {
                 Spacer(Modifier.width(2.dp))
-                PictureKey(attached = picture != null, onClick = onAddPicture)
+                PictureKey(attached = picture != null, onClick = { onAddPicture(field.selection.end) })
             }
             if (onWrite != null && (!busy || writing != null)) {
                 Spacer(Modifier.width(2.dp))

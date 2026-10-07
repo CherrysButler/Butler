@@ -102,8 +102,8 @@ class ChatViewModel @Inject constructor(
     val picture: StateFlow<Picture?> = _picture.asStateFlow()
     private var describing: kotlinx.coroutines.Job? = null
 
-    /** One picture: `[pic]` goes into the draft where it belongs, and the model is asked to write it. */
-    fun attachPicture(uri: android.net.Uri) {
+    /** One picture: `[pic]` goes into the draft at [cursor] (the end when unknown), and the model is asked to write it. */
+    fun attachPicture(uri: android.net.Uri, cursor: Int? = null) {
         viewModelScope.launch {
             val file = runCatching { describer.keep(chatId, uri) }.getOrElse { e ->
                 android.util.Log.w("ChatViewModel", "picture $uri unreadable", e)
@@ -111,7 +111,13 @@ class ChatViewModel @Inject constructor(
                 return@launch
             }
             val before = draft.value
-            val marked = if (before.contains(PIC, ignoreCase = true)) before else (before.trimEnd() + (if (before.isBlank()) "" else " ") + PIC)
+            val marked = if (before.contains(PIC, ignoreCase = true)) before else {
+                // Where the caret was, with a space before it unless the line starts there; new lines stay.
+                val at = (cursor ?: before.length).coerceIn(0, before.length)
+                val head = before.substring(0, at)
+                val gap = if (head.isEmpty() || head.last().isWhitespace()) "" else " "
+                head + gap + PIC + before.substring(at)
+            }
             if (marked != before) onDraftChanged(marked)
             describePicture(file, marked)
         }

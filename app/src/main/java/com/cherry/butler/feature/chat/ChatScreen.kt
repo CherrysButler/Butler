@@ -175,7 +175,8 @@ fun ChatScreen(
     }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     // A picture for the draft (beta): the phone's own picker, one picture, no permission needed.
-    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(viewModel::attachPicture) }
+    var pictureCursor by remember { mutableStateOf<Int?>(null) }
+    val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { viewModel.attachPicture(it, pictureCursor) } }
     val picture by viewModel.picture.collectAsStateWithLifecycle()
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
@@ -469,7 +470,10 @@ fun ChatScreen(
                 rich = richOn,
                 richDefault = Mark.of(richDefault),
                 picture = picture,
-                onAddPicture = { pickPicture.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onAddPicture = { cursor ->
+                    pictureCursor = cursor
+                    pickPicture.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
                 onUndoPicture = viewModel::undoPicture,
                 onDescribeAgain = viewModel::describeAgain,
                 onRemovePicture = viewModel::removePicture,
