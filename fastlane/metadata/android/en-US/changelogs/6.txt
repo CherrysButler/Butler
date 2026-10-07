@@ -1,0 +1,1 @@
+Sending works again after Janitor's crackdown on non-web clients, and your generation settings travel again. New: creator profiles, a description writer for personas, Favorites and tags on the home screen, JLLM custom prompt, editable Highlights prompt, NSFW on mobile, an optional update check. Choices work on JLLM.
