@@ -47,7 +47,6 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Choices button.** Lazy to actually type something? short choices can be provided by your model/JLLM to choose.
 * **Better error handling!** Your message is saved before it's even sent. If the network shits itself, Butler retries by itself with a countdown. If a reply dies halfway through, you keep what came in and hit Continue.
 * **The little thing.** Edit anything, including the first message as this is not included by JanitorAi main app.
-* **Added missing: JLLM custom prompt.** Pick any of your saved prompts for JLLM, like on the website. And the NSFW-on-mobile switch Janitor has, in Settings › Model.
 
 ### 🎨 Make it yours
 
