@@ -49,12 +49,6 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **The little thing.** Edit anything, including the first message as this is not included by JanitorAi main app.
 * **Added missing: JLLM custom prompt.** Pick any of your saved prompts for JLLM, like on the website. And the NSFW-on-mobile switch Janitor has, in Settings › Model.
 
-### 🔎 Finding bots
-
-* **Creator profiles.** Tap *by @creator* on any character and you get their page: their characters, their lorebooks, Follow, and their bio the way they styled it, colours, centering and their CSS included.
-* **Added missing: tag search and filtering.** Tags have a row of their own under Popular and Trending, in colour. Search by creators' own tags too, like #kinktober, with the popular ones suggested as you go.
-* **Favorites and Following** are right there on the home screen, one tap each. No more digging through filters.
-
 ### 🎨 Make it yours
 
 * **Themes!** Janitor Classic, Lights out, Daylight, and **Custom**: pick an accent and a background and Butler builds the rest. Go Advanced and set every single colour, even how round the corners are.
