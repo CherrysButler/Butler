@@ -52,6 +52,10 @@ class SettingsViewModel @Inject constructor(
     /** Which proxy preset writes pictures into a line (beta); null: Write for me's. */
     val pictureDescriber: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = pictures.describer
     fun setPictureDescriber(proxy: com.cherry.butler.core.data.Writer.Proxy?) = pictures.set(proxy)
+    val picturesOn: StateFlow<Boolean> = pictures.enabled
+    fun setPicturesOn(on: Boolean) = pictures.setEnabled(on)
+    val picturesAuto: StateFlow<Boolean> = pictures.auto
+    fun setPicturesAuto(on: Boolean) = pictures.setAuto(on)
 
     /** The keyboard goes down as a message is sent. */
     val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend

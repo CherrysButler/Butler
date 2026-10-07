@@ -374,7 +374,11 @@ private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onA
             Text("Pictures are a beta", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow.copy(alpha = 0.7f))
         }
         if (picture.status == ChatViewModel.PictureStatus.Described) StateAction(label = "Undo", onClick = onUndo)
-        if (picture.status != ChatViewModel.PictureStatus.Describing) StateAction(label = "Again", onClick = onAgain, emphasis = picture.status == ChatViewModel.PictureStatus.Attached)
+        when (picture.status) {
+            ChatViewModel.PictureStatus.Attached -> StateAction(label = "Write it in", onClick = onAgain, emphasis = true)
+            ChatViewModel.PictureStatus.Described -> StateAction(label = "Again", onClick = onAgain)
+            ChatViewModel.PictureStatus.Describing -> Unit
+        }
         StateAction(label = "Remove", onClick = onRemove)
     }
 }

@@ -178,6 +178,7 @@ fun ChatScreen(
     var pictureCursor by remember { mutableStateOf<Int?>(null) }
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { viewModel.attachPicture(it, pictureCursor) } }
     val picture by viewModel.picture.collectAsStateWithLifecycle()
+    val pictureKey by viewModel.pictureKey.collectAsStateWithLifecycle()
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
     val send: () -> Unit = {
@@ -470,7 +471,7 @@ fun ChatScreen(
                 rich = richOn,
                 richDefault = Mark.of(richDefault),
                 picture = picture,
-                onAddPicture = { cursor ->
+                onAddPicture = if (!pictureKey) null else { cursor ->
                     pictureCursor = cursor
                     pickPicture.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },

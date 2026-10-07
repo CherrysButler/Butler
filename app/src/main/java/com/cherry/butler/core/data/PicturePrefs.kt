@@ -17,6 +17,24 @@ import javax.inject.Singleton
 class PicturePrefs @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("butler_prefs", Context.MODE_PRIVATE)
 
+    private val _enabled = MutableStateFlow(prefs.getBoolean(KEY_ON, true))
+    /** Whether the picture key is in the chat at all. */
+    val enabled: StateFlow<Boolean> = _enabled.asStateFlow()
+
+    private val _auto = MutableStateFlow(prefs.getBoolean(KEY_AUTO, true))
+    /** Whether a picked picture is written in right away, or waits for a key. */
+    val auto: StateFlow<Boolean> = _auto.asStateFlow()
+
+    fun setEnabled(on: Boolean) {
+        _enabled.value = on
+        prefs.edit().putBoolean(KEY_ON, on).apply()
+    }
+
+    fun setAuto(on: Boolean) {
+        _auto.value = on
+        prefs.edit().putBoolean(KEY_AUTO, on).apply()
+    }
+
     private val _describer = MutableStateFlow(decode(prefs.getString(KEY, null)))
     /** The preset that describes pictures, or null for Write for me's. */
     val describer: StateFlow<Writer.Proxy?> = _describer.asStateFlow()
@@ -32,6 +50,8 @@ class PicturePrefs @Inject constructor(@ApplicationContext context: Context) {
 
     private companion object {
         const val KEY = "picture_describer"
+        const val KEY_ON = "pictures_on"
+        const val KEY_AUTO = "pictures_auto"
         const val SEP = "\u001F"
     }
 }

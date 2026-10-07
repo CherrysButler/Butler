@@ -87,6 +87,7 @@ class ChatViewModel @Inject constructor(
     private val backgrounds: ChatBackgrounds,
     private val chatPrefs: com.cherry.butler.core.data.ChatPrefs,
     private val describer: com.cherry.butler.core.generation.PictureDescriber,
+    private val picturePrefs: com.cherry.butler.core.data.PicturePrefs,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
 ) : ViewModel() {
@@ -97,6 +98,9 @@ class ChatViewModel @Inject constructor(
     /** A picture put into the draft (beta): its small copy, what has happened to it, and the draft with `[pic]` in it. */
     data class Picture(val file: java.io.File, val status: PictureStatus, val original: String)
     enum class PictureStatus { Attached, Describing, Described }
+
+    /** Whether the picture key is offered (Settings › Chat). */
+    val pictureKey: StateFlow<Boolean> = picturePrefs.enabled
 
     private val _picture = kotlinx.coroutines.flow.MutableStateFlow<Picture?>(null)
     val picture: StateFlow<Picture?> = _picture.asStateFlow()
@@ -119,7 +123,8 @@ class ChatViewModel @Inject constructor(
                 head + gap + PIC + before.substring(at)
             }
             if (marked != before) onDraftChanged(marked)
-            describePicture(file, marked)
+            // Written in right away, or left as [pic] until the user says so (Settings › Chat).
+            if (picturePrefs.auto.value) describePicture(file, marked) else _picture.value = Picture(file, PictureStatus.Attached, marked)
         }
     }
 
