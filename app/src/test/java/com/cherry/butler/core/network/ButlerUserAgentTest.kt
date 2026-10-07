@@ -103,13 +103,17 @@ class ButlerUserAgentTest {
     }
 
     @Test
-    fun `the pool is real browsers and a retry changes family`() {
+    fun `the pool is real browsers, a block retries as the engine alone, then another browser`() {
         repeat(50) { seed ->
             val ua = BrowserUserAgent.pick(random = Random(seed))
             assertTrue(ua, ua.startsWith("Mozilla/5.0 ("))
             val family = BrowserUserAgent.familyOf(ua)
             assertNotNull(ua, family)
-            assertNotEquals(family, BrowserUserAgent.familyOf(BrowserUserAgent.pick(not = ua, random = Random(seed + 1))))
+            assertNotEquals(BrowserUserAgent.Family.WebKit, family)
+            val engine = BrowserUserAgent.pick(not = ua, random = Random(seed + 1))
+            assertEquals(engine, BrowserUserAgent.Family.WebKit, BrowserUserAgent.familyOf(engine))
+            assertTrue(engine, engine.endsWith("(KHTML, like Gecko)"))
+            assertNotEquals(BrowserUserAgent.Family.WebKit, BrowserUserAgent.familyOf(BrowserUserAgent.pick(not = engine, random = Random(seed + 2))))
         }
         assertEquals(BrowserUserAgent.Family.Edge, BrowserUserAgent.familyOf("Mozilla/5.0 (Windows NT 10.0) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"))
         assertEquals(BrowserUserAgent.Family.Safari, BrowserUserAgent.familyOf("Mozilla/5.0 (Macintosh) Version/26.1 Safari/605.1.15"))

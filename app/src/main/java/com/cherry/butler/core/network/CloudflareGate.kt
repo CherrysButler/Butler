@@ -77,7 +77,8 @@ object CloudflareGate {
         }
     }
 
-    private fun record(kind: Kind, r: Response, body: String) {
+    /** Notes [kind] in Diagnostics and, in debug builds, keeps the whole answer under files/cloudflare. */
+    internal fun record(kind: Kind, r: Response, body: String) {
         val path = r.request.url.encodedPath
         val ray = r.header("cf-ray")
         val cookieNames = r.headers("Set-Cookie").map { it.substringBefore('=').trim() }

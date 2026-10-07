@@ -74,7 +74,7 @@ object ButlerUserAgent : Interceptor {
         val path = request.url.encodedPath
         Diagnostics.record("ua", "${name(ua)} blocked by the firewall on ${request.method} $path; trying ${name(other)}")
         runCatching { Log.w(TAG, "${name(ua)} blocked on $path; retrying as ${name(other)}") }
-        val retry = chain.proceed(request.newBuilder().header("User-Agent", other).build())
+        val retry = proceedFresh(chain, request.newBuilder().header("User-Agent", other).build())
         if (retry.code == 403 && blocked(retry)) {
             // Not the name, then: the firewall is after something else. The device keeps its browser.
             Diagnostics.record("ua", "${name(other)} blocked too on ${request.method} $path; keeping ${name(ua)}")
@@ -85,9 +85,24 @@ object ButlerUserAgent : Interceptor {
         return retry
     }
 
+    /**
+     * The retry, on a connection the firewall hasn't hung up on. Cloudflare closes the
+     * connection behind a block while saying keep-alive, so the first try at reusing it ends
+     * in "unexpected end of stream"; OkHttp then drops it, and the next try opens a new one.
+     */
+    private fun proceedFresh(chain: Interceptor.Chain, request: okhttp3.Request): Response =
+        try {
+            chain.proceed(request)
+        } catch (e: java.io.IOException) {
+            runCatching { Log.w(TAG, "retry's connection was gone (${e.message}); once more on a new one") }
+            chain.proceed(request)
+        }
+
     private fun blocked(response: Response): Boolean {
         val body = runCatching { response.peekBody(PEEK).string() }.getOrDefault("")
-        return CloudflareGate.classify(response, body) == CloudflareGate.Kind.Block
+        val kind = CloudflareGate.classify(response, body) ?: return false
+        runCatching { CloudflareGate.record(kind, response, body) }
+        return kind == CloudflareGate.Kind.Block
     }
 
     private fun name(ua: String) = BrowserUserAgent.familyOf(ua)?.name ?: ua
