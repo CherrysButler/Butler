@@ -52,9 +52,13 @@ class SettingsViewModel @Inject constructor(
     val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend
     fun setCloseKeyboardOnSend(on: Boolean) = chat.setCloseKeyboardOnSend(on)
 
-    /** The user's own thinking words (empty: Butler's). */
-    val thinkingWords: StateFlow<List<String>> = chat.thinkingWords
-    fun setThinkingWords(text: String) = chat.setThinkingWords(text)
+    /** Thinking words: Butler's own list on or off, and the user's lists. */
+    val butlerWordsOn: StateFlow<Boolean> = chat.butlerWordsOn
+    fun setButlerWordsOn(on: Boolean) = chat.setButlerWordsOn(on)
+    val thinkingLists: StateFlow<List<com.cherry.butler.core.data.ChatPrefs.WordList>> = chat.thinkingLists
+    fun saveThinkingList(id: String?, name: String, text: String) = chat.saveList(id, name, text)
+    fun setThinkingListOn(id: String, on: Boolean) = chat.setListOn(id, on)
+    fun deleteThinkingList(id: String) = chat.deleteList(id)
 
     /** Home one page at a time instead of the endless scroll. */
     val pagedHome: StateFlow<Boolean> = browse.paged

@@ -283,7 +283,6 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
 @Composable
 private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: Boolean) {
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
-    val words by viewModel.thinkingWords.collectAsStateWithLifecycle()
     SettingsSection(title = "Sending") {
         SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend)
     }
@@ -291,24 +290,79 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
         SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory)
         SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize)
     }
-    SettingsSection(title = "Thinking words", footnote = "What the thinking line says while a reply is on its way. One per line; empty for Butler's own.") {
-        ThinkingWordsField(words, viewModel::setThinkingWords)
+    ThinkingListsSection(viewModel)
+}
+
+/**
+ * The thinking line's words as lists: Butler's own, on or off, and the user's, each on or
+ * off and opened to edit. Everything that is on goes into one pool.
+ */
+@Composable
+private fun ThinkingListsSection(viewModel: SettingsViewModel) {
+    val butlerOn by viewModel.butlerWordsOn.collectAsStateWithLifecycle()
+    val lists by viewModel.thinkingLists.collectAsStateWithLifecycle()
+    // null: closed; a list to edit; or a blank new one (id null).
+    var editing by remember { mutableStateOf<com.cherry.butler.core.data.ChatPrefs.WordList?>(null) }
+    SettingsSection(title = "Thinking words", footnote = "What the thinking line says while a reply is on its way. Every list that is on is used.") {
+        SwitchRow("Butler's own", "${com.cherry.butler.feature.chat.ThinkingWords.count} words", butlerOn, viewModel::setButlerWordsOn)
+        lists.forEach { list ->
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.weight(1f)) {
+                    LinkRow(title = list.name, subtitle = "${list.words.size} words · ${list.words.take(4).joinToString(", ")}", onClick = { editing = list })
+                }
+                androidx.compose.material3.Switch(
+                    checked = list.on,
+                    onCheckedChange = { viewModel.setThinkingListOn(list.id, it) },
+                    modifier = Modifier.padding(end = 16.dp),
+                )
+            }
+        }
+        LinkRow(title = "Add a list", subtitle = null, onClick = { editing = com.cherry.butler.core.data.ChatPrefs.WordList(id = "", name = "", words = emptyList()) })
+    }
+    editing?.let { list ->
+        WordListSheet(
+            list = list,
+            onSave = { name, text -> viewModel.saveThinkingList(list.id.ifEmpty { null }, name, text); editing = null },
+            onDelete = if (list.id.isEmpty()) null else ({ viewModel.deleteThinkingList(list.id); editing = null }),
+            onDismiss = { editing = null },
+        )
     }
 }
 
+/** One list: its name and its words, one per line. Save keeps it; Delete removes it. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun ThinkingWordsField(words: List<String>, onCommit: (String) -> Unit) {
-    val shown = words.joinToString("\n")
-    var text by rememberSynced(shown)
-    Column {
-        FieldBlock(label = "Your words", value = text, onChange = { text = it }, placeholder = "Pondering\nBrewing\nNoodling", singleLine = false, minLines = 3)
-        if (text != shown || words.isNotEmpty()) {
+private fun WordListSheet(
+    list: com.cherry.butler.core.data.ChatPrefs.WordList,
+    onSave: (String, String) -> Unit,
+    onDelete: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(list.name) }
+    var text by remember { mutableStateOf(list.words.joinToString("\n")) }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = com.cherry.butler.core.design.SheetShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
+    ) {
+        Column(modifier = Modifier.navigationBarsPadding().imePadding().padding(bottom = 16.dp)) {
+            Text(
+                if (list.id.isEmpty()) "New list" else list.name,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            FieldBlock(label = "Name", value = name, onChange = { name = it.take(40) }, placeholder = "My words")
+            FieldBlock(label = "Words, one per line", value = text, onChange = { text = it }, placeholder = "Pondering\nBrewing\nNoodling", singleLine = false, minLines = 5)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                if (words.isNotEmpty()) KeyButton(label = "Butler's own", onClick = { onCommit("") })
-                if (text != shown) KeyButton(label = "Save", onClick = { onCommit(text) }, primary = true)
+                if (onDelete != null) KeyButton(label = "Delete", onClick = onDelete)
+                KeyButton(label = "Save", onClick = { onSave(name, text) }, primary = true, enabled = text.isNotBlank())
             }
         }
     }
