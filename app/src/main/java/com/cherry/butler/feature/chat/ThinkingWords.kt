@@ -6,8 +6,12 @@ import kotlin.random.Random
  * What the thinking line says while the model works: "Thinking" or one of these, picked at
  * random per reply. Playful and human; nothing that sounds like a machine at work
  * (computing, processing, synthesizing, hashing and their kind are left out on purpose).
+ * The user can bring their own list instead (Settings; [custom], kept by ChatPrefs).
  */
 object ThinkingWords {
+    /** The user's own words; empty means Butler's. */
+    @Volatile var custom: List<String> = emptyList()
+
     private val words = listOf(
         "Thinking", "Baking", "Beaming", "Beboppin'", "Befuddling", "Billowing", "Blanching", "Bloviating",
         "Boogieing", "Boondoggling", "Booping", "Brewing", "Burrowing", "Canoodling", "Caramelizing",
@@ -33,5 +37,8 @@ object ThinkingWords {
     )
 
     /** A word for [seed] (a message's id), so one reply keeps its word across recompositions. */
-    fun forSeed(seed: Long): String = words[Random(seed).nextInt(words.size)]
+    fun forSeed(seed: Long): String {
+        val pool = custom.ifEmpty { words }
+        return pool[Random(seed).nextInt(pool.size)]
+    }
 }

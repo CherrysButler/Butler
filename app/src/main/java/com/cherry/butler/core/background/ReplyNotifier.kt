@@ -33,7 +33,11 @@ import javax.inject.Singleton
  * moseying"), never "Bot replied".
  */
 @Singleton
-class ReplyNotifier @Inject constructor(@ApplicationContext private val context: Context) {
+class ReplyNotifier @Inject constructor(
+    @ApplicationContext private val context: Context,
+    // Constructed so the user's thinking words are loaded before a notification needs one.
+    @Suppress("unused") private val chatPrefs: com.cherry.butler.core.data.ChatPrefs,
+) {
 
     private val manager = NotificationManagerCompat.from(context)
 

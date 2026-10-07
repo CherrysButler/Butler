@@ -137,6 +137,7 @@ fun ChatScreen(
     onOpenCustomize: () -> Unit = {},
     onOpenCharacter: (String) -> Unit = {},
     onOpenChat: (Long) -> Unit = {},
+    onEditPersona: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val providerLabel by viewModel.providerLabel.collectAsStateWithLifecycle()
@@ -173,7 +174,10 @@ fun ChatScreen(
         onPauseOrDispose { viewModel.onHidden() }
     }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
     val send: () -> Unit = {
+        if (closeKeyboard) keyboard?.hide()
         if (Build.VERSION.SDK_INT >= 33 && viewModel.shouldAskNotifications()) {
             viewModel.notificationsAsked()
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -272,6 +276,7 @@ fun ChatScreen(
             selected = activePersona,
             onPick = { viewModel.pickPersona(it); pickingPersona = false },
             onDismiss = { pickingPersona = false },
+            onEdit = { option -> pickingPersona = false; option.id?.let(onEditPersona) },
         )
     }
     val activeJob = jobs.firstOrNull { it.state in SendJobState.active }

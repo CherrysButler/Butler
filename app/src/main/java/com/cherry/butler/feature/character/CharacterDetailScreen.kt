@@ -47,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -121,6 +122,7 @@ fun CharacterDetailScreen(
 ) {
     val mirror by viewModel.mirror.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val persona by viewModel.persona.collectAsStateWithLifecycle()
     val personaOptions by viewModel.personaOptions.collectAsStateWithLifecycle()
     val personaName = persona?.name
@@ -184,6 +186,7 @@ fun CharacterDetailScreen(
                 onFavorite = viewModel::toggleFavorite,
                 creatorName = header?.creatorName,
                 onBlock = { creator -> blocking = creator },
+                onShare = header?.let { h -> { shareCharacter(context, viewModel.characterId, h.name) } },
             )
             state.socialError?.let { msg ->
                 Text(msg, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.danger, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
@@ -252,6 +255,8 @@ private fun TopBar(
     creatorName: String? = null,
     /** false blocks the character, true its creator. */
     onBlock: ((Boolean) -> Unit)? = null,
+    /** Hands the character's page on Janitor to the phone's share sheet. */
+    onShare: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -308,6 +313,11 @@ private fun TopBar(
                         color = if (favorited) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed,
                     )
                 }
+            }
+        }
+        if (onShare != null) {
+            IconButton(onClick = onShare) {
+                Icon(Icons.Rounded.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
             }
         }
         if (onBlock != null) {
@@ -718,4 +728,18 @@ private fun FollowPill(following: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 8.dp),
     )
+}
+
+/**
+ * The character's page on Janitor, offered to the phone's share sheet (which copies it too):
+ * the website's own address, id then the name as a slug, as Janitor writes it.
+ */
+private fun shareCharacter(context: android.content.Context, characterId: String, name: String) {
+    val slug = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60)
+    val link = "https://janitorai.com/characters/$characterId" + (if (slug.isEmpty()) "" else "_character-$slug")
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(android.content.Intent.EXTRA_SUBJECT, "$name on JanitorAI")
+        .putExtra(android.content.Intent.EXTRA_TEXT, "$name on JanitorAI\n$link")
+    runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share $name")) }
 }

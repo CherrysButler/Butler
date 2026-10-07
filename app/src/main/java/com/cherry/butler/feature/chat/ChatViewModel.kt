@@ -84,9 +84,13 @@ class ChatViewModel @Inject constructor(
     private val transfer: ChatTransfer,
     private val suggestions: SuggestionService,
     private val backgrounds: ChatBackgrounds,
+    private val chatPrefs: com.cherry.butler.core.data.ChatPrefs,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
 ) : ViewModel() {
+
+    /** Whether the keyboard goes down as a message is sent (Settings). */
+    val closeKeyboardOnSend: StateFlow<Boolean> = chatPrefs.closeKeyboardOnSend
 
     /** Butter mode's tint in full replies (Settings › Butler specials). */
     val butterTint: StateFlow<Boolean> = addons.butterTint

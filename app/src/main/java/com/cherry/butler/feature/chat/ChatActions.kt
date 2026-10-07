@@ -351,6 +351,9 @@ fun VariantBar(
 @Composable
 fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
     var guidance by remember { mutableStateOf("") }
+    // Quick picks stack: "Slow down" and "More emotional" together is a common ask.
+    var picks by remember { mutableStateOf(listOf<String>()) }
+    val asked = (picks + listOfNotNull(guidance.trim().takeIf { it.isNotEmpty() })).joinToString(". ")
     val focus = remember { FocusRequester() }
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // The keyboard comes up once the sheet has finished rising, not ahead of it.
@@ -398,7 +401,7 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Send),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onRetry(guidance) }),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onRetry(asked) }),
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth().focusRequester(focus),
                     decorationBox = { inner ->
@@ -413,20 +416,22 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 QUICK_GUIDES.forEach { pick ->
+                    val on = pick in picks
                     Text(
                         text = pick,
                         style = MaterialTheme.typography.labelLarge,
-                        color = ButlerTheme.colors.textMed,
+                        color = if (on) MaterialTheme.colorScheme.onPrimary else ButlerTheme.colors.textMed,
                         modifier = Modifier
                             .clip(MaterialTheme.shapes.small)
-                            .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
-                            .clickable { guidance = pick }
+                            .background(if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
+                            .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                            .clickable { picks = if (on) picks - pick else picks + pick }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                     )
                 }
             }
             androidx.compose.material3.Button(
-                onClick = { onRetry(guidance) },
+                onClick = { onRetry(asked) },
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 50.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
@@ -434,9 +439,9 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {
-                Icon(if (guidance.isBlank()) Icons.Rounded.Refresh else Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(if (asked.isBlank()) Icons.Rounded.Refresh else Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (guidance.isBlank()) "Try again" else "Rewrite with this", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text(if (asked.isBlank()) "Try again" else "Rewrite with this", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
         }
     }

@@ -305,6 +305,7 @@ fun ButlerRoot() {
                         onOpenChat = { id ->
                             navController.navigate(Routes.chat(id)) { popUpTo(Routes.CHAT) { inclusive = true } }
                         },
+                        onEditPersona = { navController.navigate(Routes.persona(it)) },
                     )
                 }
             }

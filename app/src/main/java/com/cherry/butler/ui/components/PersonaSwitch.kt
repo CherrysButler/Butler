@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
@@ -84,6 +85,8 @@ fun PersonaPickerSheet(
     onPick: (PersonaOption) -> Unit,
     onDismiss: () -> Unit,
     groups: List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto> = emptyList(),
+    /** Opens a persona's editor from here, mid-chat; null hides the pencil. */
+    onEdit: ((PersonaOption) -> Unit)? = null,
 ) {
     var query by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     // Opens on the chosen persona's group, so it is in view.
@@ -129,7 +132,14 @@ fun PersonaPickerSheet(
                 )
             }
             LazyColumn(modifier = Modifier.padding(bottom = 8.dp)) {
-                items(list, key = { it.id ?: "profile" }) { option -> PersonaPickRow(option, option.id == selected?.id) { onPick(option) } }
+                items(list, key = { it.id ?: "profile" }) { option ->
+                    PersonaPickRow(
+                        option = option,
+                        chosen = option.id == selected?.id,
+                        onEdit = if (onEdit != null && option.id != null) ({ onEdit(option) }) else null,
+                        onClick = { onPick(option) },
+                    )
+                }
                 if (list.isEmpty()) item("none") {
                     Text(
                         if (query.isNotBlank()) "No persona called that." else "No one in this group yet.",
@@ -261,7 +271,7 @@ private fun GroupChip(
 }
 
 @Composable
-private fun PersonaPickRow(option: PersonaOption, chosen: Boolean, onClick: () -> Unit) {
+private fun PersonaPickRow(option: PersonaOption, chosen: Boolean, onEdit: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -287,6 +297,12 @@ private fun PersonaPickRow(option: PersonaOption, chosen: Boolean, onClick: () -
         }
         if (chosen) {
             Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+        }
+        if (onEdit != null) {
+            Spacer(Modifier.width(4.dp))
+            androidx.compose.material3.IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Rounded.Edit, contentDescription = "Edit " + option.name, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
