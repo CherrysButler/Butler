@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import com.cherry.butler.core.generation.SuggestionService
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -85,6 +86,12 @@ fun Composer(
     /** Rich typing on; [richDefault] is what typing opens on its own (null: plain). */
     rich: Boolean = false,
     richDefault: Mark? = Mark.Action,
+    /** A picture in the draft (beta), and its keys; [onAddPicture] null hides the picture key. */
+    picture: ChatViewModel.Picture? = null,
+    onAddPicture: (() -> Unit)? = null,
+    onUndoPicture: () -> Unit = {},
+    onDescribeAgain: () -> Unit = {},
+    onRemovePicture: () -> Unit = {},
 ) {
     val writing = suggestion as? SuggestionService.State.Writing
     // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
@@ -127,6 +134,7 @@ fun Composer(
                 StateAction(label = "Again", onClick = onWriteAgain, emphasis = true)
             }
         }
+        picture?.let { PictureStrip(it, onUndo = onUndoPicture, onAgain = onDescribeAgain, onRemove = onRemovePicture) }
         // One field across the whole width, as Janitor's message box: the persona's face at
         // its start, the words, the send key at its end. The keys sit inside the field, so the
         // writing room is the screen's width and not what two keys leave of it.
@@ -213,6 +221,10 @@ fun Composer(
                         },
                     )
                 }
+            }
+            if (onAddPicture != null && !busy && writing == null) {
+                Spacer(Modifier.width(2.dp))
+                PictureKey(attached = picture != null, onClick = onAddPicture)
             }
             if (onWrite != null && (!busy || writing != null)) {
                 Spacer(Modifier.width(2.dp))
@@ -307,6 +319,62 @@ private fun WriteKey(writing: Boolean, rewrite: Boolean, onWrite: () -> Unit, on
                 modifier = Modifier.size(18.dp),
             )
         }
+    }
+}
+
+/** The picture key (beta): a picture goes into the draft as `[pic]` and is written in. */
+@Composable
+private fun PictureKey(attached: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(width = 32.dp, height = KEY_HEIGHT)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = if (attached) "Change the picture" else "Add a picture" },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Rounded.AddPhotoAlternate,
+            contentDescription = null,
+            tint = if (attached) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+/**
+ * The picture over the field: its thumbnail, what is happening to it, and its keys. While
+ * the model writes it the line says so; written in, the user reads the draft and sends it
+ * themselves. "Beta" is said right here, because it is.
+ */
+@Composable
+private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onAgain: () -> Unit, onRemove: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 10.dp, top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        coil.compose.AsyncImage(
+            model = picture.file,
+            contentDescription = "The picture",
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.size(36.dp).clip(MaterialTheme.shapes.small),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = when (picture.status) {
+                    ChatViewModel.PictureStatus.Describing -> "Writing the picture in\u2026"
+                    ChatViewModel.PictureStatus.Described -> "Written in. Read it over, then send."
+                    ChatViewModel.PictureStatus.Attached -> "In the draft as [pic]"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = ButlerTheme.colors.textLow,
+            )
+            Text("Pictures are a beta", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow.copy(alpha = 0.7f))
+        }
+        if (picture.status == ChatViewModel.PictureStatus.Described) StateAction(label = "Undo", onClick = onUndo)
+        if (picture.status != ChatViewModel.PictureStatus.Describing) StateAction(label = "Again", onClick = onAgain, emphasis = picture.status == ChatViewModel.PictureStatus.Attached)
+        StateAction(label = "Remove", onClick = onRemove)
     }
 }
 

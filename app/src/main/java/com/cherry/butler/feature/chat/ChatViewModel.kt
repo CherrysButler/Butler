@@ -18,6 +18,7 @@ import com.cherry.butler.core.data.SettingsRepository
 import com.cherry.butler.core.generation.MemoryService
 import com.cherry.butler.core.generation.SendPipeline
 import com.cherry.butler.core.network.ApiError
+import com.cherry.butler.core.generation.userSummary
 import com.cherry.butler.ui.components.userMessage
 import com.cherry.butler.ui.navigation.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -85,12 +86,79 @@ class ChatViewModel @Inject constructor(
     private val suggestions: SuggestionService,
     private val backgrounds: ChatBackgrounds,
     private val chatPrefs: com.cherry.butler.core.data.ChatPrefs,
+    private val describer: com.cherry.butler.core.generation.PictureDescriber,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
 ) : ViewModel() {
 
     /** Whether the keyboard goes down as a message is sent (Settings). */
     val closeKeyboardOnSend: StateFlow<Boolean> = chatPrefs.closeKeyboardOnSend
+
+    /** A picture put into the draft (beta): its small copy, what has happened to it, and the draft with `[pic]` in it. */
+    data class Picture(val file: java.io.File, val status: PictureStatus, val original: String)
+    enum class PictureStatus { Attached, Describing, Described }
+
+    private val _picture = kotlinx.coroutines.flow.MutableStateFlow<Picture?>(null)
+    val picture: StateFlow<Picture?> = _picture.asStateFlow()
+    private var describing: kotlinx.coroutines.Job? = null
+
+    /** One picture: `[pic]` goes into the draft where it belongs, and the model is asked to write it. */
+    fun attachPicture(uri: android.net.Uri) {
+        viewModelScope.launch {
+            val file = runCatching { describer.keep(chatId, uri) }.getOrElse { _notices.send("Couldn\u2019t read that picture."); return@launch }
+            val before = draft.value
+            val marked = if (before.contains(PIC, ignoreCase = true)) before else (before.trimEnd() + (if (before.isBlank()) "" else " ") + PIC)
+            if (marked != before) onDraftChanged(marked)
+            describePicture(file, marked)
+        }
+    }
+
+    private fun describePicture(file: java.io.File, original: String) {
+        describing?.cancel()
+        _picture.value = Picture(file, PictureStatus.Describing, original)
+        describing = viewModelScope.launch {
+            val result = runCatching { describer.describe(chatId, original, file) }
+            val e = result.exceptionOrNull()
+            if (e is kotlinx.coroutines.CancellationException) return@launch
+            result.onSuccess { text ->
+                val now = draft.value
+                val written = if (now.contains(PIC, ignoreCase = true)) now.replace(Regex(Regex.escape(PIC), RegexOption.IGNORE_CASE), text) else now
+                onDraftChanged(written)
+                _picture.value = Picture(file, PictureStatus.Described, original)
+            }.onFailure { err ->
+                _picture.value = Picture(file, PictureStatus.Attached, original)
+                _notices.send((err as? ApiError)?.userSummary() ?: "Couldn\u2019t describe the picture.")
+            }
+        }
+    }
+
+    /** The draft back as it was with `[pic]`; the picture stays, for Again. */
+    fun undoPicture() {
+        val p = _picture.value ?: return
+        describing?.cancel()
+        onDraftChanged(p.original)
+        _picture.value = p.copy(status = PictureStatus.Attached)
+    }
+
+    fun describeAgain() {
+        val p = _picture.value ?: return
+        if (p.status == PictureStatus.Described) onDraftChanged(p.original)
+        describePicture(p.file, p.original)
+    }
+
+    /** Drops the picture; `[pic]` leaves the draft, a written description stays as the user's words. */
+    fun removePicture() {
+        describing?.cancel()
+        _picture.value ?: return
+        onDraftChanged(draft.value.replace(Regex("\\s?" + Regex.escape(PIC), RegexOption.IGNORE_CASE), "").trim())
+        clearPicture()
+    }
+
+    private fun clearPicture() {
+        describing?.cancel()
+        if (_picture.value != null) describer.forget(chatId)
+        _picture.value = null
+    }
 
     /** Butter mode's tint in full replies (Settings › Butler specials). */
     val butterTint: StateFlow<Boolean> = addons.butterTint
@@ -483,6 +551,7 @@ class ChatViewModel @Inject constructor(
         if (text.isEmpty()) return
         suggestions.clear(chatId)
         onDraftChanged("")
+        clearPicture()
         choices.dismiss(chatId)
         viewModelScope.launch {
             commitIntro()
@@ -644,3 +713,6 @@ class ChatViewModel @Inject constructor(
         const val NO_EDIT = -1L
     }
 }
+
+/** Where a picture goes in a draft until it is written in (beta). */
+const val PIC = "[pic]"

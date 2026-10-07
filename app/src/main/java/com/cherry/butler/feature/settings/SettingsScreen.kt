@@ -500,6 +500,7 @@ private fun ModelSection(
             JllmPromptRow(settings, viewModel)
         }
         WriterPicker(settings, viewModel)
+        PicturePicker(settings, viewModel)
         val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
         SwitchRow(
             title = "NSFW on mobile",
@@ -582,6 +583,47 @@ private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
             presets = settings.proxies,
             current = asProxy,
             onSave = { configuring = false; viewModel.setWriter(it) },
+            onDismiss = { configuring = false },
+        )
+    }
+}
+
+/**
+ * Pictures (beta): which proxy preset looks at a picture put into a message and writes it
+ * into the line. Write for me's by default; only a proxy can, and its model has to see.
+ */
+@Composable
+private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
+    val pick by viewModel.pictureDescriber.collectAsStateWithLifecycle()
+    var configuring by remember { mutableStateOf(false) }
+    val preset = pick?.let { p -> settings.proxies.firstOrNull { p.id in it.ids } }
+    val value = when {
+        pick != null && preset != null -> "${preset.name.ifBlank { "Untitled" }} · ${pick!!.model ?: preset.model.ifBlank { "no model" }}"
+        pick != null -> "Same as Write for me (that preset is gone)"
+        else -> "Same as Write for me"
+    }
+    DropRow(title = "Pictures use (beta)", value = value) { close ->
+        DropItem(
+            title = "Same as Write for me",
+            subtitle = "Has to be a proxy whose model can see",
+            selected = pick == null,
+            onClick = { close(); viewModel.setPictureDescriber(null) },
+        )
+        DropItem(
+            title = "A proxy set",
+            subtitle = if (preset != null) value else null,
+            selected = pick != null && preset != null,
+            onClick = { close(); configuring = true },
+            trailing = {
+                Icon(Icons.Rounded.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
+            },
+        )
+    }
+    if (configuring) {
+        WriterProxySheet(
+            presets = settings.proxies,
+            current = pick,
+            onSave = { configuring = false; viewModel.setPictureDescriber(it) },
             onDismiss = { configuring = false },
         )
     }
