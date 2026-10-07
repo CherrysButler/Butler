@@ -27,8 +27,9 @@ object GenerationModule {
         apiCall: ApiCall,
         json: Json,
         auth: Provider<AuthRepository>,
+        agent: com.cherry.butler.core.generation.AgentLoop,
     ): GenerationTransport = RoutingTransport(
-        proxyPath = HttpGenerationTransport(client, apiCall, json),
+        proxyPath = HttpGenerationTransport(client, apiCall, json, agent),
         jllm = JllmTransport(client, apiCall, json) { auth.get().currentAccessToken },
     )
 }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Loop
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.Dns
@@ -256,6 +257,7 @@ private fun SettingsBody(
             SettingsPage.Main -> SettingsHome(onOpenPage)
             SettingsPage.Model -> settings?.let { s ->
                 ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
+                AgentSection(viewModel, onProxy = s.provider == Provider.Proxy)
                 GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor)
             }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
@@ -622,6 +624,52 @@ private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
             onSave = { configuring = false; viewModel.setWriter(it) },
             onDismiss = { configuring = false },
         )
+    }
+}
+
+/**
+ * Agent mode (beta): a reply is drafted, checked against goals strictly, fixed with exact
+ * edits (or rewritten), and only then delivered. Proxies only, meant for reasoning models.
+ */
+@Composable
+private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean) {
+    val on by viewModel.agentOn.collectAsStateWithLifecycle()
+    val effort by viewModel.agentEffort.collectAsStateWithLifecycle()
+    val goals by viewModel.agentGoals.collectAsStateWithLifecycle()
+    SettingsSection(
+        title = "Agent mode",
+        beta = true,
+        icon = Icons.Rounded.Loop,
+        footnote = when {
+            !onProxy -> "Works on a proxy only; the chat is on JLLM right now."
+            else -> "Each reply drafts, checks itself against the goals, fixes what fails, then delivers. Meant for reasoning models; costs two to four calls a reply. The thought panel shows what it did."
+        },
+    ) {
+        SwitchRow("Agent mode", "Draft, check, fix, deliver", on, viewModel::setAgentOn, icon = Icons.Rounded.Loop)
+        if (on) {
+            Branch(last = false) {
+                DropRow(title = "Effort", value = effort.label) { close ->
+                    com.cherry.butler.core.data.AgentPrefs.Effort.entries.forEach { e ->
+                        DropItem(title = e.label, subtitle = e.blurb, selected = e == effort, onClick = { close(); viewModel.setAgentEffort(e) })
+                    }
+                }
+            }
+            Branch(last = true) { AgentGoalsField(goals, viewModel::setAgentGoals) }
+        }
+    }
+}
+
+/** The user's own goals for the agent's check, one per line, on top of Butler's rubric. */
+@Composable
+private fun AgentGoalsField(goals: String, onCommit: (String) -> Unit) {
+    var text by rememberSynced(goals)
+    Column {
+        FieldBlock(label = "Your goals, one per line", value = text, onChange = { text = it }, placeholder = "Keep replies under 200 words\nNever end on a question", singleLine = false, minLines = 3)
+        if (text != goals) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), contentAlignment = Alignment.CenterEnd) {
+                KeyButton(label = "Save goals", onClick = { onCommit(text) }, primary = true)
+            }
+        }
     }
 }
 

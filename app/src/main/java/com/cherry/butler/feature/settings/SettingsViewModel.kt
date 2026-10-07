@@ -47,7 +47,16 @@ class SettingsViewModel @Inject constructor(
     private val chat: com.cherry.butler.core.data.ChatPrefs,
     private val browse: com.cherry.butler.core.data.BrowsePrefs,
     private val pictures: com.cherry.butler.core.data.PicturePrefs,
+    private val agent: com.cherry.butler.core.data.AgentPrefs,
 ) : ViewModel() {
+
+    /** Agent mode (beta): a reply drafted, checked against goals, fixed, then delivered. */
+    val agentOn: StateFlow<Boolean> = agent.enabled
+    fun setAgentOn(on: Boolean) = agent.setEnabled(on)
+    val agentEffort: StateFlow<com.cherry.butler.core.data.AgentPrefs.Effort> = agent.effort
+    fun setAgentEffort(effort: com.cherry.butler.core.data.AgentPrefs.Effort) = agent.setEffort(effort)
+    val agentGoals: StateFlow<String> = agent.goals
+    fun setAgentGoals(text: String) = agent.setGoals(text)
 
     /** Which proxy preset writes pictures into a line (beta); null: Write for me's. */
     val pictureDescriber: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = pictures.describer

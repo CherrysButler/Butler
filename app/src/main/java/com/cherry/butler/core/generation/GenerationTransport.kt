@@ -99,6 +99,8 @@ class HttpGenerationTransport(
     baseClient: OkHttpClient,
     private val apiCall: ApiCall,
     private val json: Json,
+    /** Agent mode (beta): drafts, checks and fixes a reply before delivering it; null leaves replies one shot. */
+    private val agent: AgentLoop? = null,
 ) : GenerationTransport {
 
     // A stream can be silent for longer than an ordinary call while the model thinks.
@@ -116,11 +118,15 @@ class HttpGenerationTransport(
         .addInterceptor(com.cherry.butler.core.network.ButlerUserAgent)
         .build()
 
+    /** The agent's judging calls come back in one piece, after all of a reasoning model's thinking. */
+    private val judgeClient = proxyClient.newBuilder().readTimeout(JUDGE_READ_TIMEOUT_S, TimeUnit.SECONDS).build()
+
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
     private val webJsonMedia = "application/json".toMediaType()
 
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> = flow {
-        streamFrom(webRequest(envelope), proxy)
+        val mode = envelope["generateMode"]?.jsonPrimitive?.contentOrNull
+        streamFrom(webRequest(envelope), proxy, mode)
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -151,7 +157,7 @@ class HttpGenerationTransport(
             .build()
     }
 
-    private suspend fun FlowCollector<GenerationEvent>.streamFrom(request: Request, proxy: ProxyTarget?) {
+    private suspend fun FlowCollector<GenerationEvent>.streamFrom(request: Request, proxy: ProxyTarget?, mode: String? = null) {
         executeStreaming(request) { response ->
             val contentType = response.header("Content-Type").orEmpty()
             emit(
@@ -192,9 +198,55 @@ class HttpGenerationTransport(
                         janitorCode = "BUTLER_NO_PROXY_TARGET",
                         serverMessage = "Janitor handed back a payload but no proxy is configured to send it to.",
                     )
-                    streamFromProxy(payload, target)
+                    val loop = agent?.takeIf { it.applies(mode) }
+                    if (loop != null) loop.run(this, payload, mode, hop(target)) else streamFromProxy(payload, target)
                 }
             }
+        }
+    }
+
+    /** The agent's two ways to the proxy: the usual stream, and a whole answer at once. */
+    private fun hop(target: ProxyTarget) = object : AgentLoop.Hop {
+        override suspend fun stream(payload: JsonObject, onEvent: suspend (GenerationEvent) -> Unit) {
+            val collector = object : FlowCollector<GenerationEvent> {
+                override suspend fun emit(value: GenerationEvent) = onEvent(value)
+            }
+            collector.streamFromProxy(payload, target)
+        }
+
+        override suspend fun complete(payload: JsonObject): String {
+            val shaped = JsonObject(target.shape(payload) + ("stream" to kotlinx.serialization.json.JsonPrimitive(false)))
+            val request = Request.Builder()
+                .url(target.url)
+                .post(shaped.toString().toRequestBody(jsonMedia))
+                .header("Authorization", target.authorization())
+                .header("Accept", "application/json")
+                .header("HTTP-Referer", "https://janitorai.com")
+                .header("X-Title", "janitor")
+                .build()
+            val text = StringBuilder()
+            executeStreaming(request, direct = true, long = true) { response ->
+                val type = response.header("Content-Type").orEmpty()
+                if (type.startsWith("text/event-stream")) {
+                    // A proxy that streams regardless: the pieces add up to the same answer.
+                    val collector = object : FlowCollector<GenerationEvent> {
+                        override suspend fun emit(value: GenerationEvent) { if (value is GenerationEvent.Delta) text.append(value.text) }
+                    }
+                    collector.readOpenAiStream(response)
+                } else {
+                    val body = response.body?.string().orEmpty()
+                    val content = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+                        ?.get("choices")?.jsonArray?.firstOrNull()?.jsonObject
+                        ?.get("message")?.jsonObject?.get("content")
+                    val piece = when (content) {
+                        null -> ""
+                        else -> runCatching { content.jsonPrimitive.contentOrNull }.getOrNull()
+                            ?: runCatching { content.jsonArray.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }.joinToString("") }.getOrDefault("")
+                    }
+                    text.append(piece)
+                }
+            }
+            return text.toString()
         }
     }
 
@@ -269,9 +321,11 @@ class HttpGenerationTransport(
     private suspend fun executeStreaming(
         request: Request,
         direct: Boolean = false,
+        /** A whole answer that may take a reasoning model a while: the longer read timeout. */
+        long: Boolean = false,
         block: suspend (Response) -> Unit,
     ) {
-        val call = (if (direct) proxyClient else client).newCall(request)
+        val call = (if (long) judgeClient else if (direct) proxyClient else client).newCall(request)
         val handle = currentCoroutineContext().job.invokeOnCompletion { call.cancel() }
         try {
             val response = try {
@@ -323,5 +377,6 @@ class HttpGenerationTransport(
     private companion object {
         const val TAG = "GenerationTransport"
         const val STREAM_READ_TIMEOUT_S = 120L
+        const val JUDGE_READ_TIMEOUT_S = 300L
     }
 }
