@@ -1,8 +1,9 @@
 name: Release
 
 # Push a tag like v0.2.0 (matching versionName in app/build.gradle.kts) and this builds the
-# signed release APK and attaches it, with its checksum, to a GitHub Release. The release text
-# is .github/release-notes/vX.Y.Z.md, written by hand for each version.
+# signed release APK, scans it on VirusTotal, and attaches it, with its checksum, to a GitHub
+# Release. The release text is .github/release-notes/vX.Y.Z.md, written by hand for each
+# version; the workflow adds the checksum and the scan link under it.
 
 on:
   push:
@@ -63,10 +64,57 @@ jobs:
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
           "$apksigner" verify --print-certs "dist/Butler-$VERSION.apk" | grep -i "certificate DN"
 
+      # The APK goes to VirusTotal as part of every release, so the scan link on the release
+      # page is for exactly the file people download. A scan that can't be had (no key, an
+      # outage, a slow queue) is noted, never a reason to hold the release.
+      - name: Scan on VirusTotal
+        env:
+          VT_KEY: ${{ secrets.VIRUSTOTAL_SECRET }}
+        run: |
+          apk="dist/Butler-$VERSION.apk"
+          sha=$(sha256sum "$apk" | cut -d' ' -f1)
+          link="https://www.virustotal.com/gui/file/$sha"
+          verdict=""
+          if [ -z "$VT_KEY" ]; then
+            echo "::warning::VIRUSTOTAL_SECRET isn't set; the release notes get no scan line"
+          else
+            analysis=$(curl -sS --fail-with-body -X POST https://www.virustotal.com/api/v3/files               -H "x-apikey: $VT_KEY" -F "file=@$apk" | jq -r '.data.id // empty') || true
+            if [ -n "$analysis" ]; then
+              # Up to ten minutes for the vendors; the link works as soon as the upload is in.
+              for i in $(seq 1 60); do
+                report=$(curl -sS https://www.virustotal.com/api/v3/analyses/$analysis -H "x-apikey: $VT_KEY") || true
+                status=$(echo "$report" | jq -r '.data.attributes.status // empty')
+                [ "$status" = "completed" ] && break
+                sleep 10
+              done
+              if [ "$status" = "completed" ]; then
+                flagged=$(echo "$report" | jq -r '.data.attributes.stats.malicious + .data.attributes.stats.suspicious')
+                total=$(echo "$report" | jq -r '[.data.attributes.stats[]] | add')
+                if [ "$flagged" = "0" ]; then verdict="no security vendor flags it ($total checked)"; else verdict="$flagged of $total vendors flagged it; read the report before installing"; fi
+              else
+                verdict="the vendors were still working when this was written; the link has the result"
+              fi
+            else
+              echo "::warning::VirusTotal didn't take the upload"
+            fi
+          fi
+          {
+            cat ".github/release-notes/v$VERSION.md"
+            echo
+            echo "## Checked"
+            echo
+            echo "- SHA-256: \`$sha\` (also in SHA256SUMS.txt)."
+            if [ -n "$verdict" ]; then
+              echo "- Scanned on [VirusTotal]($link?nocache=1) by the release workflow: $verdict."
+            else
+              echo "- VirusTotal: scan it yourself at [this link]($link?nocache=1) (the workflow couldn't this time)."
+            fi
+          } > "$RUNNER_TEMP/release-body.md"
+
       - uses: softprops/action-gh-release@v2
         with:
           name: Butler ${{ env.VERSION }}
-          body_path: .github/release-notes/v${{ env.VERSION }}.md
+          body_path: ${{ runner.temp }}/release-body.md
           files: |
             dist/Butler-${{ env.VERSION }}.apk
             dist/SHA256SUMS.txt
