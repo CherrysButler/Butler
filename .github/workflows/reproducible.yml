@@ -1,0 +1,49 @@
+name: Reproducible build check
+
+# Does a clean build of a tag come out byte for byte the same as the APK published on its
+# GitHub release, signature aside? That is what F-Droid checks before it publishes our own
+# signed APK instead of signing its own build. Run it by hand with the tag to check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to check, like v0.3.0"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      # The same Java F-Droid's build server has (Debian trixie: OpenJDK 21).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # No keystore: the unsigned APK, as F-Droid builds it.
+      - name: Build
+        run: ./gradlew --no-configuration-cache :app:assembleRelease
+
+      - name: Fetch the published APK
+        run: |
+          version="${{ inputs.tag }}"; version="${version#v}"
+          curl -sSL -o released.apk "https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag }}/Butler-$version.apk"
+          ls -l released.apk app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Compare, signature aside
+        run: |
+          pip install --quiet apksigcopier
+          sha256sum released.apk app/build/outputs/apk/release/app-release-unsigned.apk
+          apksigcopier compare released.apk --unsigned app/build/outputs/apk/release/app-release-unsigned.apk \
+            && echo "::notice::Reproducible: the clean build matches the published APK" \
+            || { echo "::error::Not reproducible: the clean build differs from the published APK"; exit 1; }
