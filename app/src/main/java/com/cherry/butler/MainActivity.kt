@@ -36,6 +36,9 @@ class MainActivity : FragmentActivity() {
     lateinit var supabase: SupabaseClient
 
     @Inject
+    lateinit var updates: com.cherry.butler.core.update.UpdateChecker
+
+    @Inject
     lateinit var fontPrefs: com.cherry.butler.core.data.FontPrefs
     @Inject
     lateinit var themePrefs: ThemePrefs
@@ -125,6 +128,8 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                     if (locked) LockScreen(appLock)
+                    // The automatic update check (off unless switched on); never over the lock.
+                    else com.cherry.butler.feature.settings.UpdatePrompt(updates)
                 }
             }
         }

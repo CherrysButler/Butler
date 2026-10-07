@@ -197,7 +197,7 @@ fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel(
                     SettingsSection(title = "Router") {
                         SwitchRow(
                             title = "Answer with Janitor Router",
-                            subtitle = if (c.enabled) "Replies come from the model below, billed to the wallet" else "Off: Janitor's free model (JLLM) answers",
+                            subtitle = if (c.enabled) "Billed to your wallet" else null,
                             checked = c.enabled,
                             onChange = viewModel::setEnabled,
                             enabled = !busy,
@@ -210,7 +210,7 @@ fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel(
                         )
                         SwitchRow(
                             title = "Show the model's thinking",
-                            subtitle = "For models that reason before they answer",
+                            subtitle = null,
                             checked = c.showThinking,
                             onChange = viewModel::setShowThinking,
                             enabled = !busy,

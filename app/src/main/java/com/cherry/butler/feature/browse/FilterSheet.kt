@@ -80,8 +80,8 @@ fun FilterSheet(
                 onSelect = { onSource(BrowseSource.entries[it]) },
             )
 
-            SettingsSection(title = "Content", footnote = "Characters that don't match are hidden from the grid.") {
-                SwitchRow("Proxy", "Only characters whose creator allows proxies", query.proxyOnly, onProxyOnly)
+            SettingsSection(title = "Content") {
+                SwitchRow("Proxy allowed", null, query.proxyOnly, onProxyOnly)
                 NumberRow("Messages at least", null, query.minMessages.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), { onMinMessages(it.toLong()) }, 0..999_999_999)
                 NumberRow("Tokens at least", null, query.minTokens, onMinTokens, 0..999_999)
             }

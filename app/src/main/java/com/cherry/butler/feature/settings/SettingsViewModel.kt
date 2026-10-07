@@ -43,7 +43,26 @@ class SettingsViewModel @Inject constructor(
     private val addons: com.cherry.butler.core.generation.PromptAddons,
     private val fonts: com.cherry.butler.core.data.FontPrefs,
     private val content: com.cherry.butler.core.data.ContentPrefs,
+    private val updates: com.cherry.butler.core.update.UpdateChecker,
 ) : ViewModel() {
+
+    /** Asking GitHub for a newer Butler: on a tap, or on every open when switched on. */
+    val updateAuto: StateFlow<Boolean> = updates.auto
+    fun setUpdateAuto(on: Boolean) = updates.setAuto(on)
+    val currentVersion: String get() = updates.current
+    private val _update = MutableStateFlow<com.cherry.butler.core.update.UpdateChecker.Result?>(null)
+    val update: StateFlow<com.cherry.butler.core.update.UpdateChecker.Result?> = _update.asStateFlow()
+    private val _checkingUpdate = MutableStateFlow(false)
+    val checkingUpdate: StateFlow<Boolean> = _checkingUpdate.asStateFlow()
+    fun checkForUpdate() {
+        if (_checkingUpdate.value) return
+        viewModelScope.launch {
+            _checkingUpdate.value = true
+            _update.value = updates.check()
+            _checkingUpdate.value = false
+        }
+    }
+    fun clearUpdate() { _update.value = null }
 
     /** `allow_mobile_nsfw`, sent with every reply. */
     val allowMobileNsfw: StateFlow<Boolean> = content.allowMobileNsfw

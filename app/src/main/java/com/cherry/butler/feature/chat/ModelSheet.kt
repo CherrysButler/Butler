@@ -194,7 +194,7 @@ fun ModelSheet(
                 )
             }
             Spacer(Modifier.height(4.dp))
-            LinkRow(title = "All model settings", subtitle = "Samplers, prompts, proxies", onClick = onAllSettings)
+            LinkRow(title = "All model settings", subtitle = null, onClick = onAllSettings)
         }
     }
 }

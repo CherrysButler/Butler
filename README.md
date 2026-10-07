@@ -76,6 +76,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * Block characters, creators, tags and keywords.
 * Notifications, plus every notification setting Janitor has.
 * Published chats, with reactions and comments.
+* **Update check, and it's optional.** Tap Settings › Updates › Check for updates, or turn on checking on every open. It only asks GitHub for the latest version and gives you the release page. Nothing downloads or installs by itself, and it stays silent when you're up to date.
 * **Continued support!** I use this every single day, it's not going anywhere.
 
 ## Coming soon!
@@ -105,7 +106,7 @@ check out [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 The code is fully open source, and it'll probably be on F-Droid, which builds the app themselves from this exact code. So it can be audited, and **it will be**.
 
-On top of that, it's easy to show that the app doesn't "call home". It doesn't talk to anything that isn't Janitor (or your own proxy, if you set one), so no command and control servers or anything like that. It doesn't even send diagnostics on its own. If something breaks, you make a report in Settings and send it by hand, only if you want to.
+On top of that, it's easy to show that the app doesn't "call home". It doesn't talk to anything that isn't Janitor (or your own proxy, if you set one), so no command and control servers or anything like that. The one exception is checking GitHub for a new version, and that's optional: tap the button in Settings, or turn on checking on every open. Nothing is downloaded, you just get a link to the release. It doesn't even send diagnostics on its own. If something breaks, you make a report in Settings and send it by hand, only if you want to.
 
 The full list of what it talks to and what it keeps on your phone is in [TRUST.md](TRUST.md).
 
