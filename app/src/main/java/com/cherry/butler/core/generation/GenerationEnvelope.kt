@@ -38,7 +38,7 @@ data class EnvelopeProfile(
 )
 
 /**
- * Builds the `POST /mobile/generateAlpha` body exactly as the official client sends it
+ * Builds the `/generateAlpha` body (the POST, and the JLLM socket's frame) as the website sends it
  * (docs/JANITOR_API.md §18.2). Every key here was observed on the wire; the builder is the single
  * place the shape lives so a server change is a one-file fix.
  *

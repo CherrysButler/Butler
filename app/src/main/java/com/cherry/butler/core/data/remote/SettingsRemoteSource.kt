@@ -35,8 +35,9 @@ class SettingsRemoteSource @Inject constructor(
     private fun decode(body: String) = json.decodeFromString(ApiSettingsDto.serializer(), body)
 
     /**
-     * `GET /mobile/generateAlpha/budget` → `{has_premium, bypassed, enhancement_credits, rolling,
-     * weekly, soft_warning_pct}` (✅ 2026-10-04). On a free account the three allowances are null.
+     * `GET /generateAlpha/budget` → `{has_premium, bypassed, enhancement_credits, rolling,
+     * weekly, soft_warning_pct}` (✅ 2026-10-04 on the mobile route; the website route answers the
+     * same, 2026-10-08). On a free account the three allowances are null.
      * When one is an object, §7.3 documents `{remaining, total, reset_at}`; the first such is
      * returned as "remaining of total". Never verified on a paid account.
      */

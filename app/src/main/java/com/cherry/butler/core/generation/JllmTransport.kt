@@ -29,8 +29,10 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 /**
- * JLLM over the WebSocket at `/mobile/generateAlpha` (docs/JANITOR_API.md §19.4; the mobile route
- * answers the upgrade with 101, verified 2026-10-03).
+ * JLLM over the website's WebSocket at `/generateAlpha` (docs/JANITOR_API.md §19.4), with the
+ * website's handshake headers (captured from Firefox, 2026-10-06). The official app's
+ * `/mobile/generateAlpha` socket took the same frames until Janitor's firewall began turning
+ * other clients away from it (2026-10-08).
  *
  * One socket per generation: the website multiplexes requests over one socket, but a
  * per-generation socket makes cancellation, failure and reconnection trivially correct —
@@ -64,7 +66,17 @@ class JllmTransport(
 
         var finished = false
         val socket = client.newWebSocket(
-            Request.Builder().url(URL).build(),
+            Request.Builder().url(URL)
+                .header("Accept", "*/*")
+                .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Origin", JanitorConfig.LLM_BASE)
+                .header("Sec-GPC", "1")
+                .header("Sec-Fetch-Dest", "empty")
+                .header("Sec-Fetch-Mode", "websocket")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("Pragma", "no-cache")
+                .header("Cache-Control", "no-cache")
+                .build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     webSocket.send(frame)

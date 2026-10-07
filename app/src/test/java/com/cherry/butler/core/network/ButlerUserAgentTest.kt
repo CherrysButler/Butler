@@ -10,9 +10,13 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 class ButlerUserAgentTest {
 
@@ -45,35 +49,49 @@ class ButlerUserAgentTest {
 
     private val send = Request.Builder().url("https://janitorai.com/generateAlpha").build()
     private val blockPage = "<html><title>Access Restricted</title></html>"
+    private val firefox = BrowserUserAgent.pick(not = "Chrome/1 Safari/1", random = Random(1))
+        .let { if (BrowserUserAgent.familyOf(it) == BrowserUserAgent.Family.Firefox) it else "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0" }
 
     @Before @After
-    fun fresh() = ButlerUserAgent.reset()
+    fun fresh() = ButlerUserAgent.reset(firefox)
 
     @Test
-    fun `calls say they are butler`() {
+    fun `calls go out as the device's browser`() {
         val chain = FakeChain(send) { 200 to "{}" }
         ButlerUserAgent.intercept(chain)
-        assertEquals(listOf(ButlerUserAgent.VALUE), chain.sent)
+        assertEquals(listOf(firefox), chain.sent)
+        assertNotNull(BrowserUserAgent.familyOf(ButlerUserAgent.current))
     }
 
     @Test
-    fun `a firewall block on butler's name is retried as firefox, and firefox sticks`() {
-        val chain = FakeChain(send) { r -> if (r.header("User-Agent") == ButlerUserAgent.VALUE) 403 to blockPage else 200 to "{}" }
+    fun `a firewall block is retried as another browser, which then sticks`() {
+        val chain = FakeChain(send) { r -> if (r.header("User-Agent") == firefox) 403 to blockPage else 200 to "{}" }
         assertEquals(200, ButlerUserAgent.intercept(chain).code)
-        assertEquals(listOf(ButlerUserAgent.VALUE, ButlerUserAgent.FIREFOX), chain.sent)
-        assertEquals(ButlerUserAgent.FIREFOX, ButlerUserAgent.current)
+        assertEquals(2, chain.sent.size)
+        assertEquals(firefox, chain.sent[0])
+        val other = chain.sent[1]!!
+        assertNotEquals(BrowserUserAgent.Family.Firefox, BrowserUserAgent.familyOf(other))
+        assertEquals(other, ButlerUserAgent.current)
 
         val next = FakeChain(send) { 200 to "{}" }
         ButlerUserAgent.intercept(next)
-        assertEquals(listOf(ButlerUserAgent.FIREFOX), next.sent)
+        assertEquals(listOf(other), next.sent)
+    }
+
+    @Test
+    fun `a block on both browsers keeps the device's`() {
+        val chain = FakeChain(send) { 403 to blockPage }
+        assertEquals(403, ButlerUserAgent.intercept(chain).code)
+        assertEquals(2, chain.sent.size)
+        assertEquals(firefox, ButlerUserAgent.current)
     }
 
     @Test
     fun `janitor's own refusal is not retried`() {
         val chain = FakeChain(send) { 403 to """{"message":"no"}""" }
         assertEquals(403, ButlerUserAgent.intercept(chain).code)
-        assertEquals(listOf(ButlerUserAgent.VALUE), chain.sent)
-        assertEquals(ButlerUserAgent.VALUE, ButlerUserAgent.current)
+        assertEquals(listOf(firefox), chain.sent)
+        assertEquals(firefox, ButlerUserAgent.current)
     }
 
     @Test
@@ -81,6 +99,20 @@ class ButlerUserAgentTest {
         val proxy = Request.Builder().url("https://openrouter.ai/api/v1/chat/completions").build()
         val chain = FakeChain(proxy) { 403 to blockPage }
         ButlerUserAgent.intercept(chain)
-        assertEquals(listOf(ButlerUserAgent.VALUE), chain.sent)
+        assertEquals(listOf(firefox), chain.sent)
+    }
+
+    @Test
+    fun `the pool is real browsers and a retry changes family`() {
+        repeat(50) { seed ->
+            val ua = BrowserUserAgent.pick(random = Random(seed))
+            assertTrue(ua, ua.startsWith("Mozilla/5.0 ("))
+            val family = BrowserUserAgent.familyOf(ua)
+            assertNotNull(ua, family)
+            assertNotEquals(family, BrowserUserAgent.familyOf(BrowserUserAgent.pick(not = ua, random = Random(seed + 1))))
+        }
+        assertEquals(BrowserUserAgent.Family.Edge, BrowserUserAgent.familyOf("Mozilla/5.0 (Windows NT 10.0) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0"))
+        assertEquals(BrowserUserAgent.Family.Safari, BrowserUserAgent.familyOf("Mozilla/5.0 (Macintosh) Version/26.1 Safari/605.1.15"))
+        assertEquals(null, BrowserUserAgent.familyOf("Butler/0.3.0"))
     }
 }

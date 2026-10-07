@@ -46,10 +46,10 @@ class UpdateChecker @Inject constructor(
     }
 
     private val prefs = context.getSharedPreferences("butler_prefs", Context.MODE_PRIVATE)
-    // GitHub is not Janitor: none of Butler's Janitor interceptors or cookies, only its name.
+    // GitHub is not Janitor: none of Butler's Janitor interceptors or cookies. It gets Butler's
+    // own name (GitHub's API asks who is calling), not the browser name Janitor sees.
     private val http = client.newBuilder()
         .apply { interceptors().clear(); networkInterceptors().clear() }
-        .addInterceptor(com.cherry.butler.core.network.ButlerUserAgent)
         .cookieJar(okhttp3.CookieJar.NO_COOKIES)
         .build()
 
@@ -70,6 +70,7 @@ class UpdateChecker @Inject constructor(
             val request = Request.Builder()
                 .url(LATEST)
                 .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", com.cherry.butler.core.network.ButlerUserAgent.APP)
                 .build()
             http.newCall(request).execute().use { r ->
                 if (!r.isSuccessful) return@withContext Result.Failed("GitHub answered ${r.code}")

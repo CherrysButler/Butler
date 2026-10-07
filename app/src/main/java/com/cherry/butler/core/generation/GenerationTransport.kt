@@ -133,15 +133,15 @@ class HttpGenerationTransport(
     private fun webRequest(envelope: JsonObject): Request {
         val chat = envelope["chat"]?.jsonObject
         return Request.Builder()
-            .url("${JanitorConfig.WEB_LLM_BASE}/generateAlpha")
+            .url("${JanitorConfig.LLM_BASE}/generateAlpha")
             // `application/json` exactly, as the website's; a String body would add a charset.
             .post(envelope.toString().toByteArray().toRequestBody(webJsonMedia))
             .header("Accept", "text/event-stream")
             .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Referer", "${JanitorConfig.WEB_LLM_BASE}/chats/${chat?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()}")
+            .header("Referer", "${JanitorConfig.LLM_BASE}/chats/${chat?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()}")
             .apply { chat?.get("user_id")?.jsonPrimitive?.contentOrNull?.let { header("X-Request-ID", it) } }
             .header("x-app-version", JanitorConfig.WEB_APP_VERSION)
-            .header("Origin", JanitorConfig.WEB_LLM_BASE)
+            .header("Origin", JanitorConfig.LLM_BASE)
             .header("Sec-GPC", "1")
             .header("Alt-Used", "janitorai.com")
             .header("Sec-Fetch-Dest", "empty")

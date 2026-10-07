@@ -18,15 +18,14 @@ object JanitorConfig {
 
     // Backend REST + LLM services
     const val BACKEND_BASE = "https://janitorai.com/mb"
-    const val LLM_BASE = "https://janitorai.com/mobile"
     /**
-     * The website's generation route. Unlike [LLM_BASE] (where Janitor calls the proxy itself
-     * and relays its stream), here Janitor only assembles the prompt and hands back the
-     * OpenAI payload; the device then sends it to the user's proxy (captured 2026-09-23, six
-     * of six calls; docs/JANITOR_API.md §18.1). That is what lets Butler add OpenRouter's `provider`
-     * or a preset model before sending.
+     * The website's generation routes: `POST /generateAlpha` for a proxy (Janitor assembles the
+     * prompt and hands the OpenAI payload back for the device to send; captured 2026-09-23,
+     * docs/JANITOR_API.md §18.1) and the WebSocket at `/generateAlpha` for JLLM. The official
+     * app's `/mobile/…` routes are gone from Butler: Janitor's firewall began turning them away
+     * for every client that was not its own app (2026-10-08), and the website's pass.
      */
-    const val WEB_LLM_BASE = "https://janitorai.com"
+    const val LLM_BASE = "https://janitorai.com"
 
     /** The website build's `x-app-version`, sent with generation calls as the website does. */
     const val WEB_APP_VERSION = "10.0.0.116"
@@ -77,7 +76,7 @@ object JanitorConfig {
     const val OAUTH_REDIRECT = "$OAUTH_SCHEME://$OAUTH_HOST/discord"
 
     /**
-     * The `clientPlatform` Butler declares on `POST /mobile/generateAlpha`.
+     * The `clientPlatform` Butler declares on `/generateAlpha`.
      *
      * Verified 2026-09-23 (docs/JANITOR_API.md section 24): with "mobile", Janitor makes the
      * upstream call to the user's proxy itself and streams the result; with "web", it

@@ -34,6 +34,7 @@ object DataModule {
         keeper: SessionKeeper,
     ): OkHttpClient {
         DebugProxy.load(context)
+        ButlerUserAgent.load(context)
         com.cherry.butler.core.network.CloudflareGate.init(context)
         com.cherry.butler.core.network.JanitorCookies.init(context)
         return OkHttpClient.Builder()

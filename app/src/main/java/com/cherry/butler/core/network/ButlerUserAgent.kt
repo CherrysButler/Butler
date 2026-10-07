@@ -1,5 +1,7 @@
 package com.cherry.butler.core.network
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.cherry.butler.BuildConfig
 import com.cherry.butler.core.diagnostics.Diagnostics
@@ -7,49 +9,88 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * Every call says it is Butler: `Butler/<version>`. Janitor's firewall turned away the website's
- * generation route with OkHttp's own `okhttp/4.12.0` and let the same request through as
- * `Butler/0.2.3` (2026-10-07). Clients that drop Butler's interceptors on purpose (the user's
- * proxy, storage uploads) add this one back, so no call goes out as OkHttp.
+ * The User-Agent Butler's calls go out with: an ordinary browser's, drawn at random from
+ * [BrowserUserAgent] when the app first runs and kept from then on, in every call and in the
+ * sign-in WebView alike. Kept, because Cloudflare's clearance cookie from the sign-in Turnstile
+ * is bound to the User-Agent it was earned under: change the name and the cookie is worthless.
  *
- * Should the firewall start turning `Butler/` away too (its "Access Restricted" page, nothing
- * Janitor said), the call is made once more as Firefox, the browser the website's request was
- * captured from, which passed the same firewall. Calls then stay on Firefox for [FALLBACK_MS]
- * before Butler's own name is tried again. Only janitorai.com is ever retried.
+ * Why a browser's: Janitor's firewall judges by this header. It turned away OkHttp's own
+ * `okhttp/4.12.0` (2026-10-07), then `Butler/0.3.0` by name on the mobile route (2026-10-08),
+ * both while the website's browser went through. A browser's name is what the website's own
+ * requests carry, so it is what the firewall is tuned to pass.
+ *
+ * Should the firewall turn the chosen browser away ("Access Restricted", nothing Janitor said),
+ * the call is made once more as a different browser; if that one passes, it becomes the device's
+ * from then on. Only janitorai.com is ever retried. Clients that drop Butler's interceptors on
+ * purpose (the user's proxy, storage uploads) add this one back, so no call goes out as OkHttp.
+ *
+ * Butler's own name, [APP], goes only to GitHub's API (the update check), which asks who calls.
  */
 object ButlerUserAgent : Interceptor {
-    const val VALUE = "Butler/" + BuildConfig.VERSION_NAME
+    const val APP = "Butler/" + BuildConfig.VERSION_NAME
 
-    /** The website's capture (2026-10-07). */
-    const val FIREFOX = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0"
+    private const val PREFS = "butler_prefs"
+    private const val KEY = "user_agent"
 
-    const val FALLBACK_MS = 60 * 60_000L
+    private var prefs: SharedPreferences? = null
 
-    @Volatile private var fallbackUntil = 0L
+    @Volatile private var chosen: String = BrowserUserAgent.pick()
 
     /** The User-Agent calls go out with right now (the sign-in WebView uses it too). */
-    val current: String get() = if (System.currentTimeMillis() < fallbackUntil) FIREFOX else VALUE
+    val current: String get() = chosen
 
-    /** For tests: back to Butler's own name. */
-    internal fun reset() {
-        fallbackUntil = 0L
+    /** Reads the device's browser, choosing one the first time. */
+    fun load(context: Context) {
+        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs = p
+        val saved = p.getString(KEY, null)
+        if (saved != null && BrowserUserAgent.familyOf(saved) != null) {
+            chosen = saved
+        } else {
+            keep(BrowserUserAgent.pick())
+        }
+    }
+
+    private fun keep(userAgent: String) {
+        chosen = userAgent
+        prefs?.edit()?.putString(KEY, userAgent)?.apply()
+    }
+
+    /** For tests: a known browser, nothing saved. */
+    internal fun reset(userAgent: String = BrowserUserAgent.pick()) {
+        prefs = null
+        chosen = userAgent
     }
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        val ua = current
+        val ua = chosen
         val response = chain.proceed(request.newBuilder().header("User-Agent", ua).build())
-        if (ua == FIREFOX || response.code != 403 || !isJanitor(request.url.host)) return response
-        val body = runCatching { response.peekBody(PEEK).string() }.getOrDefault("")
-        if (CloudflareGate.classify(response, body) != CloudflareGate.Kind.Block) return response
+        if (response.code != 403 || !isJanitor(request.url.host)) return response
+        if (!blocked(response)) return response
 
         response.close()
-        fallbackUntil = System.currentTimeMillis() + FALLBACK_MS
+        val other = BrowserUserAgent.pick(not = ua)
         val path = request.url.encodedPath
-        Diagnostics.record("ua", "$VALUE blocked by the firewall on ${request.method} $path; Firefox for an hour")
-        runCatching { Log.w(TAG, "$VALUE blocked on $path; retrying as Firefox, and staying on it for an hour") }
-        return chain.proceed(request.newBuilder().header("User-Agent", FIREFOX).build())
+        Diagnostics.record("ua", "${name(ua)} blocked by the firewall on ${request.method} $path; trying ${name(other)}")
+        runCatching { Log.w(TAG, "${name(ua)} blocked on $path; retrying as ${name(other)}") }
+        val retry = chain.proceed(request.newBuilder().header("User-Agent", other).build())
+        if (retry.code == 403 && blocked(retry)) {
+            // Not the name, then: the firewall is after something else. The device keeps its browser.
+            Diagnostics.record("ua", "${name(other)} blocked too on ${request.method} $path; keeping ${name(ua)}")
+            return retry
+        }
+        keep(other)
+        Diagnostics.record("ua", "${name(other)} passed; the device is ${name(other)} from now on")
+        return retry
     }
+
+    private fun blocked(response: Response): Boolean {
+        val body = runCatching { response.peekBody(PEEK).string() }.getOrDefault("")
+        return CloudflareGate.classify(response, body) == CloudflareGate.Kind.Block
+    }
+
+    private fun name(ua: String) = BrowserUserAgent.familyOf(ua)?.name ?: ua
 
     private fun isJanitor(host: String) = host == "janitorai.com" || host.endsWith(".janitorai.com")
 
