@@ -10,7 +10,7 @@
 
 ## Download!
 
-<a href="https://github.com/CherrysButler/Butler/releases/latest"><img src="https://img.shields.io/github/v/release/CherrysButler/Butler?style=for-the-badge&label=Download&color=EA5A4F" alt="Download the latest release"></a>
+<a href="https://github.com/CherrysButler/Butler/releases/latest"><img src="https://img.shields.io/github/v/release/CherrysButler/Butler?style=for-the-badge&label=Download&color=EA5A4F" alt="Download the latest release"></a> <a href="https://discord.gg/Kh5z9Cb5F"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the Discord"></a>
 
 Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/releases/latest) and install it. Your phone will ask you to allow installs from your browser or file manager, that's normal. Needs Android 8.0 or newer.
 
@@ -31,7 +31,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 ### 🧈 Butler specials (the surprise!)
 
 * **Butter mode.** The model marks the parts of a reply that actually hold the juicy stuff that's required to progress the scene. Tap the butter and the reply folds down to just those, perfect for catching up on a long scene.
-* **Highlights.** After a reply, Butler asks your model which lines are romantic, dangerous, sad, funny or spicy, and gives them a soft highlight. The reply itself never changes.
+* **Highlights.** After a reply, Butler asks your model which lines are romantic, dangerous, sad, funny or spicy, and gives them a soft highlight. The reply itself never changes. The prompt it asks with is yours to edit, if your model needs steering.
 * **Rich typing.** " * B keys right on the message box, and the formatting shows as you type, like Discord. *Actions* have never been this easy to write.
 * **Description writer.** Write a few lines about your persona, tap ✦ Enhance, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote. Undo if you liked yours better.
   
@@ -47,6 +47,13 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Choices button.** Lazy to actually type something? short choices can be provided by your model/JLLM to choose.
 * **Better error handling!** Your message is saved before it's even sent. If the network shits itself, Butler retries by itself with a countdown. If a reply dies halfway through, you keep what came in and hit Continue.
 * **The little thing.** Edit anything, including the first message as this is not included by JanitorAi main app.
+* **Added missing: JLLM custom prompt.** Pick any of your saved prompts for JLLM, like on the website. And the NSFW-on-mobile switch Janitor has, in Settings › Model.
+
+### 🔎 Finding bots
+
+* **Creator profiles.** Tap *by @creator* on any character and you get their page: their characters, their lorebooks, Follow, and their bio the way they styled it, colours, centering and their CSS included.
+* **Added missing: tag search and filtering.** Tags have a row of their own under Popular and Trending, in colour. Search by creators' own tags too, like #kinktober, with the popular ones suggested as you go.
+* **Favorites and Following** are right there on the home screen, one tap each. No more digging through filters.
 
 ### 🎨 Make it yours
 
@@ -82,7 +89,8 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 
 ## Coming soon!
 
-* **CSS rendering in-chat**, for a more immersive (and honestly cooler) experience.
+* **CSS rendering in-chat**, for a more immersive (and honestly cooler) experience. (Creator profiles already render theirs.)
+* **Lorebooks that actually get used.**
 * (Possibly) Multiple characters together in one chat!
 
 ## Why was this made?
@@ -98,6 +106,8 @@ For **ordinary** users? No. but if you make bots, you're probably still on the w
 ## Found a bug? Got an idea?
 
 Bugs go in [Issues](https://github.com/CherrysButler/Butler/issues). If you can, paste the report from Settings › App › Report a problem, it helps a ton. Ideas, questions and everything else go in [Discussions](https://github.com/CherrysButler/Butler/discussions).
+
+Or just come hang out on the [Discord](https://discord.gg/Kh5z9Cb5F): updates, previews of what's coming, and the fastest way to reach me.
 
 ## Performance?
 
