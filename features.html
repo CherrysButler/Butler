@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Features · Butler</title>
+<meta name="description" content="Everything Butler does: Butler specials, chatting, themes, privacy and proxy tools.">
+<meta name="theme-color" content="#17181B">
+<meta property="og:title" content="Features · Butler">
+<meta property="og:description" content="Everything Butler does: Butler specials, chatting, themes, privacy and proxy tools.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="frame">
+  <div class="field" aria-hidden="true"><canvas data-field></canvas></div>
+  <header class="wrap nav">
+  <a class="brand" href="index.html"><img src="assets/bowtie.svg" alt="" width="34" height="18">Butler</a>
+  <nav class="links" aria-label="Pages"><a href="features.html" aria-current="page">Features</a><a href="download.html">Download</a><a href="privacy.html">Privacy</a><a href="faq.html">FAQ</a></nav>
+  <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+</header>
+  <section class="wrap page-hero">
+    <h1>Everything Butler does.</h1>
+    <p>The things you'd expect from Janitor, done steadier, and a handful of Butler specials on top.</p>
+  </section>
+</div>
+<main id="main" class="wrap">
+<section class="section" aria-label="Two features running">
+  <div class="showcase">
+    <div class="tile">
+      <h2><span class="icon" aria-hidden="true">psychology</span> Readable thinking</h2>
+      <div class="think" aria-hidden="true"><b>Brewing…</b><canvas data-think></canvas></div>
+      <p>The same drifting field the app shows while a model thinks. Tap it in the app and the whole thought opens in a sheet.</p>
+    </div>
+    <div class="tile">
+      <h2><span class="icon" aria-hidden="true">loop</span> Agent mode <span class="beta">BETA</span></h2>
+      <ul class="agent" data-agent aria-hidden="true">
+        <li><span class="icon" aria-hidden="true">psychology</span>Reasoning<span class="icon tick">check</span></li>
+        <li><span class="icon" aria-hidden="true">edit</span>Draft<span class="icon tick">check</span></li>
+        <li><span class="icon" aria-hidden="true">fact_check</span>Check 1 of 2<span class="icon tick">check</span></li>
+        <li><span class="icon" aria-hidden="true">build</span>Fixes<span class="icon tick">check</span></li>
+        <li><span class="icon" aria-hidden="true">check_circle</span>Delivered<span class="icon tick">check</span></li>
+      </ul>
+      <p>Every step shows in the thought panel, and each one opens to what happened inside.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="f-specials">
+  <div class="section-head"><div><h2 class="head" id="f-specials">Butler specials</h2><p>Butter, Highlights, Pictures and Agent mode run on your own model, so they cost tokens, and how well they work depends on how well your model follows instructions.</p></div></div>
+  <div class="demos"><div class="demo wide">
+      <h3><span class="icon" aria-hidden="true">bakery_dining</span> Butter mode</h3>
+      <div class="stage">
+        <div class="who"><b>Mira</b><button class="butter-key" type="button" data-butter-key aria-pressed="false"><span class="icon" aria-hidden="true">bakery_dining</span>Butter</button></div>
+        <div class="fold" data-butter>
+          <p class="prose full"><span class="beat">She finally sets the lantern down</span>, though her hand stays on it a moment too long, as if letting go of the light meant letting go of something else. The cellar air is cold and smells of turned earth. <q>The door was open,</q> she repeats, more to herself than to you, <span class="beat">and reaches for the key on her belt. It isn't there.</span> <span class="beat"><q>Someone has my key.</q></span></p>
+          <ul class="beats" aria-label="The reply folded to its key beats">
+            <li>She finally sets the lantern down.</li>
+            <li>She reaches for the key on her belt. It isn't there.</li>
+            <li><q>Someone has my key.</q></li>
+          </ul>
+        </div>
+      </div>
+      <p>Your model marks the parts of a reply that move the scene. Tap the butter and a long reply folds down to just those.</p>
+    </div><div class="demo">
+      <h3><span class="icon" aria-hidden="true">highlight</span> Highlights</h3>
+      <div class="stage" data-highlights>
+        <p class="prose"><span class="hl hl-romance">He tucks the loose strand behind her ear</span> before he can stop himself. <span class="hl hl-danger">Somewhere above them, a floorboard creaks.</span> <span class="hl hl-funny"><q>That,</q> he says, <q>was absolutely the cat.</q></span></p>
+      </div>
+      <div class="legend" aria-hidden="true"><span style="--c:#F28FAD">Romantic</span><span style="--c:#F06B60">Dangerous</span><span style="--c:#9CC3F0">Sad</span><span style="--c:#F2B35E">Funny</span></div>
+      <p>After each reply, lines get a soft tint by mood. The words never change.</p>
+    </div><div class="demo">
+      <h3><span class="icon" aria-hidden="true">format_quote</span> Rich typing</h3>
+      <div class="marks" aria-hidden="true"><span data-k="speech">"</span><span data-k="action">*</span><span data-k="bold">B</span></div>
+      <div class="composer" data-typing aria-label="A line styling itself as it is typed"><span class="typed"></span><span class="send"><span class="icon" aria-hidden="true">arrow_upward</span></span></div>
+      <p>Speech, action and bold keys on the message box, and the marks show as you type.</p>
+    </div></div><div class="group"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">auto_awesome</span></span><div><h3>Description writer</h3><p>Write a few lines about your persona, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">image</span></span><div><h3>Pictures in your message <span class="beta">BETA</span></h3><p>Put a picture in your line and a model of yours that can see writes it in, in your voice, right where you put it. You read it, then send. Nothing of the picture goes to Janitor.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">loop</span></span><div><h3>Agent mode <span class="beta">BETA</span></h3><p>The reply is drafted, checked against goals strictly, fixed where it fails, and only then delivered. You pick the effort and add your own goals. For reasoning models on a proxy.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="f-chat">
+  <div class="section-head"><div><h2 class="head" id="f-chat">Chatting</h2></div></div>
+  <div class="showcase" style="margin-bottom:16px"><div class="demo">
+      <h3><span class="icon" aria-hidden="true">refresh</span> Rerolls that stack</h3>
+      <div class="stage">
+        <div class="picks" data-picks aria-hidden="true"><span>Shorter</span><span>Longer</span><span>More dialogue</span><span>Less narration</span><span>Slow down</span><span>More emotional</span><span>Take it somewhere new</span></div>
+        <div class="reroll-key" style="margin-top:14px" aria-hidden="true"><span class="icon" aria-hidden="true">refresh</span><span data-picks-label>Try again</span></div>
+      </div>
+      <p>Pick as many as you like, add your own words, and the reroll asks for all of it at once.</p>
+    </div><div class="tile"><h2><span class="icon" aria-hidden="true">format_list_bulleted</span> Your own thinking words</h2><div class="wordlists" aria-hidden="true"><div class="wl"><div><b>Claude's list (Butler default)</b><span class="num">150 words · Pondering, Brewing, Noodling</span></div><i class="sw on"></i></div><div class="wl"><div><b>My words</b><span>Plotting, Scheming, Overthinking</span></div><i class="sw on"></i></div><div class="wl"><div><b>Spooky season</b><span>Haunting, Lurking, Creaking</span></div><i class="sw"></i></div></div><p>Edit Claude's list, or add lists of your own and switch any of them on and off. Every list that's on is used.</p></div></div>
+  <div class="group two"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">chrome_reader_mode</span></span><div><h3>A chat that's nice to read</h3><p>Three layouts, Story, Bubbles or Janitor-style with avatars, and a reading font with real italics so <em>*actions*</em> look like actions.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">psychology</span></span><div><h3>Readable thinking</h3><p>A proper animation while the model thinks, and the whole thought opens in its own sheet. The thinking words are yours to change: edit Claude's list or add your own.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">refresh</span></span><div><h3>Guided rerolls</h3><p>Don't like a reply? Say what to change before it rerolls: shorter, more dialogue, slow down. They stack, and you can type your own.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">checklist</span></span><div><h3>Choices</h3><p>Too lazy to type? Your model or JLLM offers a few short replies to pick from.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">cloud_sync</span></span><div><h3>Errors handled properly</h3><p>Saved before it's sent, retried by itself with a countdown, and a reply cut short keeps what came in so Continue can finish it.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">edit</span></span><div><h3>Edit anything</h3><p>Every message, including the first one, which the official app won't let you touch.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">share</span></span><div><h3>Share a bot</h3><p>A share key on any character page hands its link to your phone's share sheet.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">manage_accounts</span></span><div><h3>Edit your persona mid-chat</h3><p>A pencil beside each persona in Play as opens its editor, then you're back in the chat.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">keyboard_hide</span></span><div><h3>The keyboard goes down when you send</h3><p>Unless you'd rather it stayed up.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="f-yours">
+  <div class="section-head"><div><h2 class="head" id="f-yours">Make it yours</h2></div></div>
+  <div class="demo" style="margin-bottom:16px">
+      <h3><span class="icon" aria-hidden="true">palette</span> Four looks</h3>
+      <div class="looks" aria-label="Butler's looks">
+        <div class="look" style="--lk-ground:#2B2E33;--lk-card:#363A40;--lk-edge:#555A63;--lk-ink:#F3F3F1;--lk-low:#A5A9B0;--lk-accent:#EA5A4F;--lk-speech:#9CC3F0;--lk-r:8px">
+        <div class="lk-name">Janitor Classic</div>
+        <div class="lk-card"><b>Mira</b><q>Your turn.</q> She waits.</div>
+        <div class="lk-key"></div>
+      </div>
+        <div class="look" style="--lk-ground:#000000;--lk-card:#0A0A0A;--lk-edge:#3A3A38;--lk-ink:#F2EFE6;--lk-low:#8A877F;--lk-accent:#E0453A;--lk-speech:#9CC3F0;--lk-r:3px">
+        <div class="lk-name">Lights out</div>
+        <div class="lk-card"><b>Mira</b><q>Your turn.</q> She waits.</div>
+        <div class="lk-key"></div>
+      </div>
+        <div class="look" style="--lk-ground:#F2F1EE;--lk-card:#FFFFFF;--lk-edge:#C9C8C3;--lk-ink:#17181B;--lk-low:#7D8087;--lk-accent:#CF3A30;--lk-speech:#2B63B5;--lk-r:8px">
+        <div class="lk-name">Daylight</div>
+        <div class="lk-card"><b>Mira</b><q>Your turn.</q> She waits.</div>
+        <div class="lk-key"></div>
+      </div>
+        <div class="look" style="--lk-ground:#1E2430;--lk-card:#283040;--lk-edge:#3A4558;--lk-ink:#EEF1F6;--lk-low:#A0A9B8;--lk-accent:#C3A8EE;--lk-speech:#9CC3F0;--lk-r:12px">
+        <div class="lk-name">Custom</div>
+        <div class="lk-card"><b>Mira</b><q>Your turn.</q> She waits.</div>
+        <div class="lk-key"></div>
+      </div>
+      </div>
+      <p>Classic, Lights out, Daylight, or your own accent and background, down to how round the corners are.</p>
+    </div>
+  <div class="group two"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">palette</span></span><div><h3>Themes</h3><p>Janitor Classic, Lights out, Daylight, and Custom: pick an accent and a background and Butler builds the rest, down to how round the corners are.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">format_paint</span></span><div><h3>Markdown your way</h3><p>Your own colours for speech, thoughts, actions and the rest, from a real colour wheel.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">text_fields</span></span><div><h3>Fonts</h3><p>One font for chats, one for the rest of the app. A handful built in, or add your own .ttf or .otf.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">wallpaper</span></span><div><h3>Backgrounds</h3><p>A library of pictures, one for every chat or a different one per chat.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">view_list</span></span><div><h3>Home your way</h3><p>Endless scroll or pages, and it keeps your place when you come back from a character.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">push_pin</span></span><div><h3>Pin and archive chats</h3><p>Telegram style, saved to your Janitor account as folders so they follow you to any phone.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="f-private">
+  <div class="section-head"><div><h2 class="head" id="f-private">Just yours</h2></div></div>
+  <div class="group"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">fingerprint</span></span><div><h3>Lock the app</h3><p>With your fingerprint, face or screen lock. The recents screen shows a blank card and notifications hide what was said.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">autorenew</span></span><div><h3>Replies finish in the background</h3><p>Lock your phone mid-reply and it's waiting when you come back, even on phones that love killing apps.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="f-proxy">
+  <div class="section-head"><div><h2 class="head" id="f-proxy">Proxy nerd stuff</h2></div></div>
+  <div class="group two"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">content_copy</span></span><div><h3>Clone proxy presets</h3><p>One tap copies a proxy, key and all, without the key ever showing on screen.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">alt_route</span></span><div><h3>Better OpenRouter handling</h3><p>Presets, provider order and fallbacks, sorted by price, speed or latency.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">data_usage</span></span><div><h3>Context from inside the chat</h3><p>See how full your context is without leaving the scene.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">tune</span></span><div><h3>Thinking levels</h3><p>Low, medium, high and more for OpenRouter models that think, set per proxy.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">swap_horiz</span></span><div><h3>Write for me, on another model</h3><p>Kimi for the bot, DeepSeek for your lines, whatever you like.</p></div></div></div>
+</section>
+
+<section class="section">
+  <div class="close">
+    <div>
+      <h2>Free, open source, and on your phone in a minute.</h2>
+      <p>Talk to us, ask for a feature, or just say hi on Discord.</p>
+    </div>
+    <div class="acts">
+      <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+      <a class="key quiet" href="https://discord.gg/Kh5z9Cb5F"><span class="icon" aria-hidden="true">forum</span><span>Join the Discord</span></a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site">
+  <div class="wrap">
+    <span>Butler is unofficial and not affiliated with JanitorAI. Open source under Apache-2.0.</span>
+    <nav aria-label="More">
+      <a href="https://github.com/CherrysButler/Butler">GitHub</a>
+      <a href="https://discord.gg/Kh5z9Cb5F">Discord</a>
+      <a href="https://github.com/CherrysButler/Butler/releases">Releases</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

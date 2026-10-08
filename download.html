@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download · Butler</title>
+<meta name="description" content="Download the newest Butler APK, with its VirusTotal scan, checksum, signing key and every release's notes.">
+<meta name="theme-color" content="#17181B">
+<meta property="og:title" content="Download · Butler">
+<meta property="og:description" content="Download the newest Butler APK, with its VirusTotal scan, checksum, signing key and every release's notes.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="frame">
+  <div class="field" aria-hidden="true"><canvas data-field></canvas></div>
+  <header class="wrap nav">
+  <a class="brand" href="index.html"><img src="assets/bowtie.svg" alt="" width="34" height="18">Butler</a>
+  <nav class="links" aria-label="Pages"><a href="features.html">Features</a><a href="download.html" aria-current="page">Download</a><a href="privacy.html">Privacy</a><a href="faq.html">FAQ</a></nav>
+  <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+</header>
+  <section class="wrap page-hero">
+    <h1>Get Butler.</h1>
+    <p>One APK, signed with the same key since 0.1 and scanned on VirusTotal by the release workflow before it reaches you.</p>
+  </section>
+</div>
+<main id="main" class="wrap">
+<section class="section first" aria-label="Latest release">
+  <div class="cols-2">
+    <aside class="panel" data-panel aria-labelledby="check-dl">
+      <div class="panel-head">
+        <h2 id="check-dl">The latest release, checked</h2>
+        <button class="recheck" type="button" data-recheck><span class="icon" aria-hidden="true">refresh</span>Check again</button>
+      </div>
+      <ul class="checks" aria-live="polite">
+        <li class="check" data-check="version" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Latest release</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="scan" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Malware scan</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="sha" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">SHA-256 of the APK</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="key" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Signing key</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="source" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Source code</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+      </ul>
+      <div class="panel-foot">
+        <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span data-download-label>Download Butler</span><span class="num" data-download-size></span></a>
+        <p class="fine">Android 8 and up · <a href="download.html">Install steps and every release</a></p>
+      </div>
+    </aside>
+    <div>
+      <div class="group">
+        <ol class="steps">
+          <li><div><b>Download the APK</b><p>The red key gets the newest one, straight from GitHub.</p></div></li>
+          <li><div><b>Open it</b><p>Android asks whether your browser may install apps. Allow it once; that's normal for anything outside the Play Store.</p></div></li>
+          <li><div><b>Install</b><p>It installs over any earlier Butler and keeps your chats and settings.</p></div></li>
+          <li><div><b>Sign in</b><p>With your Janitor account: Google, Discord or e-mail. Cloudflare may ask you to tap its box once.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="verify">
+  <div class="section-head"><div>
+    <h2 class="head" id="verify">Check it yourself</h2>
+    <p>You don't have to take the panel's word for it. On a computer, these two commands show the same numbers.</p>
+  </div></div>
+  <div class="group">
+    <div class="row"><span class="glyph"><span class="icon" aria-hidden="true">tag</span></span><div><h3>The checksum</h3><p>Should match the SHA-256 on the release page and in its SHA256SUMS.txt.</p><pre class="cmd">sha256sum Butler-<span data-latest-version>0.4.1</span>.apk</pre></div></div>
+    <div class="row"><span class="glyph"><span class="icon" aria-hidden="true">verified</span></span><div><h3>The signature</h3><p>The certificate's SHA-256 digest should read <span class="num">664e07a5…f61cb5c1562d</span>, the same for every release.</p><pre class="cmd">apksigner verify --print-certs Butler-<span data-latest-version>0.4.1</span>.apk</pre></div></div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="log">
+  <div class="section-head"><div>
+    <h2 class="head" id="log">Every release</h2>
+    <p>Newest first, with what changed, its own scan and its own checksum.</p>
+  </div>
+  <a class="more" href="https://github.com/CherrysButler/Butler/releases">On GitHub<span class="icon" aria-hidden="true">arrow_forward</span></a></div>
+  <div class="log" data-log><p class="intro">Loading the release log from GitHub…</p></div>
+</section>
+
+<section class="section">
+  <div class="close">
+    <div>
+      <h2>Free, open source, and on your phone in a minute.</h2>
+      <p>Talk to us, ask for a feature, or just say hi on Discord.</p>
+    </div>
+    <div class="acts">
+      <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+      <a class="key quiet" href="https://discord.gg/Kh5z9Cb5F"><span class="icon" aria-hidden="true">forum</span><span>Join the Discord</span></a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site">
+  <div class="wrap">
+    <span>Butler is unofficial and not affiliated with JanitorAI. Open source under Apache-2.0.</span>
+    <nav aria-label="More">
+      <a href="https://github.com/CherrysButler/Butler">GitHub</a>
+      <a href="https://discord.gg/Kh5z9Cb5F">Discord</a>
+      <a href="https://github.com/CherrysButler/Butler/releases">Releases</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

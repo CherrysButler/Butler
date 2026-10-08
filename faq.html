@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ · Butler</title>
+<meta name="description" content="Plain answers about Butler: is it official, is it safe, will you lose chats, how updates work.">
+<meta name="theme-color" content="#17181B">
+<meta property="og:title" content="FAQ · Butler">
+<meta property="og:description" content="Plain answers about Butler: is it official, is it safe, will you lose chats, how updates work.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="frame">
+  <div class="field" aria-hidden="true"><canvas data-field></canvas></div>
+  <header class="wrap nav">
+  <a class="brand" href="index.html"><img src="assets/bowtie.svg" alt="" width="34" height="18">Butler</a>
+  <nav class="links" aria-label="Pages"><a href="features.html">Features</a><a href="download.html">Download</a><a href="privacy.html">Privacy</a><a href="faq.html" aria-current="page">FAQ</a></nav>
+  <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+</header>
+  <section class="wrap page-hero">
+    <h1>Questions, answered plainly.</h1>
+    <p>If yours isn't here, ask on Discord.</p>
+  </section>
+</div>
+<main id="main" class="wrap">
+<section class="section first" aria-label="Questions">
+  <div class="group faq"><details><summary>Is Butler official?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>No. Butler is an unofficial client, not affiliated with JanitorAI. It uses your own Janitor account the way the website does, and nothing more.</p></div></details><details><summary>Is it safe to install an APK from here?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Every release is scanned on VirusTotal by the release workflow, carries its SHA-256, and is signed with the same key since the very first one. The code is open, and there's no Butler server that could collect anything. The <a href="download.html">Download page</a> shows all of it, live.</p></div></details><details><summary>How do I install it?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Download the APK, open it, and allow your browser to install apps when Android asks. It installs over any earlier Butler and keeps your chats. Butler needs Android 8 or newer.</p></div></details><details><summary>Will I lose my chats?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>No. Your chats live on your Janitor account, so Butler shows the same ones as the website and the official app. Uninstalling Butler only removes its copy on the phone.</p></div></details><details><summary>Does it work with JLLM and proxies?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Both. JLLM, Janitor's own model, and any reverse proxy you've saved on Janitor, like OpenRouter.</p></div></details><details><summary>It said Janitor's firewall turned the request away. Is my account in trouble?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>No. That's Janitor's firewall, Cloudflare, not your account. Janitor tightens it now and then, and each time Butler gets a fix out fast. Update to the newest Butler; if it keeps happening, say so on Discord.</p></div></details><details><summary>Why do I have to tap the Cloudflare box when I sign in?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Cloudflare decides each visit whether to pass you silently or ask for a tap. Butler's sign-in starts with a fresh browser every time, so Cloudflare usually asks once. That's the check working, nothing more.</p></div></details><details><summary>Does it cost anything?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Butler is free and open source. Janitor's own limits apply as they do on the website, and a proxy costs whatever your proxy costs.</p></div></details><details><summary>How do updates work?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>Download the newest APK and install it over the old one. Butler can also check GitHub for a newer version when you ask, or every time it opens if you turn that on. It never downloads anything by itself. An F-Droid listing has been submitted and is waiting on review.</p></div></details><details><summary>Where do I report a bug or ask for a feature?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>On <a href="https://discord.gg/Kh5z9Cb5F">Discord</a> or in <a href="https://github.com/CherrysButler/Butler/issues">GitHub issues</a>. If a feature you asked for makes it in, you're credited in the README.</p></div></details><details><summary>Is there an iPhone version?<span class="icon" aria-hidden="true">add</span></summary><div class="answer"><p>No. Butler is Android only.</p></div></details></div>
+</section>
+
+<section class="section">
+  <div class="close">
+    <div>
+      <h2>Free, open source, and on your phone in a minute.</h2>
+      <p>Talk to us, ask for a feature, or just say hi on Discord.</p>
+    </div>
+    <div class="acts">
+      <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+      <a class="key quiet" href="https://discord.gg/Kh5z9Cb5F"><span class="icon" aria-hidden="true">forum</span><span>Join the Discord</span></a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site">
+  <div class="wrap">
+    <span>Butler is unofficial and not affiliated with JanitorAI. Open source under Apache-2.0.</span>
+    <nav aria-label="More">
+      <a href="https://github.com/CherrysButler/Butler">GitHub</a>
+      <a href="https://discord.gg/Kh5z9Cb5F">Discord</a>
+      <a href="https://github.com/CherrysButler/Butler/releases">Releases</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

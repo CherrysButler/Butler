@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Butler, a JanitorAI client for Android</title>
+<meta name="description" content="An unofficial JanitorAI client for Android that never loses your words, talks to nothing but Janitor, and has a few tricks of its own.">
+<meta name="theme-color" content="#17181B">
+<meta property="og:title" content="Butler, a JanitorAI client for Android">
+<meta property="og:description" content="An unofficial JanitorAI client for Android that never loses your words, talks to nothing but Janitor, and has a few tricks of its own.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="frame">
+  <div class="field" aria-hidden="true"><canvas data-field></canvas></div>
+  <header class="wrap nav">
+  <a class="brand" href="index.html"><img src="assets/bowtie.svg" alt="" width="34" height="18">Butler</a>
+  <nav class="links" aria-label="Pages"><a href="features.html">Features</a><a href="download.html">Download</a><a href="privacy.html">Privacy</a><a href="faq.html">FAQ</a></nav>
+  <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+</header>
+  <section class="wrap hero">
+    <div class="hero-grid">
+      <div>
+        <svg class="mark" viewBox="0 0 64 33" role="img" aria-label="Butler's bow tie">
+  <g class="wing-r"><path fill="#EA5A4F" d="M34.9,13.4 L49.4,1 L62,7.6 L55.8,16.5 L62,25.4 L49.4,32 L34.9,19.6 Z"/><path fill="#C44036" d="M35.3,14.9 L49.4,2.5 L49.4,5.2 L35.7,16.5 Z"/></g>
+  <g class="wing-l"><path fill="#EA5A4F" d="M29.1,13.4 L14.6,1 L2,7.6 L8.2,16.5 L2,25.4 L14.6,32 L29.1,19.6 Z"/><path fill="#C44036" d="M28.7,14.9 L14.6,2.5 L14.6,5.2 L28.3,16.5 Z"/></g>
+  <g class="knot"><path fill="#C44036" d="M27.9,11.5 H34.1 A0.8,0.8 0 0 1 34.9,12.3 V20.7 A0.8,0.8 0 0 1 34.1,21.5 H27.9 A0.8,0.8 0 0 1 27.1,20.7 V12.3 A0.8,0.8 0 0 1 27.9,11.5 Z"/><path fill="#EA5A4F" d="M28.6,12.7 H33.4 A0.3,0.3 0 0 1 33.7,13 V20 A0.3,0.3 0 0 1 33.4,20.3 H28.6 A0.3,0.3 0 0 1 28.3,20 V13 A0.3,0.3 0 0 1 28.6,12.7 Z"/></g>
+</svg>
+        <h1 class="display">Butler</h1>
+        <p class="lede">JanitorAI on your Android phone, and it <strong>respects your time</strong>.</p>
+        <div class="hero-actions">
+          <a class="key quiet" href="features.html"><span class="icon" aria-hidden="true">auto_awesome</span><span>See what it does</span></a>
+        </div>
+        <p class="unofficial">Unofficial. Not affiliated with JanitorAI.</p>
+      </div>
+      <aside class="panel" data-panel aria-labelledby="check-home">
+      <div class="panel-head">
+        <h2 id="check-home">Checked before you install</h2>
+        <button class="recheck" type="button" data-recheck><span class="icon" aria-hidden="true">refresh</span>Check again</button>
+      </div>
+      <ul class="checks" aria-live="polite">
+        <li class="check" data-check="version" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Latest release</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="scan" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Malware scan</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="sha" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">SHA-256 of the APK</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="key" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Signing key</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+        <li class="check" data-check="source" data-state="pending">
+          <span class="lamp"><span class="icon" aria-hidden="true"></span></span>
+          <div><div class="label">Source code</div><div class="value">Checking…</div></div>
+          <div class="aside"></div>
+        </li>
+      </ul>
+      <div class="panel-foot">
+        <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span data-download-label>Download Butler</span><span class="num" data-download-size></span></a>
+        <p class="fine">Android 8 and up · <a href="download.html">Install steps and every release</a></p>
+      </div>
+    </aside>
+    </div>
+  </section>
+</div>
+<main id="main" class="wrap">
+<section class="section" aria-labelledby="specials">
+  <div class="section-head">
+    <div>
+      <h2 class="head" id="specials">Things only Butler does.</h2>
+      <p>Same account, same characters, same chats. Plus these, which the official app doesn't have.</p>
+    </div>
+    <a class="more" href="features.html">Every feature<span class="icon" aria-hidden="true">arrow_forward</span></a>
+  </div>
+  <div class="demos"><div class="demo wide">
+      <h3><span class="icon" aria-hidden="true">bakery_dining</span> Butter mode</h3>
+      <div class="stage">
+        <div class="who"><b>Mira</b><button class="butter-key" type="button" data-butter-key aria-pressed="false"><span class="icon" aria-hidden="true">bakery_dining</span>Butter</button></div>
+        <div class="fold" data-butter>
+          <p class="prose full"><span class="beat">She finally sets the lantern down</span>, though her hand stays on it a moment too long, as if letting go of the light meant letting go of something else. The cellar air is cold and smells of turned earth. <q>The door was open,</q> she repeats, more to herself than to you, <span class="beat">and reaches for the key on her belt. It isn't there.</span> <span class="beat"><q>Someone has my key.</q></span></p>
+          <ul class="beats" aria-label="The reply folded to its key beats">
+            <li>She finally sets the lantern down.</li>
+            <li>She reaches for the key on her belt. It isn't there.</li>
+            <li><q>Someone has my key.</q></li>
+          </ul>
+        </div>
+      </div>
+      <p>Your model marks the parts of a reply that move the scene. Tap the butter and a long reply folds down to just those.</p>
+    </div><div class="demo">
+      <h3><span class="icon" aria-hidden="true">highlight</span> Highlights</h3>
+      <div class="stage" data-highlights>
+        <p class="prose"><span class="hl hl-romance">He tucks the loose strand behind her ear</span> before he can stop himself. <span class="hl hl-danger">Somewhere above them, a floorboard creaks.</span> <span class="hl hl-funny"><q>That,</q> he says, <q>was absolutely the cat.</q></span></p>
+      </div>
+      <div class="legend" aria-hidden="true"><span style="--c:#F28FAD">Romantic</span><span style="--c:#F06B60">Dangerous</span><span style="--c:#9CC3F0">Sad</span><span style="--c:#F2B35E">Funny</span></div>
+      <p>After each reply, lines get a soft tint by mood. The words never change.</p>
+    </div><div class="demo">
+      <h3><span class="icon" aria-hidden="true">format_quote</span> Rich typing</h3>
+      <div class="marks" aria-hidden="true"><span data-k="speech">"</span><span data-k="action">*</span><span data-k="bold">B</span></div>
+      <div class="composer" data-typing aria-label="A line styling itself as it is typed"><span class="typed"></span><span class="send"><span class="icon" aria-hidden="true">arrow_upward</span></span></div>
+      <p>Speech, action and bold keys on the message box, and the marks show as you type.</p>
+    </div></div><div class="group"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">auto_awesome</span></span><div><h3>Description writer</h3><p>Write a few lines about your persona, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">image</span></span><div><h3>Pictures in your message <span class="beta">BETA</span></h3><p>Put a picture in your line and a model of yours that can see writes it in, in your voice, right where you put it. You read it, then send. Nothing of the picture goes to Janitor.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">loop</span></span><div><h3>Agent mode <span class="beta">BETA</span></h3><p>The reply is drafted, checked against goals strictly, fixed where it fails, and only then delivered. You pick the effort and add your own goals. For reasoning models on a proxy.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="words">
+  <div class="states">
+    <div>
+      <h2 class="head" id="words">It never loses your words.</h2>
+      <p class="intro">Your message is saved before it's sent. When the connection drops, Butler says so and tries again by itself, with a countdown, instead of a red flash and a Retry you have to find.</p>
+      <ul class="state-list">
+        <li><b>Queued</b>Saved on the phone, waiting for the network.</li>
+        <li><b>Retrying</b>A visible countdown, and Retry now if you're impatient.</li>
+        <li><b>Cut short</b>You keep what came in, and Continue picks it up.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="chat" data-states aria-label="Demo of a message surviving a dropped connection">
+        <div class="bot"><b>Mira</b><i>She sets the lantern down between you.</i> <q>Your turn. Tell me what you saw in the cellar.</q></div>
+        <div class="mine">I saw the door. It was open, and it shouldn't have been.</div>
+        <div class="turn-state" aria-live="off">Queued</div>
+        <div class="bot reply" hidden><b>Mira</b><i>The colour leaves her face.</i> <q>Open? I locked it myself.</q></div>
+      </div>
+      <p class="demo-note">A demo, not a real chat.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="hosts">
+  <div class="section-head">
+    <div>
+      <h2 class="head" id="hosts">It talks to Janitor, and nothing else.</h2>
+      <p>There is no Butler server, no analytics and no crash reporter. This is the whole list of places your phone talks to.</p>
+    </div>
+    <a class="more" href="privacy.html">The long version<span class="icon" aria-hidden="true">arrow_forward</span></a>
+  </div>
+  <div class="group"><ul class="hosts"><li class="host"><span class="dot"></span><div><span class="where"><code>janitorai.com</code> and its subdomains</span><p>The API, chat generation, notifications and pictures.</p></div></li><li class="host"><span class="dot"></span><div><span class="where"><code>auth.janitorai.com</code></span><p>Janitor's login service, where your account lives.</p></div></li><li class="host"><span class="dot"></span><div><span class="where">Your own proxy, if you set one</span><p>OpenRouter or wherever you point it. Your messages go there because you told them to.</p></div></li><li class="host"><span class="dot opt"></span><div><span class="where"><code>api.github.com</code>, only if you ask</span><p>Checks whether a newer Butler is out. Off until you turn it on, and it asks nothing about you.</p></div></li></ul></div>
+</section>
+
+<section class="section">
+  <div class="close">
+    <div>
+      <h2>Free, open source, and on your phone in a minute.</h2>
+      <p>Talk to us, ask for a feature, or just say hi on Discord.</p>
+    </div>
+    <div class="acts">
+      <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+      <a class="key quiet" href="https://discord.gg/Kh5z9Cb5F"><span class="icon" aria-hidden="true">forum</span><span>Join the Discord</span></a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site">
+  <div class="wrap">
+    <span>Butler is unofficial and not affiliated with JanitorAI. Open source under Apache-2.0.</span>
+    <nav aria-label="More">
+      <a href="https://github.com/CherrysButler/Butler">GitHub</a>
+      <a href="https://discord.gg/Kh5z9Cb5F">Discord</a>
+      <a href="https://github.com/CherrysButler/Butler/releases">Releases</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

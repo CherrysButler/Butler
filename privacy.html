@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Butler</title>
+<meta name="description" content="What Butler talks to, what it keeps on your phone, and what it asks Android for.">
+<meta name="theme-color" content="#17181B">
+<meta property="og:title" content="Privacy · Butler">
+<meta property="og:description" content="What Butler talks to, what it keeps on your phone, and what it asks Android for.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Roboto+Flex:opsz,wdth,wght@8..144,25..151,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0&display=block">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="frame">
+  <div class="field" aria-hidden="true"><canvas data-field></canvas></div>
+  <header class="wrap nav">
+  <a class="brand" href="index.html"><img src="assets/bowtie.svg" alt="" width="34" height="18">Butler</a>
+  <nav class="links" aria-label="Pages"><a href="features.html">Features</a><a href="download.html">Download</a><a href="privacy.html" aria-current="page">Privacy</a><a href="faq.html">FAQ</a></nav>
+  <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+</header>
+  <section class="wrap page-hero">
+    <h1>Same account, less of your data.</h1>
+    <p>Butler talks to Janitor, keeps what it needs on your phone, and sends nothing anywhere else. Here's the whole picture, and how to check it.</p>
+  </section>
+</div>
+<main id="main" class="wrap">
+<section class="section first" aria-labelledby="p-hosts">
+  <div class="section-head"><div><h2 class="head" id="p-hosts">Where your traffic goes</h2><p>No Butler server, no analytics SDK, no crash reporter, no ads. The official app ships Sentry, Statsig and Firebase; Butler ships none of them.</p></div></div>
+  <div class="group"><ul class="hosts"><li class="host"><span class="dot"></span><div><span class="where"><code>janitorai.com</code> and its subdomains</span><p>The API, chat generation, notifications and pictures.</p></div></li><li class="host"><span class="dot"></span><div><span class="where"><code>auth.janitorai.com</code></span><p>Janitor's login service, where your account lives.</p></div></li><li class="host"><span class="dot"></span><div><span class="where"><code>challenges.cloudflare.com</code></span><p>Only while you sign in with e-mail, because Janitor requires Cloudflare's check for it.</p></div></li><li class="host"><span class="dot"></span><div><span class="where">Your own proxy, if you set one</span><p>OpenRouter or wherever you point it. Your messages go there because you told them to.</p></div></li><li class="host"><span class="dot opt"></span><div><span class="where"><code>api.github.com</code>, only if you ask</span><p>Checks whether a newer Butler is out. Off until you turn it on, and it asks nothing about you.</p></div></li></ul></div>
+</section>
+
+<section class="section" aria-labelledby="p-phone">
+  <div class="section-head"><div><h2 class="head" id="p-phone">What stays on your phone</h2><p>Signing out deletes all of it. Pins, archive and folders live on your Janitor account, so they come back when you sign in again.</p></div></div>
+  <div class="group two"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">key</span></span><div><h3>Your session</h3><p>The tokens that prove you're you, encrypted with a key in the Android Keystore. Never in plain storage.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">chat</span></span><div><h3>A mirror of your chats</h3><p>So screens paint instantly and work offline. The chats themselves live on your Janitor account.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">save</span></span><div><h3>Messages not sent yet</h3><p>Written to the phone before any network call. That's the whole point.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">settings</span></span><div><h3>Your settings</h3><p>The look, the chat layout, fonts, which proxy is selected, OpenRouter options.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">cookie</span></span><div><h3>Cloudflare's cookies for janitorai.com</h3><p>The pass you earn at sign-in, sent back to Janitor the way a browser would. Cleared when you sign out.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="p-perms">
+  <div class="section-head"><div><h2 class="head" id="p-perms">What it asks Android for</h2><p>No contacts, location, storage, camera, microphone or accessibility. Pictures and font files come through the system picker, which hands over only the file you chose.</p></div></div>
+  <div class="group two"><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">wifi</span></span><div><h3>Internet and network state</h3><p>To talk to Janitor and your proxy, and to know when the connection is back.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">notifications</span></span><div><h3>Notifications</h3><p>A reply that lands while you're away tells you so. Say no and it still finishes, quietly.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">bolt</span></span><div><h3>Foreground service and wake lock</h3><p>What lets a reply finish in the background. Held only while a reply is being written.</p></div></div><div class="row"><span class="glyph"><span class="icon" aria-hidden="true">battery_saver</span></span><div><h3>Battery optimisation, sometimes</h3><p>Asked once, only on phones that kill background apps anyway. Butler works without it.</p></div></div></div>
+</section>
+
+<section class="section" aria-labelledby="p-check">
+  <div class="section-head"><div>
+    <h2 class="head" id="p-check">Check it yourself</h2>
+    <p>Put your phone behind mitmproxy, or any proxy that shows hostnames, and use Butler for a while. The list above is the whole list. If you ever see another host, that's a bug, and it should be reported.</p>
+    <p>When something goes wrong, Butler doesn't phone home. Settings › App › Report a problem builds a page of text on your phone, with anything shaped like a token, key or e-mail blanked out, and you decide whether to share it.</p>
+  </div>
+  <a class="more" href="https://github.com/CherrysButler/Butler/blob/main/TRUST.md">The full TRUST.md<span class="icon" aria-hidden="true">arrow_forward</span></a></div>
+</section>
+
+<section class="section">
+  <div class="close">
+    <div>
+      <h2>Free, open source, and on your phone in a minute.</h2>
+      <p>Talk to us, ask for a feature, or just say hi on Discord.</p>
+    </div>
+    <div class="acts">
+      <a class="key" href="https://github.com/CherrysButler/Butler/releases/latest" data-download><span class="icon" aria-hidden="true">download</span><span>Download</span></a>
+      <a class="key quiet" href="https://discord.gg/Kh5z9Cb5F"><span class="icon" aria-hidden="true">forum</span><span>Join the Discord</span></a>
+    </div>
+  </div>
+</section>
+</main>
+<footer class="site">
+  <div class="wrap">
+    <span>Butler is unofficial and not affiliated with JanitorAI. Open source under Apache-2.0.</span>
+    <nav aria-label="More">
+      <a href="https://github.com/CherrysButler/Butler">GitHub</a>
+      <a href="https://discord.gg/Kh5z9Cb5F">Discord</a>
+      <a href="https://github.com/CherrysButler/Butler/releases">Releases</a>
+      <a href="privacy.html">Privacy</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
