@@ -34,19 +34,24 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Highlights.** After a reply, Butler asks your model which lines are romantic, dangerous, sad, funny or spicy, and gives them a soft highlight. The reply itself never changes. The prompt it asks with is yours to edit, if your model needs steering.
 * **Rich typing.** " * B keys right on the message box, and the formatting shows as you type, like Discord. *Actions* have never been this easy to write.
 * **Description writer.** Write a few lines about your persona, tap ✦ Enhance, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote. Undo if you liked yours better.
+* **Pictures in your message** (beta). Tap the picture key, pick one picture, and a model of yours that can see writes it into your line in your own voice, right where you put it. You read it, change what you like, and send it yourself. Nothing of the picture goes to Janitor, only to your proxy. Switch it off, or make it wait for your go, in Settings › Chat.
+* **Agent mode** (beta, proxies with a reasoning model). The reply is drafted, checked against goals strictly, fixed where it fails (exact edits, or a rewrite) and only then delivered. Pick the effort, add your own goals, and watch every step in the thought panel.
   
   
   
-  > ⚠️ Butter mode and Highlights run on your own model, so they cost a few tokens (Butler tells you how many before you turn them on), and how well they work depends on how well your model follows the rule.
+  > ⚠️ Butter mode, Highlights, Pictures and Agent mode run on your own model, so they cost tokens (Agent mode two to four calls a reply), and how well they work depends on how well your model follows the rule.
 
 ### 💬 Chatting
 
 * **A chat that's nice to read.** Three layouts (Story, Bubbles, or Janitor-style with avatars), a reading font with real italics so `*actions*` actually look like actions.
-* **Readable thinking!** A proper animation with Claude-style spinner verbs while the model thinks, and the whole thought process opens in its own sheet when it's done instead of getting dumped into the chat in a small square.
-* **Guided swipes!!** What's that? You don't like a reply? Tell it what to change before it rerolls: "shorter", "more dialogue", "slow down", or type your own. Inspired by ChatGPT's.
+* **Readable thinking!** A proper animation with Claude-style spinner verbs while the model thinks, and the whole thought process opens in its own sheet when it's done instead of getting dumped into the chat in a small square. The words are yours to change: edit Claude's list or add lists of your own.
+* **Guided swipes!!** What's that? You don't like a reply? Tell it what to change before it rerolls: "shorter", "more dialogue", "slow down", or type your own. They stack, too. Inspired by ChatGPT's.
 * **Choices button.** Lazy to actually type something? short choices can be provided by your model/JLLM to choose.
 * **Better error handling!** Your message is saved before it's even sent. If the network shits itself, Butler retries by itself with a countdown. If a reply dies halfway through, you keep what came in and hit Continue.
 * **The little thing.** Edit anything, including the first message as this is not included by JanitorAi main app.
+* **Share a bot.** A share key on any character page hands its link to your phone's share sheet.
+* **Edit your persona mid-chat.** A pencil beside each persona in Play as opens its editor, then you're back in the chat.
+* **The keyboard goes down when you send**, unless you'd rather it stayed up (Settings › Chat).
 
 ### 🎨 Make it yours
 
@@ -54,6 +59,7 @@ Grab the APK from the [latest release](https://github.com/CherrysButler/Butler/r
 * **Markdown your way.** Pick your own colors for speech, thoughts, actions and the rest, any colour on a real colour wheel, so the chat looks how you want it to. a bit more flexible than Janitor's
 * **Fonts!** Pick one font for your chats and one for the rest of the app: a handful built in, or add your own .ttf / .otf. The app's text size is adjustable too.
 * **Backgrounds.** Keep a library of pictures, set one for every chat or a different one per chat.
+* **Home your way.** Endless scroll or pages, and it keeps your place when you come back from a character.
 * **Swap your default persona.** Make any persona your default, swapped properly on Janitor's side, with backups kept in case something goes sideways.
 * **Pin and archive chats**, Telegram style. Pull down on your chats to find the archive. Both are saved to your Janitor account as folders, so they follow you to any phone. Folders work too.
 
