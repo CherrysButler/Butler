@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit
  *   hands it out (pre-clearance: after a pass the page POSTs to
  *   `/cdn-cgi/challenge-platform/h/g/c/<ray>`, which sets it for a year; HAR from the website,
  *   2026-10-07). Butler's sign-in runs that same Turnstile in a WebView, so the cookie lands in
- *   the WebView and [importFromWebView] brings it over. It is tied to the User-Agent, which is
- *   why the sign-in WebView says `Butler/<version>` as every other call does.
+ *   the WebView and [importFromWebView] brings it over. It is tied to the User-Agent it was
+ *   earned under, the WebView's own, so it is sent only with calls that carry that same name.
  * - `__cf_bm`: Cloudflare's bot-scoring cookie, 30 minutes, refreshed on answers.
  * - `__cfwaitingroom_…`: the waiting room's place in the queue. Sending it back is what lets a
  *   queued request move up instead of starting over.
@@ -36,10 +36,16 @@ object JanitorCookies : CookieJar {
     private var prefs: SharedPreferences? = null
     private val store = ConcurrentHashMap<String, Cookie>()
 
+    /** The User-Agent the clearance was earned under: the sign-in WebView's own. */
+    @Volatile private var clearanceAgent: String? = null
+    private const val KEY_AGENT = "~clearance_agent"
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { p ->
             val url = "https://$SITE/".toHttpUrl()
+            clearanceAgent = p.getString(KEY_AGENT, null)
             for ((key, raw) in p.all) {
+                if (key == KEY_AGENT) continue
                 val cookie = (raw as? String)?.let { Cookie.parse(url, it) } ?: continue
                 if (cookie.expiresAt > System.currentTimeMillis()) store[key] = cookie
             }
@@ -69,7 +75,10 @@ object JanitorCookies : CookieJar {
         if (!isJanitor(url.host)) return emptyList()
         val now = System.currentTimeMillis()
         store.entries.removeIf { it.value.expiresAt <= now }
-        return store.values.filter { it.matches(url) }
+        // Cloudflare ties the clearance to the User-Agent that earned it; under another name it is
+        // a stolen-looking cookie, not a pass. It goes only with calls that carry that same name.
+        val clearanceFits = clearanceAgent == null || clearanceAgent == ButlerUserAgent.current
+        return store.values.filter { it.matches(url) && (clearanceFits || it.name != "cf_clearance") }
     }
 
     /**
@@ -78,8 +87,12 @@ object JanitorCookies : CookieJar {
      * on the website: a year for the clearance, 30 minutes for the rest. Cloudflare's next
      * answers refresh them anyway.
      */
-    fun importFromWebView() {
+    fun importFromWebView(agent: String? = null) {
         val raw = runCatching { CookieManager.getInstance().getCookie("https://$SITE/") }.getOrNull() ?: return
+        if (agent != null) {
+            clearanceAgent = agent
+            prefs?.edit()?.putString(KEY_AGENT, agent)?.apply()
+        }
         val now = System.currentTimeMillis()
         val brought = mutableListOf<String>()
         val edit = prefs?.edit()
@@ -105,11 +118,13 @@ object JanitorCookies : CookieJar {
 
     /** Forgets every Cloudflare cookie, here and in the WebView. On sign-out. */
     fun clear() {
+        clearanceAgent = null
         store.clear()
         prefs?.edit()?.clear()?.apply()
         runCatching { CookieManager.getInstance().removeAllCookies(null) }
     }
 
     /** The names held now, for the diagnostics report. */
-    fun names(): List<String> = store.values.map { it.name }.distinct()
+    fun names(): List<String> = store.values.map { it.name }.distinct() +
+        listOfNotNull(if (clearanceAgent != null && clearanceAgent != ButlerUserAgent.current) "(clearance held back: earned under the WebView's own name)" else null)
 }

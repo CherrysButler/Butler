@@ -87,15 +87,16 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
             WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                // The clearance Cloudflare grants here is tied to this User-Agent, so it is the one
-                // every other call is sending now (Butler's own, or Firefox while that's blocked).
-                settings.userAgentString = com.cherry.butler.core.network.ButlerUserAgent.current
+                // The WebView's own User-Agent, never another browser's. Turnstile reads the page's
+                // whole environment (engine, platform, touch, client hints) and a desktop Safari or
+                // Firefox name on Android's Chromium WebView is a contradiction it fails as a bot:
+                // error 600010, and no box that solves itself (2026-10-09, 0.4.0).
                 android.webkit.CookieManager.getInstance().setAcceptCookie(true)
                 setBackgroundColor(Color.TRANSPARENT)
                 webViewClient = WebViewClient()
                 addJavascriptInterface(object {
                     @JavascriptInterface fun onToken(token: String) = post {
-                        com.cherry.butler.core.network.JanitorCookies.importFromWebView()
+                        com.cherry.butler.core.network.JanitorCookies.importFromWebView(settings.userAgentString)
                         onToken(token)
                     }
                     @JavascriptInterface fun onError(code: String) = post { onError(code) }
@@ -108,7 +109,7 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
         // the sheet closes too.
         onRelease = {
             android.webkit.CookieManager.getInstance().flush()
-            com.cherry.butler.core.network.JanitorCookies.importFromWebView()
+            com.cherry.butler.core.network.JanitorCookies.importFromWebView(it.settings.userAgentString)
             it.destroy()
         },
     )
