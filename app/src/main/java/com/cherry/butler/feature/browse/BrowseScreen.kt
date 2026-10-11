@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.browse
 
+import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.ui.components.SearchBox
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -365,7 +366,7 @@ internal fun Segment(
     val ink = if (selected) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textMed
     Row(
         modifier = modifier
-            .height(36.dp)
+            .heightIn(min = 36.dp)
             .clip(MaterialTheme.shapes.small)
             .background(fill)
             .clickable(onClick = onClick)

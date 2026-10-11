@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.creator
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -107,7 +108,7 @@ fun CreatorScreen(
     LaunchedEffect(nearEnd, tab) { if (nearEnd) { if (tab == 0) viewModel.moreCharacters() else viewModel.moreLorebooks() } }
 
     Column(modifier = Modifier.fillMaxSize().background(ground).statusBarsPadding()) {
-        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = textColor)
             }

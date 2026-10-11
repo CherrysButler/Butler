@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chats
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
@@ -136,7 +137,7 @@ fun CharacterChatsSheet(
                     PersonaSwitch(
                         current = persona,
                         onClick = onPickPersona,
-                        modifier = Modifier.widthIn(max = 190.dp).height(48.dp),
+                        modifier = Modifier.widthIn(max = 190.dp).heightIn(min = 48.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     KeyButton(
@@ -144,7 +145,7 @@ fun CharacterChatsSheet(
                         primary = true,
                         onClick = onNewChat,
                         enabled = !state.creating,
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     // A chat from a file: Butler's own or SillyTavern's.

@@ -21,6 +21,18 @@ object FilePickers {
         done(picked?.let { Uri.fromFile(it) })
     }
 
+    /** The open dialog with several files picked at once; an empty list when it is closed. */
+    fun openMany(title: String, extensions: List<String>?, done: (List<Uri>) -> Unit) = SwingUtilities.invokeLater {
+        val dialog = FileDialog(owner, title, FileDialog.LOAD)
+        dialog.isMultipleMode = true
+        if (extensions != null) {
+            dialog.file = extensions.joinToString(";") { "*.$it" }
+            dialog.setFilenameFilter { _, name -> extensions.any { name.lowercase().endsWith(".$it") } }
+        }
+        dialog.isVisible = true
+        done(dialog.files.map { Uri.fromFile(it) })
+    }
+
     fun save(title: String, suggested: String, done: (Uri?) -> Unit) = SwingUtilities.invokeLater {
         val dialog = FileDialog(owner, title, FileDialog.SAVE)
         dialog.file = suggested

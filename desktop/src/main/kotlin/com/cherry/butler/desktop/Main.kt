@@ -24,8 +24,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -202,8 +200,10 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
     val chatFontKey by fontPrefs.chat.collectAsState()
     val appFontKey by fontPrefs.app.collectAsState()
     val appTextScale by fontPrefs.appScale.collectAsState()
-    val chatFont = remember(chatFontKey) { familyOf(fontPrefs, chatFontKey) }
-    val appFont = remember(appFontKey) { familyOf(fontPrefs, appFontKey) }
+    // Keyed on the added fonts too: a face added to the family in use joins it at once.
+    val addedFonts by fontPrefs.added.collectAsState()
+    val chatFont = remember(chatFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, chatFontKey) }
+    val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
     val locked by appLock.locked.collectAsState()
     @Suppress("UNUSED_VARIABLE") val light = theme.isLight(custom)
     ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
@@ -252,19 +252,6 @@ private fun ToastLine(modifier: Modifier) {
     ) {
         Text(now.text, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium)
     }
-}
-
-/** MainActivity.familyOf: a font key (FontPrefs) as a family. */
-private fun familyOf(fontPrefs: com.cherry.butler.core.data.FontPrefs, key: String): FontFamily = when (key) {
-    "atkinson" -> com.cherry.butler.core.design.ReadingFamily
-    "system" -> FontFamily.Default
-    "serif" -> FontFamily.Serif
-    "mono" -> FontFamily.Monospace
-    "lora" -> com.cherry.butler.core.design.LoraFamily
-    "nunito" -> com.cherry.butler.core.design.NunitoFamily
-    "lexend" -> com.cherry.butler.core.design.LexendFamily
-    "comic" -> com.cherry.butler.core.design.ComicNeueFamily
-    else -> fontPrefs.fileOf(key)?.let { FontFamily(Font(it)) } ?: FontFamily.Default
 }
 
 /**

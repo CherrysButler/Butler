@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.core.design.ChatImage
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -575,7 +576,7 @@ fun RowScope.StateAction(label: String, onClick: () -> Unit, emphasis: Boolean =
         onClick = onClick,
         shape = MaterialTheme.shapes.small,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-        modifier = Modifier.height(28.dp),
+        modifier = Modifier.heightIn(min = 28.dp),
     ) {
         Text(
             text = label,

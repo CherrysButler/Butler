@@ -32,6 +32,12 @@ object ActivityResultContracts {
             com.cherry.butler.desktop.FilePickers.open("Open", null) { done(it) }
     }
 
+    /** Asked for fonts (font/... types), the dialog shows only .ttf and .otf files. */
+    class OpenMultipleDocuments : ActivityResultContract<Array<String>, List<Uri>>() {
+        override fun run(input: Array<String>, done: (List<Uri>) -> Unit) =
+            com.cherry.butler.desktop.FilePickers.openMany("Open", listOf("ttf", "otf").takeIf { input.any { it.startsWith("font/") } }) { done(it) }
+    }
+
     class GetContent : ActivityResultContract<String, Uri?>() {
         override fun run(input: String, done: (Uri?) -> Unit) =
             com.cherry.butler.desktop.FilePickers.open("Open", null) { done(it) }

@@ -1,5 +1,6 @@
 package com.cherry.butler.ui.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -50,8 +51,8 @@ fun SegmentedChoice(options: List<String>, selected: Int, onSelect: (Int) -> Uni
                     .clip(MaterialTheme.shapes.small)
                     .background(fill)
                     .clickable { onSelect(i) }
-                    .height(36.dp)
-                    .padding(top = 8.dp),
+                    .heightIn(min = 36.dp)
+                    .padding(top = 8.dp, bottom = 10.dp),
             )
         }
     }

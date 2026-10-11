@@ -48,6 +48,8 @@ class SettingsViewModel @Inject constructor(
     private val browse: com.cherry.butler.core.data.BrowsePrefs,
     private val pictures: com.cherry.butler.core.data.PicturePrefs,
     private val agent: com.cherry.butler.core.data.AgentPrefs,
+    private val textLook: com.cherry.butler.core.data.TextLookPrefs,
+    private val profiles: com.cherry.butler.core.data.LookProfiles,
 ) : ViewModel() {
 
     /** Agent mode (beta): a reply drafted, checked against goals, fixed, then delivered. */
@@ -108,23 +110,117 @@ class SettingsViewModel @Inject constructor(
     val allowMobileNsfw: StateFlow<Boolean> = content.allowMobileNsfw
     fun setAllowMobileNsfw(on: Boolean) = content.setAllowMobileNsfw(on)
 
-    /** The chat font and the app font (keys, see FontPrefs), and the font files added. */
+    /** The chat font and the app font (keys, see FontPrefs), and the fonts added. */
     val chatFont: StateFlow<String> = fonts.chat
     val appFont: StateFlow<String> = fonts.app
-    val addedFonts: StateFlow<List<String>> = fonts.added
+    val addedFonts: StateFlow<List<com.cherry.butler.core.data.FontPrefs.Added>> = fonts.added
     fun setChatFont(key: String) = fonts.setChat(key)
     fun setAppFont(key: String) = fonts.setApp(key)
-    fun removeFont(name: String) = fonts.remove(name)
+    fun removeFont(key: String) = fonts.remove(key)
     val appTextScale: StateFlow<Float> = fonts.appScale
     fun setAppTextScale(scale: Float) = fonts.setAppScale(scale)
 
-    /** Adds a picked font file and puts it to use as the chat or the app font. */
-    fun addFont(uri: android.net.Uri, forChat: Boolean) {
+    /** Font files picked and read, waiting to hear which family they join, for the chat or the app font. */
+    data class FontPick(val picked: com.cherry.butler.core.data.FontPrefs.Picked, val forChat: Boolean)
+    private val _fontPick = MutableStateFlow<FontPick?>(null)
+    val fontPick: StateFlow<FontPick?> = _fontPick.asStateFlow()
+
+    /**
+     * Reads picked font files. With no added font to join they become a new family at once;
+     * otherwise [fontPick] asks which family they go to.
+     */
+    fun pickFonts(uris: List<android.net.Uri>, forChat: Boolean) {
+        if (uris.isEmpty()) return
         viewModelScope.launch {
-            runCatching { fonts.add(uri) }
-                .onSuccess { key -> if (forChat) fonts.setChat(key) else fonts.setApp(key) }
+            runCatching { fonts.pick(uris) }
+                .onSuccess { picked ->
+                    when {
+                        picked.faces.isEmpty() -> _notices.send(
+                            if (uris.size == 1) "Couldn\u2019t add that font: it isn\u2019t a .ttf or .otf Butler can read."
+                            else "Couldn\u2019t add those fonts: none is a .ttf or .otf Butler can read.",
+                        )
+                        fonts.added.value.isEmpty() -> placeFonts(FontPick(picked, forChat), into = null)
+                        else -> _fontPick.value = FontPick(picked, forChat)
+                    }
+                }
                 .onFailure { e -> _notices.send("Couldn\u2019t add that font: ${e.message ?: "unreadable file"}.") }
         }
+    }
+
+    /** The picked faces join [into] (an added font's key), or a new family when null, and are put to use. */
+    fun placeFonts(into: String?) {
+        val pick = _fontPick.value ?: return
+        _fontPick.value = null
+        viewModelScope.launch { placeFonts(pick, into) }
+    }
+
+    fun cancelFontPick() {
+        _fontPick.value?.let { fonts.drop(it.picked) }
+        _fontPick.value = null
+    }
+
+    private suspend fun placeFonts(pick: FontPick, into: String?) {
+        runCatching { fonts.place(pick.picked, into) }
+            .onSuccess { placed ->
+                if (placed.added.isNotEmpty()) {
+                    if (pick.forChat) fonts.setChat(placed.key) else fonts.setApp(placed.key)
+                }
+                val left = pick.picked.refused.size + placed.refused
+                _notices.send(
+                    buildString {
+                        if (placed.added.isNotEmpty()) append("Added ${spoken(placed.added.map { it.label })} to ${placed.name}.")
+                        if (placed.refused > 0) append(" A family holds ${com.cherry.butler.core.data.FontPrefs.MAX_FACES} faces at most.")
+                        if (left > 0) append(" $left ${if (left == 1) "file was" else "files were"} left out.")
+                    }.trim(),
+                )
+            }
+            .onFailure { e -> _notices.send("Couldn\u2019t add that font: ${e.message ?: "unreadable file"}.") }
+    }
+
+    /** "Regular, Bold and Italic". */
+    private fun spoken(names: List<String>): String =
+        if (names.size <= 1) names.joinToString() else names.dropLast(1).joinToString(", ") + " and " + names.last()
+
+    /** Saved looks (Settings > Look > Profiles): saved, put on, renamed, removed, shared. */
+    val lookProfiles: StateFlow<List<com.cherry.butler.core.data.LookProfile>> = profiles.profiles
+
+    /** How chat text is drawn now, so Profiles can tell which one is on. */
+    val textLookNow: StateFlow<com.cherry.butler.core.design.RpLook> = textLook.look
+
+    fun saveLookProfile(name: String) {
+        val saved = profiles.saveCurrent(name)
+        viewModelScope.launch { _notices.send("Saved the look as ${saved.name}") }
+    }
+
+    fun applyLookProfile(id: String) {
+        val name = profiles.profiles.value.firstOrNull { it.id == id }?.name ?: return
+        val missing = profiles.apply(id)
+        viewModelScope.launch {
+            _notices.send(
+                if (missing.isEmpty()) "$name is on"
+                else "$name is on. ${spoken(missing)} ${if (missing.size == 1) "isn\u2019t" else "aren\u2019t"} here, so that font stayed as it was.",
+            )
+        }
+    }
+
+    fun renameLookProfile(id: String, name: String) = profiles.rename(id, name)
+    fun deleteLookProfile(id: String) = profiles.delete(id)
+
+    /** A profile as a file to share: a name for it and its text. */
+    fun exportLookProfile(id: String): Pair<String, String>? = profiles.export(id)
+
+    /** Adds the profile in a shared file beside the others; it goes on only when tapped. */
+    fun importLookProfile(text: String?) {
+        viewModelScope.launch {
+            if (text == null) return@launch _notices.send("Couldn\u2019t read that file.")
+            runCatching { profiles.import(text) }
+                .onSuccess { _notices.send("Added ${it.name}. Tap it to put it on.") }
+                .onFailure { e -> _notices.send(e.message ?: "That file isn\u2019t a look profile.") }
+        }
+    }
+
+    fun reportLookTransfer(message: String) {
+        viewModelScope.launch { _notices.send(message) }
     }
 
     /** Highlights' own wording (null: Butler's), editable in Settings. */

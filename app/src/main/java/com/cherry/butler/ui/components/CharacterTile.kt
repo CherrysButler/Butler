@@ -333,6 +333,8 @@ fun BrowseTileFooter(
     val density = androidx.compose.ui.platform.LocalDensity.current
     val handleHeight = with(density) { MaterialTheme.typography.labelLarge.lineHeight.toDp() }
     val blurbHeight = with(density) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 3
+    // A tag's line and its pill's padding, so a larger app text size doesn't cut the tags off.
+    val tagsHeight = with(density) { MaterialTheme.typography.labelSmall.lineHeight.toDp() } + 9.dp
     Row(modifier = Modifier.height(handleHeight).clipToBounds(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = "@$creatorName",
@@ -363,7 +365,7 @@ fun BrowseTileFooter(
         modifier = Modifier.height(blurbHeight).clipToBounds(),
     )
     FlowRow(
-        modifier = Modifier.fillMaxWidth().height(24.dp),
+        modifier = Modifier.fillMaxWidth().height(tagsHeight),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         maxLines = 1,
     ) {

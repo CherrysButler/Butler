@@ -262,7 +262,7 @@ private fun TopBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .height(56.dp)
+            .heightIn(min = 56.dp)
             .padding(start = 4.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -664,13 +664,13 @@ private fun StartChatBar(
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PersonaSwitch(current = persona, onClick = onPickPersona, modifier = Modifier.widthIn(max = 190.dp).height(50.dp))
+                PersonaSwitch(current = persona, onClick = onPickPersona, modifier = Modifier.widthIn(max = 190.dp).heightIn(min = 50.dp))
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = onStart,
                     enabled = !starting,
                     shape = MaterialTheme.shapes.medium,
-                    modifier = Modifier.weight(1f).height(50.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 50.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary,

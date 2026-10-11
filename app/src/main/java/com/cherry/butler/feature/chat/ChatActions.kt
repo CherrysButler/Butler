@@ -261,7 +261,7 @@ fun LineEditor(
             Spacer(Modifier.width(6.dp))
             Box(
                 modifier = Modifier
-                    .height(36.dp)
+                    .heightIn(min = 36.dp)
                     .background(
                         if (text.isBlank() || status.saving) ButlerTheme.colors.surfaceHigh else MaterialTheme.colorScheme.primary,
                         MaterialTheme.shapes.small,

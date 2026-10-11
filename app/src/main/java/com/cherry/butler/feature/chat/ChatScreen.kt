@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.core.data.remote.dto.PronounsDto
 import com.cherry.butler.core.markdown.SceneTag
 import com.cherry.butler.core.markdown.SceneTags
@@ -407,7 +408,7 @@ fun ChatScreen(
         topBar = {
             Column(modifier = Modifier.statusBarsPadding()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(56.dp).padding(end = 4.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
@@ -838,8 +839,9 @@ private fun BotTurn(
     ) {
         val janitor = LocalChatStyle.current == ChatStyle.Janitor
         if (!janitor) {
-            // A fixed height: the tools appearing when a reply finishes must not shift the page.
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp).height(34.dp)) {
+            // A steady height: the tools appearing when a reply finishes must not shift the page.
+            // A floor rather than a fixed height, so a large text size isn't cut off.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp).heightIn(min = 34.dp)) {
                 Avatar(
                     url = characterAvatarUrl, name = characterName, size = 30.dp, initialStyle = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.clip(MaterialTheme.shapes.extraSmall).clickable(onClickLabel = "Show picture", onClick = onAvatarClick),

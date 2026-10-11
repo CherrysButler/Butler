@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -86,12 +87,12 @@ fun PromptsScreen(onBack: () -> Unit, onOpen: (String?) -> Unit, viewModel: Prom
     val error by viewModel.error.collectAsStateWithLifecycle()
     val prompts = loaded.orEmpty()
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
             PlateText(text = "Prompt library", level = PlateLevel.Name, modifier = Modifier.weight(1f))
-            KeyButton(label = "New", onClick = { onOpen(null) }, primary = true, modifier = Modifier.height(40.dp))
+            KeyButton(label = "New", onClick = { onOpen(null) }, primary = true, modifier = Modifier.heightIn(min = 40.dp))
         }
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 24.dp)) {
             if (loaded == null && error != null) {

@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.remember
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.runtime.setValue
@@ -78,7 +79,7 @@ class CustomizeViewModel @Inject constructor(
 fun CustomizeScreen(onBack: () -> Unit, viewModel: CustomizeViewModel = hiltViewModel()) {
     val look by viewModel.look.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().navigationBarsPadding()) {
-        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }

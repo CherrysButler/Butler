@@ -283,7 +283,7 @@ fun EditorScaffold(
     content: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-        Row(modifier = Modifier.fillMaxWidth().height(56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
             }
@@ -303,7 +303,7 @@ fun EditorScaffold(
                 }
                 Spacer(Modifier.width(4.dp))
             }
-            KeyButton(label = if (saving) "Saving…" else "Save", onClick = onSave, enabled = canSave && !saving, primary = true, modifier = Modifier.height(40.dp))
+            KeyButton(label = if (saving) "Saving…" else "Save", onClick = onSave, enabled = canSave && !saving, primary = true, modifier = Modifier.heightIn(min = 40.dp))
         }
         if (error != null) {
             Text(

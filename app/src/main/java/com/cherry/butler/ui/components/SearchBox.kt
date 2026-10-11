@@ -1,5 +1,6 @@
 package com.cherry.butler.ui.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -77,7 +78,7 @@ fun SearchBox(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .heightIn(min = 44.dp)
             .clip(shape)
             .background(ButlerTheme.colors.surfaceHigh)
             .border(1.dp, edge, shape)

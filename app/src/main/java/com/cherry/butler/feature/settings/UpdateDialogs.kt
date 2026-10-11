@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.foundation.layout.heightIn
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -102,12 +103,12 @@ fun UpdateSheet(
                 modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                KeyButton("Later", onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp))
+                KeyButton("Later", onClick = onDismiss, modifier = Modifier.weight(1f).heightIn(min = 48.dp))
                 KeyButton(
                     "Get it on GitHub",
                     onClick = { openReleasePage(context, url); onDismiss() },
                     primary = true,
-                    modifier = Modifier.weight(1.6f).height(48.dp),
+                    modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
                 )
             }
             if (onStopAsking != null) {

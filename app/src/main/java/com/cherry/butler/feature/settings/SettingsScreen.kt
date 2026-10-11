@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.ViewList
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Bookmarks
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.Description
@@ -176,7 +177,7 @@ fun SettingsScreen(
     Box(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (onBack != null) {
-                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (dirty) leaving = onBack else onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
@@ -263,7 +264,8 @@ private fun SettingsBody(
             }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
             SettingsPage.Chat -> ChatSection(viewModel, replaces, auto)
-            SettingsPage.Look -> LookSection(viewModel, onOpenCustomize, onOpenThinking = { onOpenPage(SettingsPage.Thinking) })
+            SettingsPage.Look -> LookSection(viewModel, onOpenCustomize, onOpenThinking = { onOpenPage(SettingsPage.Thinking) }, onOpenProfiles = { onOpenPage(SettingsPage.Profiles) })
+            SettingsPage.Profiles -> ProfilesSection(viewModel)
             SettingsPage.Thinking -> ThinkingSection(viewModel)
             SettingsPage.RichTyping -> RichTypingSection(viewModel)
             SettingsPage.Specials -> SpecialsSection(viewModel)
@@ -496,6 +498,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Chat("Chat", "Keyboard, memory, pictures, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
     Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
     Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
+    Profiles("Look profiles", "Saved looks, to put on in a tap or share", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
     Specials("Butler specials", "Butter, highlights, tags", com.cherry.butler.R.drawable.ic_set_specials),
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
@@ -840,7 +843,7 @@ private fun generationSummary(gen: JsonObject): String {
 
 /** The look: three themes as tiles, the chat layout as a choice, and the text styling. */
 @Composable
-private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit, onOpenThinking: () -> Unit) {
+private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit, onOpenThinking: () -> Unit, onOpenProfiles: () -> Unit) {
     val current by viewModel.theme.collectAsStateWithLifecycle()
     val chatStyle by viewModel.chatStyle.collectAsStateWithLifecycle()
     val custom by viewModel.custom.collectAsStateWithLifecycle()
@@ -888,6 +891,17 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
         )
         LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize, icon = Icons.Rounded.FormatSize)
         BackgroundRow()
+        val profiles by viewModel.lookProfiles.collectAsStateWithLifecycle()
+        LinkRow(
+            title = "Look profiles",
+            subtitle = when (profiles.size) {
+                0 -> "Save this look to put it back on in a tap"
+                1 -> "1 saved"
+                else -> "${profiles.size} saved"
+            },
+            onClick = onOpenProfiles,
+            icon = Icons.Rounded.Bookmarks,
+        )
     }
     if (customizing) CustomLookSheet(viewModel, onDismiss = { customizing = false })
 }
@@ -1334,17 +1348,35 @@ private fun AddonWarning(
 }
 
 /**
- * One of the two fonts: the built-ins, any font files added (each with a way to remove it),
- * and "Add a font file", which opens the system file picker for a .ttf or .otf.
+ * One of the two fonts: the built-ins, the fonts added (each with its faces, and a way to
+ * remove it), and "Add font files", which opens the system file picker for .ttf and .otf
+ * files: up to four faces of one family at once. When there are added fonts already, the
+ * picked faces can join one of them or start a family of their own.
  */
 @Composable
 private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewModel) {
     val chosen by (if (forChat) viewModel.chatFont else viewModel.appFont).collectAsStateWithLifecycle()
     val added by viewModel.addedFonts.collectAsStateWithLifecycle()
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri -> uri?.let { viewModel.addFont(it, forChat) } }
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> viewModel.pickFonts(uris, forChat) }
     fun choose(key: String) = if (forChat) viewModel.setChatFont(key) else viewModel.setAppFont(key)
+    var removing by remember { mutableStateOf<com.cherry.butler.core.data.FontPrefs.Added?>(null) }
+    removing?.let { font ->
+        com.cherry.butler.feature.chat.DeleteConfirmDialog(
+            count = 1,
+            title = "Remove ${font.name}?",
+            body = (if (font.faces.size == 1) "Its file is" else "Its ${font.faces.size} files are") +
+                " deleted from Butler. Anything set to it goes back to the default.",
+            confirmLabel = "Remove",
+            onConfirm = { removing = null; viewModel.removeFont(font.key) },
+            onDismiss = { removing = null },
+        )
+    }
+    val fontPick by viewModel.fontPick.collectAsStateWithLifecycle()
+    fontPick?.takeIf { it.forChat == forChat }?.let { p ->
+        FontFamilyDialog(picked = p.picked, added = added, onPlace = viewModel::placeFonts, onDismiss = viewModel::cancelFontPick)
+    }
     DropRow(title = title, value = com.cherry.butler.core.data.FontPrefs.nameOf(chosen)) { close ->
         com.cherry.butler.core.data.FontPrefs.BUILT_IN.forEach { (key, name) ->
             DropItem(
@@ -1359,29 +1391,79 @@ private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewMode
             )
         }
         if (added.isNotEmpty()) DropDivider()
-        added.forEach { file ->
-            val key = com.cherry.butler.core.data.FontPrefs.FILE + file
+        added.forEach { font ->
             DropItem(
-                title = com.cherry.butler.core.data.FontPrefs.nameOf(key),
-                subtitle = null,
-                selected = chosen == key,
-                onClick = { close(); choose(key) },
+                title = font.name,
+                subtitle = font.faces.joinToString(", ") { it.label },
+                selected = chosen == font.key,
+                onClick = { close(); choose(font.key) },
                 trailing = {
-                    IconButton(onClick = { close(); viewModel.removeFont(file) }) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Remove ${com.cherry.butler.core.data.FontPrefs.nameOf(key)}", tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
+                    IconButton(onClick = { close(); removing = font }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Remove ${font.name}", tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
                     }
                 },
             )
         }
         DropDivider()
         DropItem(
-            title = "Add a font file",
-            subtitle = ".ttf or .otf",
+            title = "Add font files",
+            subtitle = ".ttf or .otf: regular, bold, italic, bold italic",
             onClick = { close(); pick.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream")) },
             trailing = {
                 Icon(Icons.Rounded.Add, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
             },
         )
+    }
+}
+
+/**
+ * Where picked font files go: a family of their own, or one of the fonts added before. A font
+ * with the same family name as the files comes first. A face the family has already is
+ * replaced by the new file.
+ */
+@Composable
+private fun FontFamilyDialog(
+    picked: com.cherry.butler.core.data.FontPrefs.Picked,
+    added: List<com.cherry.butler.core.data.FontPrefs.Added>,
+    onPlace: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val faces = picked.faces.joinToString(", ") { it.label }
+    val ordered = added.sortedByDescending { it.name.equals(picked.family, ignoreCase = true) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        title = { Text("Add to a family", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "${picked.family}: $faces",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ButlerTheme.colors.textMed,
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                )
+                FamilyChoice(title = "A new family", subtitle = "Named “${picked.family}”") { onPlace(null) }
+                ordered.forEach { font ->
+                    FamilyChoice(title = font.name, subtitle = "Has " + font.faces.joinToString(", ") { it.label }) { onPlace(font.key) }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss, shape = com.cherry.butler.core.design.Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) }
+        },
+    )
+}
+
+@Composable
+private fun FamilyChoice(title: String, subtitle: String, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick)
+            .heightIn(min = 56.dp).padding(horizontal = 4.dp, vertical = 10.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textLow)
     }
 }
 
