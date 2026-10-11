@@ -400,6 +400,9 @@ val generateCdsArchive by tasks.registering {
     }
 }
 tasks.matching { it.name == "createDistributable" }.configureEach { finalizedBy(generateCdsArchive) }
+// Built in the same run as the app folder (as the release workflow does), the installers wait
+// for the archive, so they carry it.
+tasks.matching { it.name == "packageMsi" || it.name == "packageExe" }.configureEach { mustRunAfter(generateCdsArchive) }
 
 // Windows' newer allocator (the segment heap, which Edge and Windows' own apps use) for
 // everything Butler allocates outside Java: Skia, the GPU driver, SQLite. It fragments far

@@ -1,9 +1,10 @@
 name: Release
 
-# Push a tag like v0.2.0 (matching versionName in app/build.gradle.kts) and this builds the
-# signed release APK, scans it on VirusTotal, and attaches it, with its checksum, to a GitHub
-# Release. The release text is .github/release-notes/vX.Y.Z.md, written by hand for each
-# version; the workflow adds the checksum and the scan link under it.
+# Push a tag like v0.2.0 (matching versionName in app/build.gradle.kts and packageVersion in
+# desktop/build.gradle.kts) and this builds the signed release APK and the Windows installer,
+# scans both on VirusTotal, and attaches them, with their checksums, to a GitHub Release. The
+# release text is .github/release-notes/vX.Y.Z.md, written by hand for each version; the
+# workflow adds the checksums and the scan links under it.
 
 on:
   push:
@@ -13,7 +14,51 @@ permissions:
   contents: write
 
 jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches packageVersion
+        run: |
+          version=$(sed -n 's/.*packageVersion = "\(.*\)".*/\1/p' desktop/build.gradle.kts)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match the desktop packageVersion $version"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # The Java the installer bundles: the same one the app is built and tested on.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # MSVC (for the Turnstile helper), the Windows SDK (mt.exe) and WiX's download all come
+      # with the runner or the build itself. The app folder is assembled first, in the same run,
+      # so the installer carries its class-data sharing archive.
+      - name: Build the installer
+        run: ./gradlew --no-configuration-cache :desktop:createDistributable :desktop:packageMsi
+
+      - name: Name it
+        run: |
+          mkdir dist
+          cp "desktop/build/compose/binaries/main/msi/Butler-$VERSION.msi" dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist/*.msi
+          retention-days: 7
+
   release:
+    needs: windows
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,63 +98,86 @@ jobs:
           BUTLER_KEY_PASSWORD: ${{ secrets.BUTLER_KEY_PASSWORD }}
         run: ./gradlew --no-configuration-cache :app:testDebugUnitTest :app:assembleRelease
 
-      - name: Name and checksum the APKs
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: dist
+
+      - name: Name and checksum the files
         run: |
-          mkdir dist
           cp app/build/outputs/apk/release/app-release.apk "dist/Butler-$VERSION.apk"
-          cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt
+          cd dist && sha256sum "Butler-$VERSION.apk" "Butler-$VERSION.msi" > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Verify the release APK is signed with the release key
         run: |
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
           "$apksigner" verify --print-certs "dist/Butler-$VERSION.apk" | grep -i "certificate DN"
 
-      # The APK goes to VirusTotal as part of every release, so the scan link on the release
-      # page is for exactly the file people download. A scan that can't be had (no key, an
-      # outage, a slow queue) is noted, never a reason to hold the release.
+      # Both files go to VirusTotal as part of every release, so the scan links on the release
+      # page are for exactly the files people download. A scan that can't be had (no key, an
+      # outage, a slow queue) is noted, never a reason to hold the release. Files over 32 MB
+      # (the installer) go through VirusTotal's upload URL for large files. The free API allows
+      # four requests a minute, so the two reports are asked for in turn, every 30 seconds.
       - name: Scan on VirusTotal
         env:
           VT_KEY: ${{ secrets.VIRUSTOTAL_SECRET }}
         run: |
-          apk="dist/Butler-$VERSION.apk"
-          sha=$(sha256sum "$apk" | cut -d' ' -f1)
-          link="https://www.virustotal.com/gui/file/$sha"
-          verdict=""
+          files=("Butler-$VERSION.apk" "Butler-$VERSION.msi")
+          declare -A analysis verdict
           if [ -z "$VT_KEY" ]; then
-            echo "::warning::VIRUSTOTAL_SECRET isn't set; the release notes get no scan line"
+            echo "::warning::VIRUSTOTAL_SECRET isn't set; the release notes get no scan verdicts"
           else
-            analysis=$(curl -sS --fail-with-body -X POST https://www.virustotal.com/api/v3/files               -H "x-apikey: $VT_KEY" -F "file=@$apk" | jq -r '.data.id // empty') || true
-            if [ -n "$analysis" ]; then
-              # Up to ten minutes for the vendors; the link works as soon as the upload is in.
-              for i in $(seq 1 60); do
-                report=$(curl -sS https://www.virustotal.com/api/v3/analyses/$analysis -H "x-apikey: $VT_KEY") || true
-                status=$(echo "$report" | jq -r '.data.attributes.status // empty')
-                [ "$status" = "completed" ] && break
-                sleep 10
-              done
-              if [ "$status" = "completed" ]; then
-                flagged=$(echo "$report" | jq -r '.data.attributes.stats.malicious + .data.attributes.stats.suspicious')
-                total=$(echo "$report" | jq -r '[.data.attributes.stats[]] | add')
-                if [ "$flagged" = "0" ]; then verdict="no security vendor flags it ($total checked)"; else verdict="$flagged of $total vendors flagged it; read the report before installing"; fi
-              else
-                verdict="the vendors were still working when this was written; the link has the result"
+            for f in "${files[@]}"; do
+              url="https://www.virustotal.com/api/v3/files"
+              if [ "$(stat -c %s "dist/$f")" -gt 33554432 ]; then
+                url=$(curl -sS https://www.virustotal.com/api/v3/files/upload_url -H "x-apikey: $VT_KEY" | jq -r '.data // empty') || true
               fi
-            else
-              echo "::warning::VirusTotal didn't take the upload"
-            fi
+              if [ -n "$url" ]; then
+                analysis[$f]=$(curl -sS --fail-with-body -X POST "$url" -H "x-apikey: $VT_KEY" -F "file=@dist/$f" | jq -r '.data.id // empty') || true
+              fi
+              [ -z "${analysis[$f]}" ] && echo "::warning::VirusTotal didn't take $f"
+              sleep 15
+            done
+            # Up to twenty minutes for the vendors; the links work as soon as the uploads are in.
+            for i in $(seq 1 40); do
+              waiting=0
+              for f in "${files[@]}"; do
+                id="${analysis[$f]}"
+                [ -z "$id" ] || [ -n "${verdict[$f]}" ] && continue
+                report=$(curl -sS "https://www.virustotal.com/api/v3/analyses/$id" -H "x-apikey: $VT_KEY") || true
+                if [ "$(echo "$report" | jq -r '.data.attributes.status // empty')" = "completed" ]; then
+                  flagged=$(echo "$report" | jq -r '.data.attributes.stats.malicious + .data.attributes.stats.suspicious')
+                  total=$(echo "$report" | jq -r '[.data.attributes.stats[]] | add')
+                  if [ "$flagged" = "0" ]; then verdict[$f]="no security vendor flags it ($total checked)"; else verdict[$f]="$flagged of $total vendors flagged it; read the report before installing"; fi
+                  echo "$f: ${verdict[$f]}"
+                else
+                  waiting=1
+                fi
+              done
+              [ "$waiting" = "0" ] && break
+              sleep 30
+            done
           fi
           {
             cat ".github/release-notes/v$VERSION.md"
             echo
             echo "## Checked"
             echo
-            echo "- SHA-256: \`$sha\` (also in SHA256SUMS.txt)."
-            if [ -n "$verdict" ]; then
-              echo "- Scanned on [VirusTotal]($link?nocache=1) by the release workflow: $verdict."
-            else
-              echo "- VirusTotal: scan it yourself at [this link]($link?nocache=1) (the workflow couldn't this time)."
-            fi
+            for f in "${files[@]}"; do
+              sha=$(sha256sum "dist/$f" | cut -d' ' -f1)
+              link="https://www.virustotal.com/gui/file/$sha?nocache=1"
+              if [ -n "${verdict[$f]}" ]; then
+                scan="Scanned on [VirusTotal]($link) by the release workflow: ${verdict[$f]}."
+              elif [ -n "${analysis[$f]}" ]; then
+                scan="Scanned on [VirusTotal]($link) by the release workflow: the vendors were still working when this was written; the link has the result."
+              else
+                scan="VirusTotal: scan it yourself at [this link]($link) (the workflow couldn't this time)."
+              fi
+              echo "- **$f**, SHA-256: \`$sha\`. $scan"
+            done
+            echo "- Both checksums are also in SHA256SUMS.txt."
           } > "$RUNNER_TEMP/release-body.md"
+          cat "$RUNNER_TEMP/release-body.md"
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -117,4 +185,5 @@ jobs:
           body_path: ${{ runner.temp }}/release-body.md
           files: |
             dist/Butler-${{ env.VERSION }}.apk
+            dist/Butler-${{ env.VERSION }}.msi
             dist/SHA256SUMS.txt
