@@ -28,25 +28,49 @@
     return list;
   }
 
+  // One file's checksum and scan, from the text the release workflow writes under "Checked".
+  function checked(text) {
+    const sha = (text.match(/SHA-256:\s*`([0-9a-f]{64})`/i) || [])[1] || null;
+    const vt = (text.match(/\((https:\/\/www\.virustotal\.com\/gui\/file\/[0-9a-f]{64}[^)\s]*)\)/i) || [])[1] || null;
+    let scan = null;
+    const clean = text.match(/no security vendor flags it \((\d+) checked\)/i);
+    const flagged = text.match(/(\d+) of (\d+) vendors flagged it/i);
+    if (clean) scan = { flagged: 0, total: +clean[1] };
+    else if (flagged) scan = { flagged: +flagged[1], total: +flagged[2] };
+    return { sha, vt, scan };
+  }
+
   function facts(r) {
     const body = r.body || "";
     const apk = (r.assets || []).find((a) => /\.apk$/i.test(a.name));
-    const sha = (body.match(/SHA-256:\s*`([0-9a-f]{64})`/i) || [])[1] || null;
-    const vt = (body.match(/\((https:\/\/www\.virustotal\.com\/gui\/file\/[0-9a-f]{64}[^)\s]*)\)/i) || [])[1] || null;
-    let scan = null;
-    const clean = body.match(/no security vendor flags it \((\d+) checked\)/i);
-    const flagged = body.match(/(\d+) of (\d+) vendors flagged it/i);
-    if (clean) scan = { flagged: 0, total: +clean[1] };
-    else if (flagged) scan = { flagged: +flagged[1], total: +flagged[2] };
+    const msi = (r.assets || []).find((a) => /\.msi$/i.test(a.name));
+    // Since 0.4.2 each file has its own line; before, the body held the APK's alone.
+    const lines = body.split("\n");
+    const lineOf = (ext) => lines.find((l) => ext.test(l) && /SHA-256:/i.test(l));
+    const apkLine = lineOf(/\.apk\b/i);
+    const msiLine = lineOf(/\.msi\b/i);
+    const windows = msiLine ? checked(msiLine) : null;
     return {
       tag: r.tag_name,
       version: r.tag_name.replace(/^v/, ""),
       date: new Date(r.published_at),
       url: r.html_url,
       apk: apk ? apk.browser_download_url : `${RELEASES}/latest`,
+      msi: msi ? msi.browser_download_url : `${RELEASES}/latest`,
+      hasMsi: !!msi,
       size: apk ? apk.size : null,
-      sha, vt, scan, body,
+      msiSize: msi ? msi.size : null,
+      ...checked(apkLine || body),
+      windows, body,
     };
+  }
+
+  // The scan of one file, as a short verdict with its report link.
+  function scanLink(name, c) {
+    if (!c || !c.vt) return "";
+    if (c.scan && c.scan.flagged === 0) return `<a href="${c.vt}" rel="noopener">${name}, ${c.scan.total}</a>`;
+    if (c.scan) return `<a href="${c.vt}" rel="noopener">${name}: ${c.scan.flagged} flagged</a>`;
+    return `<a href="${c.vt}" rel="noopener">${name}</a>`;
   }
 
   const fmtDate = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -92,12 +116,26 @@
       if (label) label.textContent = `Download Butler ${f.version}`;
     });
     panel.querySelectorAll("[data-download-size]").forEach((s) => { s.textContent = fmtSize(f.size); });
+    document.querySelectorAll("[data-download-windows]").forEach((k) => { k.href = f.msi; });
     document.querySelectorAll("[data-latest-version]").forEach((s) => { s.textContent = f.version; });
 
     await sleep(260);
     setCheck(rows.version, "pass", `Butler ${esc(f.version)}`, `<span class="num">${fmtDate(f.date)}</span>`);
     await sleep(380);
-    if (f.scan && f.scan.flagged === 0) {
+    const w = f.windows;
+    if (w && w.vt) {
+      // Both files: one verdict for the pair, a report link for each.
+      const both = [f, w];
+      const links = `${scanLink("APK", f)} · ${scanLink("Windows", w)}`;
+      if (both.some((c) => c.scan && c.scan.flagged > 0)) {
+        const worst = both.find((c) => c.scan && c.scan.flagged > 0).scan;
+        setCheck(rows.scan, "warn", `${worst.flagged} of ${worst.total} vendors flagged one`, links);
+      } else if (both.every((c) => c.scan)) {
+        setCheck(rows.scan, "pass", "Clean on VirusTotal", links);
+      } else {
+        setCheck(rows.scan, "info", "Scan them on VirusTotal", links);
+      }
+    } else if (f.scan && f.scan.flagged === 0) {
       setCheck(rows.scan, "pass", `Clean on VirusTotal`, `<a href="${f.vt}" rel="noopener">${f.scan.total} vendors</a>`);
     } else if (f.scan) {
       setCheck(rows.scan, "warn", `${f.scan.flagged} of ${f.scan.total} vendors flagged it`, `<a href="${f.vt}" rel="noopener">Read the report</a>`);
@@ -157,6 +195,11 @@
       const scan = f.scan && f.scan.flagged === 0
         ? `<span class="ok">${icon("check_circle")}<a href="${f.vt}" rel="noopener">Clean on VirusTotal, ${f.scan.total} vendors</a></span>`
         : f.vt ? `<a href="${f.vt}" rel="noopener">VirusTotal report</a>` : `<span>Not scanned by the workflow</span>`;
+      const w = f.windows;
+      const winScan = !w || !w.vt ? ""
+        : w.scan && w.scan.flagged === 0
+          ? `<span class="ok">${icon("check_circle")}<a href="${w.vt}" rel="noopener">Clean on VirusTotal, ${w.scan.total} vendors</a></span>`
+          : `<a href="${w.vt}" rel="noopener">VirusTotal report</a>`;
       return `<details class="release"${i === 0 ? " open" : ""}>
         <summary>
           <span class="tag">${esc(f.version)}</span>
@@ -171,6 +214,10 @@
             <span class="num">${fmtSize(f.size)}</span>
             ${scan}
             ${f.sha ? `<span class="num" title="${f.sha}">SHA-256 ${short(f.sha)}</span>` : ""}
+            ${f.hasMsi ? `<a href="${f.msi}">Butler-${esc(f.version)}.msi</a>
+            <span class="num">${fmtSize(f.msiSize)}</span>
+            ${winScan}
+            ${f.windows && f.windows.sha ? `<span class="num" title="${f.windows.sha}">SHA-256 ${short(f.windows.sha)}</span>` : ""}` : ""}
             <a href="${f.url}">Release page</a>
           </div>
         </div>

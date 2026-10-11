@@ -282,6 +282,11 @@ h2.head {
   display: inline-block; font: 700 11px/1 var(--sans); letter-spacing: 1px;
   color: var(--red-text); border: 1px solid var(--red-text); border-radius: 4px; padding: 3px 5px 2px;
 }
+.special {
+  display: inline-block; font: 700 11px/1 var(--sans); letter-spacing: 1px;
+  color: #F2B35E; background: rgba(242, 179, 94, 0.12); border: 1px solid rgba(242, 179, 94, 0.6);
+  border-radius: 4px; padding: 3px 5px 2px;
+}
 
 /* the honest states demo */
 .states {
