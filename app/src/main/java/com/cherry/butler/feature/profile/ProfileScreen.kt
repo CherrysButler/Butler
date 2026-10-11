@@ -170,7 +170,7 @@ fun ProfileScreen(
     val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
     importing?.let { file ->
         com.cherry.butler.ui.components.PersonaImportConfirmDialog(
-            names = file.map { it.name },
+            personas = file,
             onConfirm = viewModel::confirmImport,
             onDismiss = viewModel::cancelImport,
         )

@@ -11,9 +11,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -56,7 +58,9 @@ fun main(args: Array<String>) {
     FrameLog.startIfOn()
     linkLog("start", args.toList())
     // A second launch (a janitor: sign-in link from the browser) goes to the Butler already open.
-    if (!DesktopInstance.claim(args) { handed -> takeLinks(handed); focusWindow?.invoke() }) return
+    if (!DesktopInstance.claim(args) { handed -> takeLinks(handed); if ("--quit" !in handed) focusWindow?.invoke() }) return
+    // Nothing to quit: this was the only Butler.
+    if ("--quit" in args) return
     StartupClock.mark("claim")
     com.cherry.butler.core.diagnostics.Diagnostics.installCrashKeeper(DesktopContext)
     val graph = DesktopGraph.component
@@ -85,11 +89,30 @@ fun main(args: Array<String>) {
             position = WindowMemory.position() ?: WindowPosition(Alignment.Center),
         )
         WindowMemory.Keep(state)
+        // Closing the window puts Butler in the tray (DesktopTray): replies keep going.
+        var shown by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+        val mark = androidx.compose.ui.graphics.vector.rememberVectorPainter(com.cherry.butler.desktop.ui.ButlerMark)
+        val trayDensity = LocalDensity.current
+        LaunchedEffect(Unit) {
+            // The tray icon keeps Java's window system alive: it goes first, or the process stays.
+            quitButler = { java.awt.EventQueue.invokeLater { DesktopTray.remove(); exitApplication() } }
+            val image = mark.toAwtImage(trayDensity, androidx.compose.ui.unit.LayoutDirection.Ltr, androidx.compose.ui.geometry.Size(64f, 64f))
+            DesktopTray.install(image, onOpen = { java.awt.EventQueue.invokeLater { shown = true; focusWindow?.invoke() } }, onQuit = { quitButler?.invoke() })
+        }
         Window(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = {
+                if (DesktopTray.available) {
+                    shown = false
+                    DesktopTray.windowFocused = false
+                    DesktopTray.hidden()
+                } else {
+                    exitApplication()
+                }
+            },
+            visible = shown,
             state = state,
             title = if (com.cherry.butler.BuildConfig.DEBUG) "Butler (dev)" else "Butler",
-            icon = androidx.compose.ui.graphics.vector.rememberVectorPainter(com.cherry.butler.desktop.ui.ButlerMark),
+            icon = mark,
             onPreviewKeyEvent = { e ->
                 when {
                     e.type != KeyEventType.KeyDown -> false
@@ -104,7 +127,7 @@ fun main(args: Array<String>) {
         ) {
             LaunchedEffect(Unit) {
                 StartupClock.mark("window")
-                focusWindow = { java.awt.EventQueue.invokeLater { window.isMinimized = false; window.toFront(); window.requestFocus() } }
+                focusWindow = { java.awt.EventQueue.invokeLater { shown = true; window.isMinimized = false; window.toFront(); window.requestFocus() } }
                 FilePickers.owner = window
                 WindowFrame.install(window)
                 DesktopTour.window = window
@@ -141,6 +164,9 @@ fun main(args: Array<String>) {
 /** Brings the window forward, for a link handed over by a second launch. */
 @Volatile private var focusWindow: (() -> Unit)? = null
 
+/** Quits for real (the window's X only goes to the tray): the tray's Quit, or `Butler.exe --quit`. */
+@Volatile private var quitButler: (() -> Unit)? = null
+
 /**
  * supabase.handleDeeplinks on the phone: a `janitor://auth/…?code=…` redirect finishes the
  * Google or Discord sign-in (PKCE) by exchanging its code for a session.
@@ -153,6 +179,10 @@ internal fun linkLog(event: String, args: List<String>) = runCatching {
 
 private fun takeLinks(args: List<String>) {
     linkLog("take", args)
+    if ("--quit" in args) {
+        quitButler?.invoke()
+        return
+    }
     val link = args.firstOrNull { it.startsWith("${com.cherry.butler.core.config.JanitorConfig.OAUTH_SCHEME}://") } ?: return
     if (DesktopBench.isBench(link)) {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {

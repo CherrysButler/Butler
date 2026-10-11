@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -140,6 +141,7 @@ fun TransferProgressDialog(title: String, done: Int, total: Int, unit: String = 
 fun ImportConfirmDialog(count: Int, from: String, into: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = { Text("Import as a new chat?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) },
@@ -158,28 +160,42 @@ fun ImportConfirmDialog(count: Int, from: String, into: String, onConfirm: () ->
     )
 }
 
-/** Before a persona import: how many, and that each is made new beside the ones there. */
+/**
+ * Before a persona import: each persona as it will be made, its picture, name, pronouns,
+ * group and the start of its description (a tap shows all of it), and that each is made new
+ * beside the ones there.
+ */
 @Composable
-fun PersonaImportConfirmDialog(names: List<String>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun PersonaImportConfirmDialog(personas: List<com.cherry.butler.core.data.TransferPersona>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Only its own keys answer it: a stray click as a file dialog closed used to dismiss it unseen.
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = {
             Text(
-                if (names.size == 1) "Import \u201C${names.single()}\u201D?" else "Import ${names.size} personas?",
+                if (personas.size == 1) "Import “${personas.single().name}”?" else "Import ${personas.size} personas?",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         },
         text = {
-            Text(
-                (if (names.size == 1) "It is made as a new persona" else "Each one is made as a new persona") +
-                    " on Janitor, beside the ones you have. Nothing you have is changed. " +
-                    "Groups are matched by name, and made when you have none by that name.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = ButlerTheme.colors.textMed,
-            )
+            Column {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.heightIn(max = 380.dp),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                ) {
+                    items(personas.size) { i -> ImportedPersona(personas[i]) }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    (if (personas.size == 1) "It is made as a new persona" else "Each one is made as a new persona") +
+                        " on Janitor, beside the ones you have. Nothing you have is changed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ButlerTheme.colors.textLow,
+                )
+            }
         },
         confirmButton = {
             TextButton(onClick = onConfirm, shape = Pill) { Text("Import", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
@@ -187,3 +203,45 @@ fun PersonaImportConfirmDialog(names: List<String>, onConfirm: () -> Unit, onDis
         dismissButton = { TextButton(onClick = onDismiss, shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
     )
 }
+
+/** One persona in the import's preview; its description opens in full on a tap. */
+@Composable
+private fun ImportedPersona(p: com.cherry.butler.core.data.TransferPersona) {
+    var open by remember { mutableStateOf(false) }
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(ButlerTheme.colors.surfaceHigh)
+            .clickable(enabled = p.appearance.isNotBlank()) { open = !open }
+            .padding(12.dp),
+    ) {
+        Avatar(url = p.avatarUrl, name = p.name, size = 44.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(p.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            val pronouns = p.pronouns?.let { listOfNotNull(it.subjective, it.objective).filter { w -> w.isNotBlank() }.joinToString("/") }.orEmpty()
+            val facts = listOfNotNull(pronouns.takeIf { it.isNotEmpty() }, p.group?.name?.let { "in $it" }, "was your default".takeIf { p.isDefault })
+            if (facts.isNotEmpty()) {
+                Text(facts.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
+            }
+            if (p.appearance.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (open) p.appearance.trim() else plainExcerpt(p.appearance),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ButlerTheme.colors.textMed,
+                    maxLines = if (open) Int.MAX_VALUE else 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** The description's start as plain words: headings, stars and blank lines out. */
+private fun plainExcerpt(text: String): String =
+    text.lineSequence()
+        .map { it.trim().trimStart('#', '>', '-', ' ').replace("**", "").replace("*", "").replace("__", "") }
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
