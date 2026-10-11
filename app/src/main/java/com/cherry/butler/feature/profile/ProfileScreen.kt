@@ -5,6 +5,9 @@ import com.cherry.butler.ui.components.dropLastPixel
 import com.cherry.butler.ui.components.card
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.FileDownload
+import com.cherry.butler.ui.components.userMessage
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.outlined.Edit
@@ -137,6 +140,47 @@ fun ProfileScreen(
             onDismiss = { editingGroup = null },
         )
     }
+    // Export and import. The saver and the file picker live here, at the screen's level, so
+    // their answers still land after the dialog that opened them has closed.
+    var exporting by remember { mutableStateOf<ExportAsk?>(null) }
+    val saveFile = com.cherry.butler.ui.components.rememberFileSaver(onError = viewModel::reportTransfer)
+    val exportScope = androidx.compose.runtime.rememberCoroutineScope()
+    exporting?.let { ask ->
+        com.cherry.butler.ui.components.PersonaExportDialog(
+            title = if (ask.option == null) "Export all personas" else "Export \u201C${ask.option.name}\u201D",
+            onPick = { format ->
+                exporting = null
+                exportScope.launch {
+                    runCatching { viewModel.exportText(ask.option, format) }
+                        .onSuccess { (name, text) -> saveFile(name, text) }
+                        .onFailure { viewModel.reportTransfer("Couldn't export. ${it.userMessage()}") }
+                }
+            },
+            onDismiss = { exporting = null },
+        )
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val openFile = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val text = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+            if (text != null) viewModel.readImport(text) else viewModel.reportTransfer("That file couldn't be read.")
+        }
+    }
+    val importing by viewModel.importing.collectAsStateWithLifecycle()
+    val importProgress by viewModel.importProgress.collectAsStateWithLifecycle()
+    importing?.let { file ->
+        com.cherry.butler.ui.components.PersonaImportConfirmDialog(
+            names = file.map { it.name },
+            onConfirm = viewModel::confirmImport,
+            onDismiss = viewModel::cancelImport,
+        )
+    }
+    importProgress?.let { (done, total) -> com.cherry.butler.ui.components.TransferProgressDialog("Importing\u2026", done, total, unit = "personas") }
+    val transferError by viewModel.transferError.collectAsStateWithLifecycle()
+    transferError?.let { msg ->
+        DeleteConfirmDialog(count = 1, title = "Not done", body = msg, confirmLabel = "OK", onConfirm = viewModel::dismissTransferError, onDismiss = viewModel::dismissTransferError)
+    }
+
     deletingGroup?.let { group ->
         val inIt = options.count { it.groupId == group.id }
         DeleteConfirmDialog(
@@ -182,6 +226,7 @@ fun ProfileScreen(
                     busy = swap?.stage == SwapFlow.Stage.Running,
                     onMakeDefault = { viewModel.askMakeDefault(option) },
                     onEdit = { onEditPersona(option.id ?: "default") },
+                    onExport = { exporting = ExportAsk(option) },
                     onMoveToGroup = if (option.id != null) ({ moving = option }) else null,
                 ) { viewModel.choose(option) }
 
@@ -226,6 +271,25 @@ fun ProfileScreen(
                     onClick = { onEditPersona("new") },
                     modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
                 )
+                // Import reads Butler's own JSON only; the picker still shows every file, and a
+                // text or Markdown export picked by mistake is turned away with a reason.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    com.cherry.butler.feature.chats.KeyButton(
+                        "Import",
+                        onClick = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) },
+                        enabled = importProgress == null,
+                        modifier = Modifier.weight(1f),
+                    )
+                    com.cherry.butler.feature.chats.KeyButton(
+                        "Export all",
+                        onClick = { exporting = ExportAsk(null) },
+                        enabled = options.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 groupError?.let {
                     Text(it, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.danger, modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp))
                 }
@@ -307,6 +371,7 @@ private fun PersonaRow(
     busy: Boolean,
     onMakeDefault: () -> Unit,
     onEdit: () -> Unit,
+    onExport: () -> Unit,
     onMoveToGroup: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -367,6 +432,11 @@ private fun PersonaRow(
                         leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed) },
                         onClick = { menu = false; onEdit() },
                     )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Export", style = MaterialTheme.typography.titleSmall) },
+                        leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = ButlerTheme.colors.textMed) },
+                        onClick = { menu = false; onExport() },
+                    )
                     onMoveToGroup?.let { move ->
                         androidx.compose.material3.DropdownMenuItem(
                             text = { Text("Move to group", style = MaterialTheme.typography.titleSmall) },
@@ -387,6 +457,9 @@ private fun PersonaRow(
         com.cherry.butler.ui.components.HairlineRule(color = ButlerTheme.colors.outlineFaint, modifier = Modifier.padding(start = 70.dp))
     }
 }
+
+/** An export asked for: one persona (the profile among them), or everyone when [option] is null. */
+private data class ExportAsk(val option: PersonaOption?)
 
 /** A group being made ([id] null) or changed; [thenMove] is a persona to put in a new one. */
 private data class GroupEdit(val id: String?, val name: String, val color: String, val thenMove: String? = null)

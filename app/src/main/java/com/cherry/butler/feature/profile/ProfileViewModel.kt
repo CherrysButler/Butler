@@ -9,6 +9,10 @@ import com.cherry.butler.core.auth.AccountService
 import com.cherry.butler.core.data.PersonaOption
 import com.cherry.butler.core.data.PersonaRepository
 import com.cherry.butler.core.data.PersonaSwap
+import com.cherry.butler.core.data.PersonaFormats
+import com.cherry.butler.core.data.PersonaTransfer
+import com.cherry.butler.core.data.TransferPersona
+import com.cherry.butler.ui.components.PersonaExportFormat
 import com.cherry.butler.ui.components.userMessage
 import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.remote.dto.ProfileCountsDto
@@ -21,6 +25,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Personas as a file: its name and its text in [format]. One persona is named after itself,
+ * several after the day they were exported.
+ */
+internal fun personaFile(personas: List<TransferPersona>, format: PersonaExportFormat): Pair<String, String> {
+    val text = when (format) {
+        PersonaExportFormat.Butler -> PersonaFormats.toButler(personas, System.currentTimeMillis())
+        PersonaExportFormat.Text -> PersonaFormats.toText(personas)
+        PersonaExportFormat.Markdown -> PersonaFormats.toMarkdown(personas)
+    }
+    val stem = personas.singleOrNull()?.name?.ifBlank { null }?.replace(Regex("[\\/:*?\"<>|]"), "_")?.let { "$it - persona" }
+        ?: "Personas - ${java.time.LocalDate.now()}"
+    return "$stem.${format.extension}" to text
+}
+
 /** What signing out would cost, asked before it happens. */
 data class SignOutCheck(val unsent: Int)
 
@@ -30,7 +49,47 @@ class ProfileViewModel @Inject constructor(
     private val personas: PersonaRepository,
     private val account: AccountService,
     private val swap: PersonaSwap,
+    private val transfer: PersonaTransfer,
 ) : ViewModel() {
+
+    // ---- export and import -------------------------------------------------------------
+
+    /** A file read and waiting for the user's yes: the personas in it. */
+    private val _importing = MutableStateFlow<List<TransferPersona>?>(null)
+    val importing: StateFlow<List<TransferPersona>?> = _importing.asStateFlow()
+    private val _importProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val importProgress: StateFlow<Pair<Int, Int>?> = _importProgress.asStateFlow()
+    private val _transferError = MutableStateFlow<String?>(null)
+    val transferError: StateFlow<String?> = _transferError.asStateFlow()
+
+    fun reportTransfer(message: String) { _transferError.value = message }
+    fun dismissTransferError() { _transferError.value = null }
+
+    /** [option] as a file's name and text in [format]; null exports everyone, the profile first. */
+    suspend fun exportText(option: PersonaOption?, format: PersonaExportFormat): Pair<String, String> =
+        personaFile(if (option == null) transfer.exportAll() else listOf(transfer.export(option.id)), format)
+
+    fun readImport(text: String) {
+        runCatching { PersonaFormats.parse(text) }
+            .onSuccess { _importing.value = it }
+            .onFailure { _transferError.value = it.message ?: "That file couldn't be read." }
+    }
+
+    fun cancelImport() { _importing.value = null }
+
+    fun confirmImport() {
+        val file = _importing.value ?: return
+        _importing.value = null
+        viewModelScope.launch {
+            _importProgress.value = 0 to file.size
+            runCatching { transfer.import(file) { done, total -> _importProgress.value = done to total } }
+                .onFailure { e ->
+                    val made = _importProgress.value?.first ?: 0
+                    _transferError.value = "Import stopped after $made of ${file.size}. ${e.userMessage()}"
+                }
+            _importProgress.value = null
+        }
+    }
 
     /** A "Make default" swap, from the ask to the end; null when no pop-up is open. */
     private val _swapFlow = MutableStateFlow<SwapFlow?>(null)

@@ -137,6 +137,7 @@ fun ChatScreen(
     onOpenCustomize: () -> Unit = {},
     onOpenCharacter: (String) -> Unit = {},
     onOpenChat: (Long) -> Unit = {},
+    /** A persona's id, or "default" for the profile. */
     onEditPersona: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
@@ -281,7 +282,9 @@ fun ChatScreen(
             selected = activePersona,
             onPick = { viewModel.pickPersona(it); pickingPersona = false },
             onDismiss = { pickingPersona = false },
-            onEdit = { option -> pickingPersona = false; option.id?.let(onEditPersona) },
+            // The profile opens as "default", as it does from Profile: whoever "Make default"
+            // put there is the profile now, and is edited from the chat all the same.
+            onEdit = { option -> pickingPersona = false; onEditPersona(option.id ?: com.cherry.butler.feature.profile.PersonaEditorViewModel.DEFAULT) },
         )
     }
     val activeJob = jobs.firstOrNull { it.state in SendJobState.active }

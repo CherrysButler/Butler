@@ -53,8 +53,17 @@ class PersonaEditing @Inject constructor(
     /** A new persona; returns its id. */
     suspend fun create(draft: PersonaDraft): String {
         val avatar = draft.picture?.let { pictures.upload(it, "avatar") }.orEmpty()
-        val created = remote.createPersona(draft.name.trim(), draft.appearance, avatar, draft.pronouns?.dto)
-        profiles.personas(refresh = true)
+        return create(draft.name, draft.appearance, avatar, draft.pronouns?.dto)
+    }
+
+    /**
+     * A new persona from parts, as an import has them: pronouns as they were saved, and
+     * [avatarFile] a picture already in Janitor's persona folder by its file name ("" for none).
+     * [refresh] false leaves re-reading the list to the caller, once after many.
+     */
+    suspend fun create(name: String, appearance: String, avatarFile: String, pronouns: PronounsDto?, refresh: Boolean = true): String {
+        val created = remote.createPersona(name.trim(), appearance, avatarFile, pronouns)
+        if (refresh) profiles.personas(refresh = true)
         return created.id
     }
 

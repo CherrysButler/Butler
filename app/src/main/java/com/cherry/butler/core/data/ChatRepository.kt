@@ -63,9 +63,9 @@ class ChatRepository @Inject constructor(
     ).flow.map { paging -> paging.map(ChatGroupRow::toGroup) }
 
     /**
-     * Characters you've talked to whose name matches [query], from the mirror. The server has
-     * no chat search (every parameter tried is ignored), so the screen first calls
-     * [fillChatMirror] to bring the rest of the list down.
+     * Characters you've talked to whose name, or the persona you played them as, matches
+     * [query], from the mirror. The server has no chat search (every parameter tried is
+     * ignored), so the screen first calls [fillChatMirror] to bring the rest of the list down.
      */
     private fun searchGroups(query: String): Flow<PagingData<ChatGroup>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false),

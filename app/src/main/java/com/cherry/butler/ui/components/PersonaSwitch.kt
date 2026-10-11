@@ -85,7 +85,7 @@ fun PersonaPickerSheet(
     onPick: (PersonaOption) -> Unit,
     onDismiss: () -> Unit,
     groups: List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto> = emptyList(),
-    /** Opens a persona's editor from here, mid-chat; null hides the pencil. */
+    /** Opens a persona's editor from here, mid-chat, the profile's too; null hides the pencil. */
     onEdit: ((PersonaOption) -> Unit)? = null,
 ) {
     var query by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
@@ -136,7 +136,7 @@ fun PersonaPickerSheet(
                     PersonaPickRow(
                         option = option,
                         chosen = option.id == selected?.id,
-                        onEdit = if (onEdit != null && option.id != null) ({ onEdit(option) }) else null,
+                        onEdit = onEdit?.let { edit -> { edit(option) } },
                         onClick = { onPick(option) },
                     )
                 }

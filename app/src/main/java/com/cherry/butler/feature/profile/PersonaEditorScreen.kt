@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -83,6 +84,7 @@ class PersonaEditorViewModel @Inject constructor(
     private val profiles: ProfileRepository,
     private val personas: PersonaRepository,
     private val writer: com.cherry.butler.core.generation.DescriptionWriter,
+    private val transfer: com.cherry.butler.core.data.PersonaTransfer,
 ) : ViewModel() {
 
     /** The description writer (the ✦): which presets can write, and the run under way. */
@@ -213,6 +215,12 @@ class PersonaEditorViewModel @Inject constructor(
         }
     }
 
+    /** The persona as saved on Janitor, not as edited here, as a file's name and text. */
+    suspend fun exportText(format: com.cherry.butler.ui.components.PersonaExportFormat): Pair<String, String> =
+        personaFile(listOf(transfer.export(personaId)), format)
+
+    fun reportTransfer(message: String) = _form.update { it.copy(error = message) }
+
     fun delete(onDone: () -> Unit) {
         val id = personaId ?: return
         viewModelScope.launch {
@@ -234,6 +242,23 @@ class PersonaEditorViewModel @Inject constructor(
 fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = hiltViewModel()) {
     val form by viewModel.form.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
+    var exporting by remember { mutableStateOf(false) }
+    val saveFile = com.cherry.butler.ui.components.rememberFileSaver(onError = viewModel::reportTransfer)
+    val exportScope = androidx.compose.runtime.rememberCoroutineScope()
+    if (exporting) {
+        com.cherry.butler.ui.components.PersonaExportDialog(
+            title = "Export persona",
+            onPick = { format ->
+                exporting = false
+                exportScope.launch {
+                    runCatching { viewModel.exportText(format) }
+                        .onSuccess { (name, text) -> saveFile(name, text) }
+                        .onFailure { viewModel.reportTransfer("Couldn't export. ${it.userMessage()}") }
+                }
+            },
+            onDismiss = { exporting = false },
+        )
+    }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) viewModel.update { it.copy(newPicture = uri) }
     }
@@ -259,8 +284,12 @@ fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = 
         canSave = form.loaded && form.name.isNotBlank(),
         onSave = { viewModel.save(onBack) },
         error = form.error,
-        menu = if (viewModel.isNew || viewModel.isDefault) null else { close ->
-            EditorMenuItem("Delete", Icons.Outlined.Delete, danger = true, enabled = !form.saving) { close(); confirmDelete = true }
+        // The profile can be exported but not deleted; a persona not yet made has neither.
+        menu = if (viewModel.isNew) null else { close ->
+            EditorMenuItem("Export", Icons.Outlined.FileDownload, enabled = form.loaded) { close(); exporting = true }
+            if (!viewModel.isDefault) {
+                EditorMenuItem("Delete", Icons.Outlined.Delete, danger = true, enabled = !form.saving) { close(); confirmDelete = true }
+            }
         },
     ) {
         // The picture, and a word that says it can be changed.

@@ -35,13 +35,17 @@ interface ChatDao {
     @Query("SELECT COUNT(*) FROM group_marks WHERE archived = 1")
     fun observeArchivedCount(): Flow<Int>
 
-    /** The same grouping, only characters whose name contains [query] (case-insensitive for ASCII). */
+    /**
+     * The same grouping, only chats whose character, chat name or persona contains [query]
+     * (case-insensitive for ASCII). A character matched by persona shows the latest chat played
+     * as that persona, since the bare columns come from the matching rows only.
+     */
     @Query(
         """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
-           WHERE (c.characterName LIKE '%' || :query || '%' OR c.chatName LIKE '%' || :query || '%') GROUP BY c.characterId ORDER BY lastMessageAt DESC""",
+           WHERE (c.characterName LIKE '%' || :query || '%' OR c.chatName LIKE '%' || :query || '%' OR c.personaName LIKE '%' || :query || '%') GROUP BY c.characterId ORDER BY lastMessageAt DESC""",
     )
     fun searchGroupedPagingSource(query: String): PagingSource<Int, ChatGroupRow>
 
