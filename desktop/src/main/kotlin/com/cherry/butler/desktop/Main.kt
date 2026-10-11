@@ -91,7 +91,7 @@ fun main(args: Array<String>) {
         WindowMemory.Keep(state)
         // Closing the window puts Butler in the tray (DesktopTray): replies keep going.
         var shown by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
-        val mark = androidx.compose.ui.graphics.vector.rememberVectorPainter(com.cherry.butler.desktop.ui.ButlerMark)
+        val mark = androidx.compose.ui.graphics.vector.rememberVectorPainter(com.cherry.butler.desktop.ui.ButlerIcon)
         val trayDensity = LocalDensity.current
         LaunchedEffect(Unit) {
             // The tray icon keeps Java's window system alive: it goes first, or the process stays.

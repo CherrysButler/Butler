@@ -28,3 +28,21 @@ internal val ButlerMark: ImageVector by lazy {
         )
         .build()
 }
+
+/**
+ * The bow tie centred on a square, for the taskbar and the tray. Windows draws those icons
+ * square, so the wide mark on its own came out squeezed from the sides.
+ */
+internal val ButlerIcon: ImageVector by lazy {
+    val mark = ButlerMark
+    ImageVector.Builder("ButlerIcon", 64.dp, 64.dp, 64f, 64f)
+        .addGroup(translationY = (64f - 33f) / 2f)
+        .apply {
+            for (i in 0 until mark.root.size) {
+                val path = mark.root[i] as androidx.compose.ui.graphics.vector.VectorPath
+                addPath(path.pathData, fill = path.fill)
+            }
+        }
+        .clearGroup()
+        .build()
+}

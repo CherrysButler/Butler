@@ -33,3 +33,6 @@ keystore.properties
 
 # Draft of the F-Droid build recipe; it is submitted to fdroiddata, not kept here.
 /fdroid/
+
+# Claude Code's project folder (local settings, agent worktrees): never part of Butler.
+/.claude/
