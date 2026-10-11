@@ -22,6 +22,8 @@ object DesktopTour {
         val character: (String?) -> Unit,
         val chat: (Long) -> Unit,
         val back: () -> Unit,
+        /** Any route in the pane, such as a settings page. */
+        val open: (String) -> Unit = {},
     )
 
     @Volatile var controls: Controls? = null
@@ -75,6 +77,13 @@ object DesktopTour {
                 for ((i, dest) in listOf(TopLevelDestination.Notifications, TopLevelDestination.Profile, TopLevelDestination.Settings).withIndex()) {
                     onUi { c.section(dest) }
                     shot("$tag-0${6 + i}-${dest.name.lowercase()}")
+                }
+                if (tag == "wide") {
+                    for (page in listOf("Model", "Chat", "Look", "Profiles", "Specials")) {
+                        onUi { c.open(com.cherry.butler.ui.navigation.Routes.settingsPage(page)) }
+                        shot("$tag-10-settings-${page.lowercase()}", 1800)
+                        onUi { c.back() }
+                    }
                 }
             }
             onUi {

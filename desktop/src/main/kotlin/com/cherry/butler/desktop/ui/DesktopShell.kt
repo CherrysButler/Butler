@@ -178,6 +178,7 @@ fun DesktopShell() {
             character = { panelCharacter = it },
             chat = { id -> navController.navigate(Routes.chat(id)) { popUpTo(Routes.TABS) } },
             back = { navController.popBackStack() },
+            open = { route -> navController.navigate(route) },
         )
         onDispose {
             DesktopTray.openChat = null

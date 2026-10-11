@@ -247,7 +247,7 @@ class AgentLoop @Inject constructor(
             - Stays in character as the character defined in the system prompt, consistent with that definition and with everything that has happened so far.
             - Answers what the user's last message actually said and did; nothing in it is ignored or contradicted.
             - Never writes the user's own actions, words, thoughts or feelings; only the character's and the world's.
-            - Keeps the roleplay's form: the same use of asterisks for narration and quotes for speech, the same person and tense, paragraphs as before, and a length close to the recent replies.
+            - Keeps the roleplay's form: the same use of asterisks for narration and quotes for speech, the same person and tense, paragraphs as before, and a length close to the recent replies (unless the instructions above set a reply length: then that length).
             - Does not repeat phrases, images or beats from the previous replies; moves the scene forward with something new.
             - No out-of-character notes, summaries, lists, headings or questions to the reader; the reply is the reply.
         """.trimIndent()

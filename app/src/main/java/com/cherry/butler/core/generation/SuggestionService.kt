@@ -8,7 +8,7 @@ import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.Variants
 import com.cherry.butler.core.data.local.ButlerDatabase
 import com.cherry.butler.core.network.ApiError
-import com.cherry.butler.core.stream.TagStreamParser
+import com.cherry.butler.core.stream.ThinkSplitter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -114,26 +114,21 @@ class SuggestionService @Inject constructor(
         val earlier = before as? State.Used ?: before?.earlier
         _states.update { it + (chatId to State.Writing(draft, ask, started = System.currentTimeMillis(), earlier = earlier)) }
         running[chatId] = scope.launch {
-            val text = StringBuilder()
-            val thinking = StringBuilder()
+            var text = ""
             var thinkStart: Long? = null
             var thinkEnd: Long? = null
             var names: (String) -> String = { it }
             val result = runCatching {
-                generate(chatId, draft, opening, ask, onNames = { names = it }) { piece, thought ->
+                generate(chatId, draft, opening, ask, onNames = { names = it }) { line, thinking ->
                     val at = System.currentTimeMillis()
-                    if (thought) {
-                        if (thinkStart == null && piece.isNotEmpty()) thinkStart = at
-                        thinking.append(piece)
-                    } else {
-                        if (thinkStart != null && thinkEnd == null && piece.isNotBlank()) thinkEnd = at
-                        text.append(piece)
-                    }
+                    if (thinkStart == null && thinking.isNotEmpty()) thinkStart = at
+                    if (thinkStart != null && thinkEnd == null && line.isNotBlank()) thinkEnd = at
+                    text = line
                     _states.update { now ->
                         val w = now[chatId] as? State.Writing ?: return@update now
                         now + (chatId to w.copy(
-                            text = names(text.toString()).trimStart(),
-                            thinking = names(thinking.toString()).trim(),
+                            text = names(line).trimStart(),
+                            thinking = names(thinking).trim(),
                             thoughtMs = thinkStart?.let { s -> thinkEnd?.let { it - s } },
                         ))
                     }
@@ -143,7 +138,7 @@ class SuggestionService @Inject constructor(
             _states.update { now ->
                 val w = now[chatId] as? State.Writing ?: return@update now
                 // A reply-length limit can end it mid-word; the composer gets whole sentences only.
-                val written = endOnSentence(names(text.toString()).trim())
+                val written = endOnSentence(names(text).trim())
                 val next = when {
                     result.isFailure -> State.Failed(w.original, w.ask, (result.exceptionOrNull() as? ApiError)?.userSummary() ?: "Couldn't write it.", w.earlier)
                     written.isEmpty() -> State.Failed(w.original, w.ask, "Nothing came back. Try again.", w.earlier)
@@ -196,7 +191,8 @@ class SuggestionService @Inject constructor(
         opening: String?,
         ask: Ask,
         onNames: ((String) -> String) -> Unit,
-        onPiece: (piece: String, thought: Boolean) -> Unit,
+        /** The line and the thought so far, whole each time: a stray `</think>` moves text already shown. */
+        onProgress: (line: String, thinking: String) -> Unit,
     ) {
         val chat = chatDao.get(chatId) ?: error("unknown chat $chatId")
         var history = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.serverId != null }
@@ -237,24 +233,21 @@ class SuggestionService @Inject constructor(
             knownPersonas = profileRepository.personas(),
         )
 
-        // A thinking model's reasoning is not part of the line; it is kept apart, to be read.
-        val parser = TagStreamParser(listOf("think", "thinking"))
-        var inThink = false
-        fun feed(events: Iterable<TagStreamParser.Event>) {
-            for (e in events) when (e) {
-                is TagStreamParser.Event.Open -> inThink = true
-                is TagStreamParser.Event.Close -> inThink = false
-                is TagStreamParser.Event.Text -> onPiece(e.text, inThink)
-            }
-        }
+        // A thinking model's reasoning is not part of the line; it is kept apart, to be read. The
+        // splitter also catches a close with no open, and an open never closed (ThinkSplitter).
+        val line = StringBuilder()
+        val thought = StringBuilder()
+        val splitter = ThinkSplitter(line, thought)
         transport.generate(envelope, inputs.second).collect { event ->
             when (event) {
-                is GenerationEvent.Delta -> feed(parser.feed(event.text))
-                is GenerationEvent.Reasoning -> onPiece(event.text, true)
-                else -> Unit
+                is GenerationEvent.Delta -> splitter.feed(event.text)
+                is GenerationEvent.Reasoning -> thought.append(event.text)
+                else -> return@collect
             }
+            onProgress(line.toString(), thought.toString())
         }
-        feed(parser.finish())
+        splitter.finish()
+        onProgress(line.toString(), thought.toString())
     }
 
     companion object {

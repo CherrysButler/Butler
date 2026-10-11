@@ -270,7 +270,7 @@ compose.desktop {
             )
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Butler"
-            packageVersion = "0.4.1"
+            packageVersion = "0.4.2"
             vendor = "Cherry"
             windows {
                 menu = true
