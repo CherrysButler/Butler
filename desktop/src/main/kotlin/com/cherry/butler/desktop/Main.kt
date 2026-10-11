@@ -91,13 +91,28 @@ fun main(args: Array<String>) {
         WindowMemory.Keep(state)
         // Closing the window puts Butler in the tray (DesktopTray): replies keep going.
         var shown by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+        var trayMenuAt by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<java.awt.Point?>(null) }
         val mark = androidx.compose.ui.graphics.vector.rememberVectorPainter(com.cherry.butler.desktop.ui.ButlerIcon)
         val trayDensity = LocalDensity.current
         LaunchedEffect(Unit) {
             // The tray icon keeps Java's window system alive: it goes first, or the process stays.
             quitButler = { java.awt.EventQueue.invokeLater { DesktopTray.remove(); exitApplication() } }
             val image = mark.toAwtImage(trayDensity, androidx.compose.ui.unit.LayoutDirection.Ltr, androidx.compose.ui.geometry.Size(64f, 64f))
-            DesktopTray.install(image, onOpen = { java.awt.EventQueue.invokeLater { shown = true; focusWindow?.invoke() } }, onQuit = { quitButler?.invoke() })
+            DesktopTray.install(
+                image,
+                onOpen = { java.awt.EventQueue.invokeLater { shown = true; focusWindow?.invoke() } },
+                onMenu = { at -> java.awt.EventQueue.invokeLater { trayMenuAt = at } },
+            )
+        }
+        trayMenuAt?.let { at ->
+            ButlerThemed(graph) {
+                com.cherry.butler.desktop.ui.TrayMenu(
+                    at = at,
+                    onOpen = { shown = true; focusWindow?.invoke() },
+                    onQuit = { quitButler?.invoke() },
+                    onDismiss = { trayMenuAt = null },
+                )
+            }
         }
         Window(
             onCloseRequest = {
@@ -215,6 +230,24 @@ private fun takeLinks(args: List<String>) {
     }
 }
 
+/** Butler's look for a window of its own (the tray menu): the theme and app font the main window wears. */
+@androidx.compose.runtime.Composable
+private fun ButlerThemed(graph: DesktopComponent, content: @androidx.compose.runtime.Composable () -> Unit) {
+    val themePrefs = graph.themePrefs()
+    val fontPrefs = graph.fontPrefs()
+    val theme by themePrefs.theme.collectAsState()
+    val custom by themePrefs.custom.collectAsState()
+    val appFontKey by fontPrefs.app.collectAsState()
+    val addedFonts by fontPrefs.added.collectAsState()
+    val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
+    val scale by fontPrefs.appScale.collectAsState()
+    ButlerTheme(theme = theme, custom = custom, appFont = appFont, appTextScale = scale) {
+        CompositionLocalProvider(
+            androidx.compose.foundation.LocalIndication provides com.cherry.butler.desktop.ui.HoverWash(MaterialTheme.colorScheme.onSurface),
+        ) { content() }
+    }
+}
+
 @androidx.compose.runtime.Composable
 private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
     val themePrefs = graph.themePrefs()
@@ -260,6 +293,13 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                     }
                     if (locked) LockScreen(appLock)
                     else com.cherry.butler.feature.settings.UpdatePrompt(graph.updates())
+                    // The splash until there is something to show (DesktopStartup), then the hand-over.
+                    val session by graph.supabase().auth.sessionStatus.collectAsState()
+                    val contentReady by com.cherry.butler.desktop.ui.DesktopStartup.ready.collectAsState()
+                    var waited by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    LaunchedEffect(Unit) { delay(4_000); waited = true }
+                    val signedOut = session is io.github.jan.supabase.auth.status.SessionStatus.NotAuthenticated
+                    com.cherry.butler.desktop.ui.StartupSplash(ready = contentReady || signedOut || waited)
                 }
             }
             ToastLine(Modifier.align(Alignment.BottomCenter))

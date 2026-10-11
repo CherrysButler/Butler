@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +68,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun DesktopBrowse(onCharacterClick: (String) -> Unit, viewModel: BrowseViewModel = hiltViewModel()) {
     val characters = viewModel.characters.collectAsLazyPagingItems()
+    // The first page has landed: the window's splash can hand over (StartupSplash).
+    val landed = characters.itemCount > 0
+    LaunchedEffect(landed) { if (landed) DesktopStartup.contentReady() }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val searchInput by viewModel.searchInput.collectAsStateWithLifecycle()
     val topCustomTags by viewModel.topCustomTags.collectAsStateWithLifecycle()

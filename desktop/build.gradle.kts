@@ -354,6 +354,8 @@ compose.desktop {
             packageVersion = "0.4.2"
             vendor = "Cherry"
             windows {
+                // The bow tie on Butler's slate, for the Start menu, the shortcut and Butler.exe.
+                iconFile.set(project.file("icons/butler.ico"))
                 menu = true
                 shortcut = true
                 perUserInstall = true

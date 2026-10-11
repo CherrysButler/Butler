@@ -1,7 +1,5 @@
 package com.cherry.butler.desktop
 
-import java.awt.MenuItem
-import java.awt.PopupMenu
 import java.awt.SystemTray
 import java.awt.TrayIcon
 import java.awt.event.MouseAdapter
@@ -10,7 +8,7 @@ import java.awt.event.MouseEvent
 /**
  * Butler's icon in Windows' tray. Closing the window puts Butler here instead of quitting,
  * so a reply being written still finishes; a click on the icon brings the window back, and
- * its menu quits for real. It also carries the notifications for replies that land while
+ * its menu (Butler's own, TrayMenu) quits for real. It also carries the notifications for replies that land while
  * the window isn't the one in use; clicking one opens that chat.
  */
 object DesktopTray {
@@ -21,14 +19,10 @@ object DesktopTray {
 
     private const val HINT_KEY = "tray_hint_shown"
 
-    fun install(image: java.awt.Image, onOpen: () -> Unit, onQuit: () -> Unit) {
+    /** [onMenu] gets where on the screen the icon was right-clicked; Butler draws the menu there (TrayMenu). */
+    fun install(image: java.awt.Image, onOpen: () -> Unit, onMenu: (java.awt.Point) -> Unit) {
         if (!SystemTray.isSupported() || icon != null) return
-        val menu = PopupMenu().apply {
-            add(MenuItem("Open Butler").apply { addActionListener { onOpen() } })
-            addSeparator()
-            add(MenuItem("Quit Butler").apply { addActionListener { onQuit() } })
-        }
-        icon = TrayIcon(image, "Butler", menu).apply {
+        icon = TrayIcon(image, "Butler").apply {
             isImageAutoSize = true
             // A notification clicked (or the icon double-clicked): the window, at the chat it named.
             addActionListener {
@@ -39,6 +33,10 @@ object DesktopTray {
             addMouseListener(object : MouseAdapter() {
                 override fun mouseClicked(e: MouseEvent) {
                     if (e.button == MouseEvent.BUTTON1 && e.clickCount == 1) onOpen()
+                }
+
+                override fun mouseReleased(e: MouseEvent) {
+                    if (e.button == MouseEvent.BUTTON3) onMenu(e.locationOnScreen)
                 }
             })
         }
