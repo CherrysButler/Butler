@@ -26,3 +26,18 @@ fun RegisterRefresh(action: () -> Unit) {
         onDispose { if (handle.action === registered) handle.action = null }
     }
 }
+
+/** The Chats archive, opened and closed from a keyboard shortcut (Ctrl+H on the desktop). */
+val LocalArchiveHandle = staticCompositionLocalOf<RefreshHandle?> { null }
+
+/** Offers [action] as the screen's archive toggle while it is composed. */
+@Composable
+fun RegisterArchive(action: () -> Unit) {
+    val handle = LocalArchiveHandle.current ?: return
+    val latest = rememberUpdatedState(action)
+    DisposableEffect(handle) {
+        val registered: () -> Unit = { latest.value() }
+        handle.action = registered
+        onDispose { if (handle.action === registered) handle.action = null }
+    }
+}

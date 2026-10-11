@@ -138,18 +138,6 @@ object PersonaFormats {
             isDefault = o["default"]?.jsonPrimitive?.booleanOrNull == true,
         )
     }
-
-    /**
-     * The file name Janitor's persona API takes for a picture already in its persona folder,
-     * or null for a picture anywhere else: the API takes a name in that folder, not a URL.
-     */
-    fun janitorPictureFile(url: String?): String? {
-        val folder = "${JanitorConfig.MEDIA_BASE}/avatars/"
-        return url?.takeIf { it.startsWith(folder) }
-            ?.removePrefix(folder)
-            ?.substringBefore('?')
-            ?.takeIf { it.isNotBlank() && '/' !in it }
-    }
 }
 
 /**
@@ -162,6 +150,9 @@ class PersonaTransfer @Inject constructor(
     private val profiles: ProfileRepository,
     private val personas: PersonaRepository,
     private val editing: PersonaEditing,
+    private val pictures: PictureUpload,
+    private val client: okhttp3.OkHttpClient,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
 ) {
     /** One persona by id, or the profile for null. */
     suspend fun export(id: String?): TransferPersona {
@@ -214,7 +205,7 @@ class PersonaTransfer @Inject constructor(
                 val id = editing.create(
                     name = p.name,
                     appearance = p.appearance,
-                    avatarFile = PersonaFormats.janitorPictureFile(p.avatarUrl).orEmpty(),
+                    avatarFile = p.avatarUrl?.let { pictureFor(it) }.orEmpty(),
                     pronouns = p.pronouns,
                     refresh = false,
                 )
@@ -230,6 +221,27 @@ class PersonaTransfer @Inject constructor(
             runCatching { profiles.personas(refresh = true) }
         }
     }
+
+    /**
+     * The file's picture as a picture of the new persona's own: fetched from its address and
+     * uploaded the way a picked picture is. Janitor doesn't take another persona's file name
+     * for a new one (it came out with no picture), so the file is never reused. A picture
+     * that can't be fetched or sent leaves the persona without one rather than stopping.
+     */
+    private suspend fun pictureFor(url: String): String? = runCatching {
+        val temp = java.io.File(context.cacheDir, "import-picture-${System.nanoTime()}")
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                client.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { response ->
+                    check(response.isSuccessful) { "picture ${response.code}" }
+                    temp.outputStream().use { out -> response.body!!.byteStream().copyTo(out) }
+                }
+            }
+            pictures.upload(android.net.Uri.fromFile(temp), "avatar")
+        } finally {
+            temp.delete()
+        }
+    }.getOrNull()
 
     private companion object {
         /** Janitor's grey, for a group the file names without a colour. */

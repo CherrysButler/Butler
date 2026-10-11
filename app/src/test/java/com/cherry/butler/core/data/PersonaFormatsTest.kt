@@ -99,13 +99,4 @@ class PersonaFormatsTest {
         val back = PersonaFormats.parse("""{"format":"butler.persona","personas":[{"name":" "},{"name":"Rain","appearance":"x"}]}""")
         assertEquals(listOf(TransferPersona("Rain", "x")), back)
     }
-
-    @Test
-    fun onlyJanitorPersonaPicturesKeepTheirFile() {
-        assertEquals("3f1c2b.webp", PersonaFormats.janitorPictureFile("https://ella.janitorai.com/avatars/3f1c2b.webp"))
-        assertEquals("3f1c2b.webp", PersonaFormats.janitorPictureFile("https://ella.janitorai.com/avatars/3f1c2b.webp?width=128"))
-        assertNull(PersonaFormats.janitorPictureFile("https://ella.janitorai.com/bot-avatars/3f1c2b.webp"))
-        assertNull(PersonaFormats.janitorPictureFile("https://example.com/avatars/3f1c2b.webp"))
-        assertNull(PersonaFormats.janitorPictureFile(null))
-    }
 }

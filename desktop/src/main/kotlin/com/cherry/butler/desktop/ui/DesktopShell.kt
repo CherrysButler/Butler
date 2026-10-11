@@ -201,6 +201,16 @@ fun DesktopShell() {
         }
         onDispose { com.cherry.butler.desktop.DesktopKeys.refresh = null }
     }
+    // Ctrl+H: the archive, from wherever the window is; again, back to the list.
+    DisposableEffect(Unit) {
+        com.cherry.butler.desktop.DesktopKeys.archive = {
+            val (r, t) = showing.value
+            if (r != Routes.TABS || t != TopLevelDestination.Chats) goTo(TopLevelDestination.Chats)
+            com.cherry.butler.desktop.DesktopKeys.chatsArchive.action?.invoke()
+            true
+        }
+        onDispose { com.cherry.butler.desktop.DesktopKeys.archive = null }
+    }
 
     val chatLight = remember { ChatLight() }
     CompositionLocalProvider(
@@ -362,6 +372,7 @@ private fun PaneNav(
                     TopLevelDestination.Browse -> DesktopBrowse(onCharacterClick = onCharacter)
                     TopLevelDestination.Chats -> CompositionLocalProvider(
                         com.cherry.butler.ui.components.LocalRefreshHandle provides com.cherry.butler.desktop.DesktopKeys.chats,
+                        com.cherry.butler.ui.components.LocalArchiveHandle provides com.cherry.butler.desktop.DesktopKeys.chatsArchive,
                     ) {
                         ChatsScreen(
                             contentPadding = none,

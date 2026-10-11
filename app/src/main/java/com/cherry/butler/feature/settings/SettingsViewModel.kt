@@ -247,14 +247,11 @@ class SettingsViewModel @Inject constructor(
     val replyLength: StateFlow<com.cherry.butler.core.generation.ReplyLength> = addons.length
     fun setReplyLength(length: com.cherry.butler.core.generation.ReplyLength) = addons.setLength(length)
 
-    /** Compact mode (Settings › Butler specials). It works through the summary, so it switches that on. */
+    /** Compact mode (Settings › Chat › Memory), a Butler special. */
     val compact: StateFlow<Boolean> = memory.compact
     val compactKeep: StateFlow<Int> = memory.compactKeep
     val compactAt: StateFlow<Int> = memory.compactAt
-    fun setCompact(on: Boolean) {
-        memory.setCompact(on)
-        if (on) memory.setReplacesHistory(true)
-    }
+    fun setCompact(on: Boolean) = memory.setCompact(on)
     fun setCompactKeep(n: Int) = memory.setCompactKeep(n)
     fun setCompactAt(percent: Int) = memory.setCompactAt(percent)
 
@@ -321,8 +318,6 @@ class SettingsViewModel @Inject constructor(
 
     /** Whether anything waits for Save. */
     val dirty: StateFlow<Boolean> = _draft.map { !it.isEmpty }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val replacesHistory: StateFlow<Boolean> = memory.replacesHistory
-    val autoSummarize: StateFlow<Boolean> = memory.autoSummarize
 
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
@@ -404,19 +399,6 @@ class SettingsViewModel @Inject constructor(
                 .onSuccess { _notices.send("Saved"); then() }
                 .onFailure { e -> _notices.send("Not saved. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") }
         }
-    }
-
-    fun setReplacesHistory(on: Boolean) {
-        memory.setReplacesHistory(on)
-        if (!on) {
-            memory.setAutoSummarize(false)
-            memory.setCompact(false)
-        }
-    }
-
-    fun setAutoSummarize(on: Boolean) {
-        memory.setAutoSummarize(on)
-        if (on) memory.setReplacesHistory(true)
     }
 
     companion object {

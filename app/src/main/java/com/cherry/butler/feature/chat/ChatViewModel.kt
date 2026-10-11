@@ -433,8 +433,6 @@ class ChatViewModel @Inject constructor(
     val memoryRun: StateFlow<MemoryService.Run?> = memory.runs
         .map { it[chatId] }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-    val replacesHistory: StateFlow<Boolean> = memoryPrefs.replacesHistory
-    val autoSummarize: StateFlow<Boolean> = memoryPrefs.autoSummarize
     /** Compact mode (Settings › Butler specials); while on, it does the summarizing. */
     val compactMode: StateFlow<Boolean> = memoryPrefs.compact
 
@@ -756,19 +754,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun setReplacesHistory(on: Boolean) {
-        memoryPrefs.setReplacesHistory(on)
-        if (!on) {
-            memoryPrefs.setAutoSummarize(false)
-            // Compact mode works through the summary standing in for old messages.
-            memoryPrefs.setCompact(false)
-        }
-    }
-
-    fun setAutoSummarize(on: Boolean) {
-        memoryPrefs.setAutoSummarize(on)
-        if (on) memoryPrefs.setReplacesHistory(true)
-    }
+    fun setCompact(on: Boolean) = memoryPrefs.setCompact(on)
 
     private companion object {
         const val KEY_DRAFT = "draft"

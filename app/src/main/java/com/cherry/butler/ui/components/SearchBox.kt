@@ -27,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,8 +68,14 @@ fun SearchBox(
     placeholder: String,
     modifier: Modifier = Modifier,
     onSubmit: () -> Unit = {},
+    /** Told when the box takes or lets go of the focus. */
+    onFocus: (Boolean) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    // Text set from outside (cleared, or a suggestion filled in): the caret goes to its end,
+    // where typing carries on, not where it was in the old text.
+    if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
     val focusManager = LocalFocusManager.current
     val edge by animateColorAsState(
         if (focused) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule,
@@ -93,8 +101,11 @@ fun SearchBox(
         )
         Spacer(Modifier.width(10.dp))
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = field,
+            onValueChange = { new ->
+                field = new
+                if (new.text != value) onValueChange(new.text)
+            },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -102,7 +113,7 @@ fun SearchBox(
             keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
             modifier = Modifier
                 .weight(1f)
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged { focused = it.isFocused; onFocus(it.isFocused) }
                 // Not consumed: the keyboard still closes as it would, the box just doesn't
                 // hold on to it.
                 .onPreInterceptKeyBeforeSoftKeyboard { e ->

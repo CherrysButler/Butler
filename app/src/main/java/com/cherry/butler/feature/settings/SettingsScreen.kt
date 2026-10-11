@@ -101,6 +101,9 @@ import com.cherry.butler.ui.components.CenteredMessage
 import com.cherry.butler.ui.components.SegmentedChoice
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import com.cherry.butler.ui.components.SkeletonRosterRow
 import com.cherry.butler.ui.components.card
 import com.cherry.butler.ui.components.isRetryable
@@ -142,8 +145,6 @@ fun SettingsScreen(
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val loadError by viewModel.loadError.collectAsStateWithLifecycle()
     val saving by viewModel.saving.collectAsStateWithLifecycle()
-    val replaces by viewModel.replacesHistory.collectAsStateWithLifecycle()
-    val auto by viewModel.autoSummarize.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.notices.collect { snackbar.showSnackbar(it) } }
 
@@ -205,8 +206,6 @@ fun SettingsScreen(
                 else -> SettingsBody(
                     settings = s,
                     saving = saving,
-                    replaces = replaces,
-                    auto = auto,
                     viewModel = viewModel,
                     onEditProxy = onEditProxy,
                     onOpenPrompts = onOpenPrompts,
@@ -240,8 +239,6 @@ fun SettingsScreen(
 private fun SettingsBody(
     settings: AiSettings?,
     saving: String?,
-    replaces: Boolean,
-    auto: Boolean,
     viewModel: SettingsViewModel,
     onEditProxy: (String?) -> Unit,
     onOpenPrompts: () -> Unit,
@@ -263,7 +260,7 @@ private fun SettingsBody(
                 GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor)
             }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
-            SettingsPage.Chat -> ChatSection(viewModel, replaces, auto)
+            SettingsPage.Chat -> ChatSection(viewModel)
             SettingsPage.Look -> LookSection(viewModel, onOpenCustomize, onOpenThinking = { onOpenPage(SettingsPage.Thinking) }, onOpenProfiles = { onOpenPage(SettingsPage.Profiles) })
             SettingsPage.Profiles -> ProfilesSection(viewModel)
             SettingsPage.Thinking -> ThinkingSection(viewModel)
@@ -315,24 +312,13 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
 
 /** Chat habits kept on the phone: the keyboard, Write for me, memory, and what the thinking line says. */
 @Composable
-private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: Boolean) {
+private fun ChatSection(viewModel: SettingsViewModel) {
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
     SettingsSection(title = "Sending", icon = Icons.Rounded.Keyboard) {
         SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend, icon = Icons.Rounded.Keyboard)
     }
     WriteForMeSection(viewModel)
-    SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
-        SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory, icon = Icons.Rounded.History)
-        val compact by viewModel.compact.collectAsStateWithLifecycle()
-        SwitchRow(
-            "Summarize every ${MemoryPrefs.AUTO_EVERY} messages",
-            if (compact) "Compact mode does this while it is on" else null,
-            auto,
-            viewModel::setAutoSummarize,
-            enabled = !compact,
-            icon = Icons.Rounded.Autorenew,
-        )
-    }
+    CompactSection(viewModel)
     val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
     SettingsSection(title = "Pictures", beta = true, icon = Icons.Rounded.Image, footnote = "A picture in your message, written into the line by a model that can see (Settings › Model › Pictures use).") {
@@ -340,6 +326,62 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
         if (picturesOn) Branch { SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto) }
     }
     ThinkingListsSection(viewModel)
+}
+
+/**
+ * Memory, which is Compact mode now: near the context limit, all but the newest messages fold
+ * into the chat's summary, which stands in for them. A Butler special, switched on through a
+ * short word on what it costs.
+ */
+@Composable
+private fun CompactSection(viewModel: SettingsViewModel) {
+    val compact by viewModel.compact.collectAsStateWithLifecycle()
+    val keep by viewModel.compactKeep.collectAsStateWithLifecycle()
+    val at by viewModel.compactAt.collectAsStateWithLifecycle()
+    var asking by remember { mutableStateOf(false) }
+    SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
+        SwitchRow(
+            "Compact mode",
+            "Long chats keep their thread",
+            compact,
+            { on -> if (on) asking = true else viewModel.setCompact(false) },
+            icon = Icons.Rounded.History,
+            tag = { ButlerSpecialTag() },
+        )
+        if (compact) {
+            Branch(last = false) {
+                NumberRow("Keep the last messages", "Left word for word", keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
+            }
+            Branch {
+                SliderRow(
+                    "Compact at",
+                    at.toFloat(),
+                    com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.first.toFloat()..com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.last.toFloat(),
+                    5f,
+                    { "${it.toInt()}% full" },
+                    { viewModel.setCompactAt(it.toInt()) },
+                )
+            }
+        }
+    }
+    if (asking) {
+        AddonWarning(
+            name = "Compact mode",
+            tokens = 0,
+            tag = "",
+            strip = false,
+            tags = false,
+            points = listOf(
+                "When" to "the chat reaches $at% of its context",
+                "Folds" to "everything but the last $keep messages into one summary",
+                "Keeps" to "the newest messages word for word, so nothing feels cut",
+                "Chains" to "each compact onto the one before",
+                "Costs" to "one extra reply's worth, on your proxy or JLLM",
+            ),
+            onTurnOn = { asking = false; viewModel.setCompact(true) },
+            onCancel = { asking = false },
+        )
+    }
 }
 
 /**
@@ -543,7 +585,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     Profiles("Look profiles", "Saved looks, to put on in a tap or share", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
-    Specials("Butler specials", "Butter, highlights, compact mode", com.cherry.butler.R.drawable.ic_set_specials),
+    Specials("Butler specials", "Butter mode, highlights", com.cherry.butler.R.drawable.ic_set_specials),
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
     Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates),
     Debug("Debug", "Proxy for Burp or mitmproxy", com.cherry.butler.R.drawable.ic_set_debug),
@@ -1211,10 +1253,6 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
     val moods by viewModel.moods.collectAsStateWithLifecycle()
     var asking by remember { mutableStateOf(false) }
     var askingHighlights by remember { mutableStateOf(false) }
-    var askingCompact by remember { mutableStateOf(false) }
-    val compact by viewModel.compact.collectAsStateWithLifecycle()
-    val keep by viewModel.compactKeep.collectAsStateWithLifecycle()
-    val at by viewModel.compactAt.collectAsStateWithLifecycle()
     SettingsSection(
         title = "Butler specials",
         icon = Icons.Rounded.Star,
@@ -1252,45 +1290,6 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
                 DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
         }
-        SwitchRow(
-            "Compact mode",
-            "Near the context limit, older messages become memory",
-            compact,
-            { on -> if (on) askingCompact = true else viewModel.setCompact(false) },
-            icon = Icons.Rounded.History,
-        )
-        if (compact) {
-            Branch(last = false) {
-                NumberRow("Keep the last messages", "Left word for word", keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
-            }
-            Branch {
-                SliderRow(
-                    "Compact at",
-                    at.toFloat(),
-                    com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.first.toFloat()..com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.last.toFloat(),
-                    5f,
-                    { "${it.toInt()}% full" },
-                    { viewModel.setCompactAt(it.toInt()) },
-                )
-            }
-        }
-    }
-    if (askingCompact) {
-        AddonWarning(
-            name = "Compact mode",
-            tokens = 0,
-            tag = "",
-            strip = strip,
-            tags = false,
-            cost = "When a reply finds the chat’s context $at% full, Butler asks your model for one extra generation: " +
-                "a summary of everything but the last $keep messages, built on the one before it. That summary then " +
-                "stands in for those messages, so the chat goes on without losing its thread. Each compact costs about " +
-                "as much as a reply, on your proxy or JLLM. It works through the chat’s memory, so “Summary replaces " +
-                "old messages” comes on with it, and it takes over from summarizing every " +
-                "${com.cherry.butler.core.data.MemoryPrefs.AUTO_EVERY} messages.",
-            onTurnOn = { askingCompact = false; viewModel.setCompact(true) },
-            onCancel = { askingCompact = false },
-        )
     }
     if (askingHighlights) {
         AddonWarning(
@@ -1379,6 +1378,8 @@ private fun AddonWarning(
     cost: String = "This adds a short instruction to every reply, sent to your own model: about $tokens tokens of input " +
         "each time, and a little more output for the tags. It counts against your proxy or JLLM like any other text.",
     tags: Boolean = true,
+    /** Instead of [cost]: what it does, as a few short lines, each led by a word. */
+    points: List<Pair<String, String>>? = null,
 ) {
     var keepHere by remember { mutableStateOf(strip) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
@@ -1390,12 +1391,40 @@ private fun AddonWarning(
                 .padding(top = 20.dp, bottom = 12.dp),
         ) {
             Text(name, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp))
-            Text(
-                cost,
-                style = MaterialTheme.typography.bodyMedium,
-                color = ButlerTheme.colors.textMed,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
-            )
+            if (points != null) {
+                Column(
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    points.forEach { (lead, rest) ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(ButlerTheme.colors.warn),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                buildAnnotatedString {
+                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)) { append(lead) }
+                                    append(" ")
+                                    append(rest)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = ButlerTheme.colors.textMed,
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    cost,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ButlerTheme.colors.textMed,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+                )
+            }
             if (tags) {
                 Text(
                     "Where the tags go",

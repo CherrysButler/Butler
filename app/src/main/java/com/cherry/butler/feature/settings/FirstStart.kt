@@ -312,7 +312,7 @@ private fun DoneStep() {
         Text("All set", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(12.dp))
         Text(
-            "There's more in Settings when you want it: Butler specials (Butter mode, Highlights, Compact mode), " +
+            "There's more in Settings when you want it: Butler specials (Butter mode, Highlights), Compact mode under Chat, " +
                 "fonts, chat backgrounds and look profiles.",
             style = MaterialTheme.typography.bodyLarge,
             color = ButlerTheme.colors.textMed,

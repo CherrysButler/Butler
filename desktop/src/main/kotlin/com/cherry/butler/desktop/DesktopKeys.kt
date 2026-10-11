@@ -7,6 +7,12 @@ object DesktopKeys {
     /** The Chats list's refresh, registered by the list itself. */
     val chats = RefreshHandle()
 
+    /** The Chats archive's toggle, registered by the list itself. */
+    val chatsArchive = RefreshHandle()
+
+    /** Set by the shell: Ctrl+H, the Chats archive opened (from any section) or closed. */
+    @Volatile var archive: (() -> Boolean)? = null
+
     /** Set by the shell: refreshes the screen on show, if it can. True when something refreshed. */
     @Volatile var refresh: (() -> Boolean)? = null
 }

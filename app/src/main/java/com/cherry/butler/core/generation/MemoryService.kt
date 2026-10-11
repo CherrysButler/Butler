@@ -130,7 +130,7 @@ class MemoryService @Inject constructor(
 
     /** After a reply lands: a compact when the context is full enough, or else the auto summary. */
     suspend fun afterReply(chatId: Long) {
-        if (prefs.compact.value) maybeCompact(chatId) else maybeAutoSummarize(chatId)
+        if (prefs.compact.value) maybeCompact(chatId)
     }
 
     /**
@@ -143,19 +143,6 @@ class MemoryService @Inject constructor(
         if (!prefs.replacesHistory.value || isRunning(chatId)) return
         val percent = gauge.percent(chatId) ?: return
         if (percent >= prefs.compactAt.value) compact(chatId)
-    }
-
-    /**
-     * After a reply lands: with both switches on, summarize again once enough of the chat
-     * sits past the current summary.
-     */
-    suspend fun maybeAutoSummarize(chatId: Long) {
-        if (!prefs.autoSummarize.value || !prefs.replacesHistory.value || isRunning(chatId)) return
-        val chat = chatDao.get(chatId) ?: return
-        val confirmed = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.serverId != null }
-        val coveredUpTo = chat.summaryChatId
-        val since = if (coveredUpTo == null) confirmed.size else confirmed.count { (it.serverId ?: 0) > coveredUpTo }
-        if (since >= MemoryPrefs.AUTO_EVERY) summarize(chatId)
     }
 
     /**

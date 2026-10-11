@@ -228,7 +228,16 @@ fun LinkRow(title: String, subtitle: String?, onClick: () -> Unit, icon: ImageVe
 }
 
 @Composable
-fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit, enabled: Boolean = true, icon: ImageVector? = null) {
+fun SwitchRow(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    /** A tag beside the title (BETA, Butler special). */
+    tag: (@Composable () -> Unit)? = null,
+) {
     Column {
         Row(
             modifier = Modifier
@@ -243,7 +252,13 @@ fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boo
                 Spacer(Modifier.width(14.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = if (enabled) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.textLow)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = if (enabled) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.textLow)
+                    if (tag != null) {
+                        Spacer(Modifier.width(8.dp))
+                        tag()
+                    }
+                }
                 if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
             }
             Spacer(Modifier.width(12.dp))
@@ -581,6 +596,26 @@ fun BetaTag(modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier
             .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
+}
+
+/**
+ * What only Butler does (Compact mode, and the specials): BETA's shape in butter, the warm
+ * colour Butter mode tints with, so it reads as Butler's own rather than a warning.
+ */
+@Composable
+fun ButlerSpecialTag(modifier: Modifier = Modifier) {
+    val butter = ButlerTheme.colors.warn
+    Text(
+        text = "BUTLER SPECIAL",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = butter,
+        modifier = modifier
+            .background(butter.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+            .border(1.dp, butter.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }

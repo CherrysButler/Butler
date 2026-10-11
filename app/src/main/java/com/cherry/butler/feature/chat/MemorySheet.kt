@@ -50,15 +50,12 @@ fun MemorySheet(
     summary: String?,
     run: MemoryService.Run?,
     running: Boolean,
-    replacesHistory: Boolean,
-    autoSummarize: Boolean,
     savingEdit: Boolean,
     editError: String?,
     onSummarize: () -> Unit,
     onCancel: () -> Unit,
     onSave: (String) -> Unit,
-    onReplacesHistory: (Boolean) -> Unit,
-    onAutoSummarize: (Boolean) -> Unit,
+    onCompact: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     compactMode: Boolean = false,
     /** The thought behind the summary as it stands, when one was kept. */
@@ -159,18 +156,13 @@ fun MemorySheet(
             }
 
             Spacer(Modifier.height(8.dp))
+            // Memory's one switch: near the context limit, older messages fold into the summary.
             SwitchRow(
-                title = "Summary replaces older messages",
+                title = "Compact mode",
                 subtitle = "For every chat",
-                checked = replacesHistory,
-                onChange = onReplacesHistory,
-            )
-            SwitchRow(
-                title = "Summarize automatically",
-                subtitle = if (compactMode) "Compact mode does this while it is on" else "Every ${MemoryPrefs.AUTO_EVERY} messages, for every chat",
-                checked = autoSummarize,
-                onChange = onAutoSummarize,
-                enabled = !compactMode,
+                checked = compactMode,
+                onChange = onCompact,
+                tag = { com.cherry.butler.feature.settings.ButlerSpecialTag() },
             )
             Spacer(Modifier.height(12.dp))
         }

@@ -168,8 +168,6 @@ fun ChatScreen(
     val editDraft by viewModel.editDraft.collectAsStateWithLifecycle()
     val editStatus by viewModel.editStatus.collectAsStateWithLifecycle()
     val memoryRun by viewModel.memoryRun.collectAsStateWithLifecycle()
-    val replacesHistory by viewModel.replacesHistory.collectAsStateWithLifecycle()
-    val autoSummarize by viewModel.autoSummarize.collectAsStateWithLifecycle()
     val summaryEdit by viewModel.summaryEdit.collectAsStateWithLifecycle()
     val compactMode by viewModel.compactMode.collectAsStateWithLifecycle()
     val memoryThought by viewModel.memoryThought.collectAsStateWithLifecycle()
@@ -382,8 +380,6 @@ fun ChatScreen(
             summary = chat?.summary,
             run = memoryRun,
             running = summarizing,
-            replacesHistory = replacesHistory,
-            autoSummarize = autoSummarize,
             compactMode = compactMode,
             thought = memoryThought,
             savingEdit = summaryEdit.saving,
@@ -391,8 +387,7 @@ fun ChatScreen(
             onSummarize = viewModel::summarize,
             onCancel = viewModel::cancelSummary,
             onSave = viewModel::saveSummary,
-            onReplacesHistory = viewModel::setReplacesHistory,
-            onAutoSummarize = viewModel::setAutoSummarize,
+            onCompact = viewModel::setCompact,
             onOpenThought = { memoryThoughtOpen = true },
             onDismiss = { memoryOpen = false; viewModel.closeMemory() },
         )

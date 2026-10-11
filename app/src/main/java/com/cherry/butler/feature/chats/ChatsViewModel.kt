@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
 import com.cherry.butler.core.data.FolderRepository
 import com.cherry.butler.core.data.ChatFolder
 import com.cherry.butler.ui.components.userMessage
@@ -219,13 +220,49 @@ class ChatsViewModel @Inject constructor(
     /** The whole list. Built once and kept, so clearing a search returns to it untouched. */
     val groups: Flow<PagingData<ChatGroup>> = repository.chatGroups().cachedIn(viewModelScope)
 
-    /** Matches for the search box; empty while the box is. Shown over [groups], never instead of rebuilding it. */
+    /**
+     * Matches for the search box; empty while the box is. Shown over [groups], never instead of
+     * rebuilding it. A `persona:` filter (ChatQuery) keeps the chats played as the personas it
+     * names, by id; while it is still being typed, nothing is searched (the suggestions show).
+     */
     val searchResults: Flow<PagingData<ChatGroup>> = _search
         .debounce { if (it.isBlank()) 0L else 250L }
-        .map { it.trim() }
+        .map { com.cherry.butler.core.data.ChatQuery.parse(it) }
         .distinctUntilChanged()
-        .flatMapLatest { q -> if (q.isEmpty()) flowOf(PagingData.empty()) else repository.chatGroups(q) }
+        .combine(personas.options) { q, options -> q to options }
+        .flatMapLatest { (q, options) ->
+            val name = q.persona
+            when {
+                name == null -> if (q.text.isEmpty()) flowOf(PagingData.empty()) else repository.chatGroups(q.text)
+                name.isEmpty() -> flowOf(PagingData.empty())
+                else -> {
+                    val named = matching(options, name, q.exact)
+                    repository.searchByPersona(q.text, named.mapNotNull { it.id }, orProfile = named.any { it.id == null })
+                }
+            }
+        }
         .cachedIn(viewModelScope)
+
+    /** The personas to offer while a `persona:` filter is being typed; empty otherwise. */
+    val personaSuggestions: StateFlow<List<com.cherry.butler.core.data.PersonaOption>> = _search
+        .map { com.cherry.butler.core.data.ChatQuery.parse(it) }
+        .combine(personas.options) { q, options ->
+            val name = q.persona
+            if (name == null || !q.typingPersona) emptyList() else matching(options, name, exact = false).take(8)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** A name given whole matches that persona alone; a part of one, every persona it is in. */
+    private fun matching(options: List<com.cherry.butler.core.data.PersonaOption>, name: String, exact: Boolean) =
+        if (exact) options.filter { it.name.equals(name, ignoreCase = true) }
+        else options.filter { it.name.contains(name, ignoreCase = true) }
+
+    /** A suggestion picked: the filter names it whole, and typing goes on after it. */
+    fun pickPersona(option: com.cherry.butler.core.data.PersonaOption) =
+        onSearch(com.cherry.butler.core.data.ChatQuery.withPersona(_search.value, option.name))
+
+    /** The `persona:` suggestion clicked: a filter begun at the end of the box. */
+    fun startPersonaFilter() = onSearch(com.cherry.butler.core.data.ChatQuery.startPersona(_search.value))
 
     fun onSearch(value: String) {
         _search.value = value

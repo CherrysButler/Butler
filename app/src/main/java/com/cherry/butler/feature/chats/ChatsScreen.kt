@@ -57,6 +57,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -108,6 +110,9 @@ fun ChatsScreen(
     }
     // A keyboard's refresh (the desktop's Ctrl+R) does what a pull does.
     com.cherry.butler.ui.components.RegisterRefresh { groups.refresh() }
+    com.cherry.butler.ui.components.RegisterArchive {
+        viewModel.selectTab(if (tab == ChatsTab.Archived) ChatsTab.All else ChatsTab.Archived)
+    }
     // Each list keeps its own scroll; the full list's survives a search or a folder.
     val allListState = rememberFlingListState()
     val searchListState = rememberFlingListState()
@@ -210,12 +215,22 @@ fun ChatsScreen(
 
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding).nestedScroll(letGo)) {
         ScreenHead(title = "Chats")
+        var searchFocused by remember { mutableStateOf(false) }
         SearchBox(
             value = search,
             onValueChange = viewModel::onSearch,
             placeholder = "Search your chats",
             onSubmit = { focusManager.clearFocus() },
+            onFocus = { searchFocused = it },
             modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp),
+        )
+        val personaSuggestions by viewModel.personaSuggestions.collectAsStateWithLifecycle()
+        val query = remember(search) { com.cherry.butler.core.data.ChatQuery.parse(search) }
+        SearchFilters(
+            offerFilter = searchFocused && query.persona == null,
+            suggestions = personaSuggestions,
+            onStartFilter = viewModel::startPersonaFilter,
+            onPick = viewModel::pickPersona,
         )
         when {
             searching -> {}
@@ -360,7 +375,9 @@ private fun SlotList(
     StickToTop(listState, firstKey = if (groups.itemCount > 0) groups.peek(0)?.characterId else null)
     // One pull, two stops: a little brings the archive, further refreshes.
     val pull = rememberChatsPull(archive = showArchive, onRefresh = onRefresh)
-    Box(modifier = Modifier.fillMaxSize().nestedScroll(pull.connection)) {
+    // No pull on the desktop: a mouse wheel can't pull, so Ctrl+R refreshes and Ctrl+H opens the archive.
+    val pullable = !com.cherry.butler.ui.components.LocalPointerMotion.current
+    Box(modifier = Modifier.fillMaxSize().then(if (pullable) Modifier.nestedScroll(pull.connection) else Modifier)) {
     Column(modifier = Modifier.fillMaxSize()) {
     androidx.compose.animation.AnimatedVisibility(
         visible = pull.archiveOpen,
@@ -393,7 +410,7 @@ private fun SlotList(
         }
     }
     }
-    PullBadge(pull)
+    if (pullable) PullBadge(pull)
     }
 }
 
@@ -550,5 +567,63 @@ private fun BoxScope.PullBadge(state: ChatsPullState) {
             tint = if (stage >= 1f) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed,
             modifier = Modifier.size(22.dp).graphicsLayer { rotationZ = if (refresh) (stage - 1f) * 270f else 0f },
         )
+    }
+}
+
+/**
+ * Under the search box: the `persona:` filter offered while the box is in use, and while one
+ * is being typed, the personas it could name. Neither takes the focus, so typing carries on
+ * in the box.
+ */
+@Composable
+private fun SearchFilters(
+    offerFilter: Boolean,
+    suggestions: List<com.cherry.butler.core.data.PersonaOption>,
+    onStartFilter: () -> Unit,
+    onPick: (com.cherry.butler.core.data.PersonaOption) -> Unit,
+) {
+    val keepFocus = Modifier.focusProperties { canFocus = false }
+    if (suggestions.isNotEmpty()) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 8.dp)
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .background(ButlerTheme.colors.surfaceHigh),
+        ) {
+            suggestions.forEach { option ->
+                Row(
+                    modifier = keepFocus
+                        .fillMaxWidth()
+                        .clickable(onClickLabel = "Only chats as ${option.name}") { onPick(option) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    com.cherry.butler.ui.components.Avatar(url = option.avatarUrl, name = option.name, size = 28.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(option.name, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                }
+            }
+        }
+    } else if (offerFilter) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                com.cherry.butler.core.data.ChatQuery.PREFIX,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = keepFocus
+                    .clip(MaterialTheme.shapes.small)
+                    .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                    .clickable(onClickLabel = "Filter by persona", onClick = onStartFilter)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Only chats played as one persona", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
+        }
     }
 }
