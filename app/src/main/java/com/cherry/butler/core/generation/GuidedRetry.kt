@@ -21,4 +21,11 @@ object GuidedRetry {
 
     fun noteFor(guidance: String): String =
         "(OOC: For your next reply only: ${guidance.trim().removeSuffix(".")}. Stay in character and do not mention this note.)"
+
+    /**
+     * The same note for Write for me and Enhance, on the line that asks for the user's words.
+     * It wins over Butler's own guidance before it: "Longer" has to beat "two to four sentences".
+     */
+    fun noteForLine(guidance: String): String =
+        "(OOC: For this line only, and over anything said above: ${guidance.trim().removeSuffix(".")}. Do not mention this note.)"
 }

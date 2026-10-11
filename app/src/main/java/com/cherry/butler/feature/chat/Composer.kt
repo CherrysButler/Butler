@@ -38,10 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import com.cherry.butler.core.design.Motion
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.togetherWith
@@ -72,8 +69,8 @@ import androidx.compose.ui.draw.clip
 /**
  * The text window. A ruled field on the ground, and one red advance key at the right;
  * while a reply is being written the key becomes Stop. Beside it, the write key: empty
- * field, "write for me"; words in it, "enhance my draft". The line being written streams
- * into the field, and a written line can be undone or written again until it is edited.
+ * field, "write for me"; words in it, "enhance my draft". The line is written in its own
+ * panel (WritePanel); once used it can be undone or written again until it is edited.
  * The draft is already in saved state before it is ever sent.
  */
 /** True where Enter should send rather than start a new line (a PC keyboard). */
@@ -96,8 +93,8 @@ fun Composer(
     persona: PersonaOption? = null,
     onPickPersona: (() -> Unit)? = null,
     suggestion: SuggestionService.State? = null,
+    /** Opens the Write panel; null hides the write key. */
     onWrite: (() -> Unit)? = null,
-    onStopWriting: () -> Unit = {},
     onUndoWrite: () -> Unit = {},
     onWriteAgain: () -> Unit = {},
     /** Rich typing on; [richDefault] is what typing opens on its own (null: plain). */
@@ -111,7 +108,6 @@ fun Composer(
     onDescribeAgain: () -> Unit = {},
     onRemovePicture: () -> Unit = {},
 ) {
-    val writing = suggestion as? SuggestionService.State.Writing
     // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
     // outside (sent, written for you, undone) resets the caret to the end.
     var field by remember { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
@@ -139,7 +135,7 @@ fun Composer(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
     Column(Modifier.widthIn(max = LocalComposerMaxWidth.current).fillMaxWidth()) {
-        (suggestion as? SuggestionService.State.Ready)?.let { written ->
+        (suggestion as? SuggestionService.State.Used)?.let { written ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -172,22 +168,7 @@ fun Composer(
                 Spacer(Modifier.width(8.dp))
             }
             Box(modifier = Modifier.weight(1f).heightIn(min = 36.dp).padding(vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
-                if (writing != null) {
-                    // Read-only while it arrives, six lines tall at most, and held at its newest
-                    // words: clipped at the top, a growing line looked as if it had stopped.
-                    val style = MaterialTheme.typography.bodyLarge
-                    val scroll = rememberScrollState()
-                    LaunchedEffect(writing.text) { scroll.scrollTo(scroll.maxValue) }
-                    Text(
-                        text = writing.text.ifEmpty { if (writing.original.isBlank()) "Writing…" else "Rewriting…" },
-                        style = style,
-                        color = if (writing.text.isEmpty()) ButlerTheme.colors.textLow else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = with(LocalDensity.current) { (style.lineHeight * 6).toDp() })
-                            .verticalScroll(scroll),
-                    )
-                } else Column {
+                Column {
                     // The three marks, over the words while the box has the keyboard.
                     if (rich && focused) {
                         MarkKeys(
@@ -242,7 +223,7 @@ fun Composer(
                                 if (LocalEnterSends.current) Modifier.onPreviewKeyEvent { e ->
                                     val enter = e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter
                                     if (!enter || e.isShiftPressed) return@onPreviewKeyEvent false
-                                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && !busy && writing == null && draft.isNotBlank()) onSend()
+                                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && !busy && draft.isNotBlank()) onSend()
                                     true
                                 } else Modifier,
                             ),
@@ -259,16 +240,16 @@ fun Composer(
                     )
                 }
             }
-            if (onAddPicture != null && !busy && writing == null) {
+            if (onAddPicture != null && !busy) {
                 Spacer(Modifier.width(2.dp))
                 PictureKey(attached = picture != null, onClick = { onAddPicture(field.selection.end) })
             }
-            if (onWrite != null && (!busy || writing != null)) {
+            if (onWrite != null && !busy) {
                 Spacer(Modifier.width(2.dp))
-                WriteKey(writing = writing != null, rewrite = draft.isNotBlank(), onWrite = onWrite, onStop = onStopWriting)
+                WriteKey(rewrite = draft.isNotBlank(), onClick = onWrite)
             }
             Spacer(Modifier.width(4.dp))
-            AdvanceKey(busy = busy, enabled = draft.isNotBlank() && writing == null, onSend = onSend, onStop = onStop)
+            AdvanceKey(busy = busy, enabled = draft.isNotBlank(), onSend = onSend, onStop = onStop)
         }
     }
     }
@@ -337,29 +318,25 @@ private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
 }
 
 /**
- * Write for me / enhance my draft: a quiet glyph on the field, never a second red key.
- * While the line is being written it is that line's Stop.
+ * Write for me / enhance my draft: a quiet glyph on the field, never a second red key. It
+ * opens the Write panel, where the line is asked for, written and taken.
  */
 @Composable
-private fun WriteKey(writing: Boolean, rewrite: Boolean, onWrite: () -> Unit, onStop: () -> Unit) {
+private fun WriteKey(rewrite: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(width = 32.dp, height = KEY_HEIGHT)
             .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = if (writing) onStop else onWrite)
-            .semantics { contentDescription = if (writing) "Stop writing" else if (rewrite) "Enhance my draft" else "Write for me" },
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = if (rewrite) "Enhance my draft" else "Write for me" },
         contentAlignment = Alignment.Center,
     ) {
-        if (writing) {
-            Box(Modifier.size(11.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)))
-        } else {
-            Icon(
-                Icons.Rounded.AutoAwesome,
-                contentDescription = null,
-                tint = if (rewrite) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        Icon(
+            Icons.Rounded.AutoAwesome,
+            contentDescription = null,
+            tint = if (rewrite) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 

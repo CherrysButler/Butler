@@ -68,6 +68,10 @@ class SettingsViewModel @Inject constructor(
     val picturesAuto: StateFlow<Boolean> = pictures.auto
     fun setPicturesAuto(on: Boolean) = pictures.setAuto(on)
 
+    /** Write for me's voice: first, third or second person. */
+    val perspective: StateFlow<com.cherry.butler.core.data.Perspective> = writerPrefs.perspective
+    fun setPerspective(perspective: com.cherry.butler.core.data.Perspective) = writerPrefs.setPerspective(perspective)
+
     /** The keyboard goes down as a message is sent. */
     val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend
     fun setCloseKeyboardOnSend(on: Boolean) = chat.setCloseKeyboardOnSend(on)

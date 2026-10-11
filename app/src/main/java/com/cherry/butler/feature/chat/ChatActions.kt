@@ -53,6 +53,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
@@ -302,6 +310,8 @@ fun VariantBar(
     canAskNew: Boolean = true,
     /** null hides it: not on JLLM, not while busy, not when the choices are already up. */
     onChoices: (() -> Unit)? = null,
+    /** A new reply with no guidance, skipping the sheet: a long press, or Ctrl+click with a mouse. */
+    onNewPlain: (() -> Unit)? = null,
 ) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (canSwipe) {
@@ -320,17 +330,16 @@ fun VariantBar(
             val atEnd = index >= count - 1
             val newAtEnd = atEnd && canAskNew
             val nextEnabled = !busy && (!atEnd || canAskNew)
-            IconButton(onClick = if (newAtEnd) onNew else onNext, enabled = nextEnabled, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = if (newAtEnd) Icons.Rounded.Refresh else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = if (newAtEnd) "New reply" else "Next $noun",
-                    tint = when {
-                        !nextEnabled -> ButlerTheme.colors.outlineFaint
-                        newAtEnd -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.size(if (newAtEnd) 20.dp else 24.dp),
-                )
+            if (newAtEnd) {
+                NewReplyKey(enabled = nextEnabled, onGuided = onNew, onPlain = onNewPlain ?: onNew)
+            } else {
+                IconButton(onClick = onNext, enabled = nextEnabled, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = "Next $noun",
+                        tint = if (nextEnabled) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.outlineFaint,
+                    )
+                }
             }
         }
         Spacer(Modifier.weight(1f))
@@ -340,6 +349,62 @@ fun VariantBar(
         if (canContinue) {
             StateAction(label = "Continue", onClick = onContinue, emphasis = true)
         }
+    }
+}
+
+/**
+ * The step past the last reply: a tap opens the guided sheet; a long press, or Ctrl+click,
+ * asks again straight away with nothing said. With a mouse, hovering says so; on a phone a
+ * tooltip would take the long press for itself, so there is none.
+ */
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun NewReplyKey(enabled: Boolean, onGuided: () -> Unit, onPlain: () -> Unit) {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    // Read as the press goes down, before the click lands: whether Ctrl was held for it.
+    var ctrl by remember { mutableStateOf(false) }
+    val key: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.type == PointerEventType.Press) ctrl = event.keyboardModifiers.isCtrlPressed
+                        }
+                    }
+                }
+                .combinedClickable(
+                    enabled = enabled,
+                    onClickLabel = "New reply",
+                    onLongClickLabel = "New reply without guidance",
+                    onLongClick = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        onPlain()
+                    },
+                    onClick = { if (ctrl) onPlain() else onGuided() },
+                )
+                .semantics { contentDescription = "New reply" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+    if (com.cherry.butler.ui.components.LocalPointerMotion.current) {
+        androidx.compose.material3.TooltipBox(
+            positionProvider = androidx.compose.material3.TooltipDefaults.rememberPlainTooltipPositionProvider(),
+            tooltip = { PlainTooltip { Text("Ctrl+click to skip") } },
+            state = androidx.compose.material3.rememberTooltipState(),
+        ) { key() }
+    } else {
+        key()
     }
 }
 

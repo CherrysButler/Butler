@@ -2,6 +2,8 @@ package com.cherry.butler.feature.chat
 
 import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.core.data.remote.dto.PronounsDto
+import com.cherry.butler.core.generation.SuggestionService
+import androidx.compose.ui.layout.onSizeChanged
 import com.cherry.butler.core.markdown.SceneTag
 import com.cherry.butler.core.markdown.SceneTags
 import androidx.compose.foundation.clickable
@@ -322,6 +324,23 @@ fun ChatScreen(
         )
     }
 
+    // The Write panel (write for me, enhance), and the thought behind its line, kept to be read
+    // as a reply's is.
+    val writePanel by viewModel.writePanel.collectAsStateWithLifecycle()
+    var composerHeight by remember { mutableStateOf(0) }
+    var writeThoughtOpen by remember { mutableStateOf(false) }
+    val writeWord = remember(writePanel != null) { ThinkingWords.forSeed(System.nanoTime()) }
+    LaunchedEffect(writePanel == null) { if (writePanel == null) writeThoughtOpen = false }
+    if (writeThoughtOpen) {
+        val s = suggestion
+        ThinkingSheet(
+            text = (s as? SuggestionService.State.Writing)?.thinking ?: (s as? SuggestionService.State.Ready)?.thinking.orEmpty(),
+            streaming = s is SuggestionService.State.Writing && s.text.isEmpty(),
+            word = writeWord,
+            onDismiss = { writeThoughtOpen = false },
+        )
+    }
+
     actionsFor?.let { message ->
         val confirmed = message.serverId != null
         LineActionsSheet(
@@ -471,8 +490,7 @@ fun ChatScreen(
                 persona = activePersona,
                 onPickPersona = { pickingPersona = true },
                 suggestion = suggestion,
-                onWrite = viewModel::writeForMe,
-                onStopWriting = viewModel::stopWriting,
+                onWrite = viewModel::openWritePanel,
                 onUndoWrite = viewModel::undoWrite,
                 onWriteAgain = viewModel::writeAgain,
                 rich = richOn,
@@ -485,6 +503,7 @@ fun ChatScreen(
                 onUndoPicture = viewModel::undoPicture,
                 onDescribeAgain = viewModel::describeAgain,
                 onRemovePicture = viewModel::removePicture,
+                modifier = Modifier.onSizeChanged { composerHeight = it.height },
             )
         },
     ) { innerPadding ->
@@ -538,6 +557,20 @@ fun ChatScreen(
                 ) }
             }
         }
+    }
+    writePanel?.let { panel ->
+        WritePanel(
+            panel = panel,
+            state = suggestion,
+            personaPronouns = personaPronouns,
+            word = writeWord,
+            onWrite = viewModel::write,
+            onStop = viewModel::stopWriting,
+            onUse = viewModel::useWritten,
+            onOpenThought = { writeThoughtOpen = true },
+            onClose = viewModel::closeWritePanel,
+            composerHeight = with(androidx.compose.ui.platform.LocalDensity.current) { composerHeight.toDp() },
+        )
     }
     }
 }
@@ -939,6 +972,8 @@ private fun BotTurn(
                     if (introIndex != null) intros.getOrNull(introIndex + 1)?.let { actions.onPickIntro(shown, it) } else step(1)
                 },
                 onNew = actions.onGuidedRetry,
+                // Held down (or Ctrl+clicked), the plain retry: what the sheet's Try again does with nothing said.
+                onNewPlain = actions.onAskAgain,
                 onContinue = { actions.onContinue(shown.localId) },
                 onChoices = if (actions.choicesAvailable && !busy && shown.serverId != null && actions.choices?.forReply != shown.localId) {
                     { actions.onChoices(shown.localId) }

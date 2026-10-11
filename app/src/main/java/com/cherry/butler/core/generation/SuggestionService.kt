@@ -3,6 +3,7 @@ package com.cherry.butler.core.generation
 import com.cherry.butler.core.data.WriterPrefs
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.MemoryPrefs
+import com.cherry.butler.core.data.Perspective
 import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.Variants
 import com.cherry.butler.core.data.local.ButlerDatabase
@@ -36,12 +37,14 @@ import javax.inject.Singleton
  * Janitor's own instruction asks for a 4-8 sentence line that "pushes the scene forward":
  * a one-line action came back as a ten-paragraph scene in the third person, and from scratch
  * it sometimes wrote the *character's* line. So the trailing line also carries Butler's
- * guidance ([SCRATCH], [REWRITE]), which Janitor wraps in its template; tried on JLLM
- * 2026-10-05, it holds first person and the draft's length. The same line goes to a proxy,
- * so both paths behave alike.
+ * guidance ([SuggestionPrompt]), which Janitor wraps in its template; tried on JLLM
+ * 2026-10-05, it holds the asked person and the draft's length. The same line goes to a
+ * proxy, so both paths behave alike. What the Write panel asked for rides on that line too,
+ * as a note for this one request.
  *
- * Nothing is posted or stored on Janitor. The text lives here, per chat, until the
- * composer takes it or puts the draft back.
+ * Nothing is posted or stored on Janitor. The text (and the thought, when the model thinks)
+ * lives here, per chat, in the Write panel until it is used or put away; a used line stays
+ * known so the composer can undo it.
  */
 @Singleton
 class SuggestionService @Inject constructor(
@@ -56,34 +59,83 @@ class SuggestionService @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = ConcurrentHashMap<Long, Job>()
 
-    sealed interface State {
-        /** What was in the composer when it was asked; Undo puts this back. */
-        val original: String
+    /**
+     * What the Write panel asked: its quick picks (by label), the user's own words, and whose
+     * voice (null: the draft's own).
+     */
+    data class Ask(val picks: List<String> = emptyList(), val words: String = "", val perspective: Perspective? = null)
 
-        data class Writing(override val original: String, val text: String = "") : State
-        data class Ready(override val original: String, val text: String) : State
-        data class Failed(override val original: String, val message: String) : State
+    sealed interface State {
+        /** What was in the composer when it was asked; Undo puts this back, Again writes from it. */
+        val original: String
+        val ask: Ask
+
+        /** A line used before this one was asked and still in the composer; put away, this goes back. */
+        val earlier: Used? get() = null
+
+        /** [thinking] grows first when the model thinks; [thoughtMs] is how long, once the line began. */
+        data class Writing(
+            override val original: String,
+            override val ask: Ask,
+            val started: Long,
+            val text: String = "",
+            val thinking: String = "",
+            val thoughtMs: Long? = null,
+            override val earlier: Used? = null,
+        ) : State
+
+        /** Written, in the panel, not yet used. */
+        data class Ready(
+            override val original: String,
+            override val ask: Ask,
+            val started: Long,
+            val text: String,
+            val thinking: String = "",
+            val thoughtMs: Long? = null,
+            override val earlier: Used? = null,
+        ) : State
+
+        data class Failed(override val original: String, override val ask: Ask, val message: String, override val earlier: Used? = null) : State
+
+        /** Taken into the composer: the strip under it offers Undo and Again until it is edited. */
+        data class Used(override val original: String, override val ask: Ask, val text: String) : State
     }
 
     private val _states = MutableStateFlow<Map<Long, State>>(emptyMap())
     val states: StateFlow<Map<Long, State>> = _states.asStateFlow()
 
     /**
-     * Writes the next line for [draft] (blank: from scratch). [opening] stands in for the
-     * opening line's text when an intro was picked on screen but not yet sent.
+     * Writes the next line for [draft] (blank: from scratch), as [ask] says. [opening] stands
+     * in for the opening line's text when an intro was picked on screen but not yet sent.
      */
-    fun write(chatId: Long, draft: String, opening: String? = null) {
+    fun write(chatId: Long, draft: String, opening: String? = null, ask: Ask = Ask()) {
         running.remove(chatId)?.cancel()
-        _states.update { it + (chatId to State.Writing(draft)) }
+        val before = _states.value[chatId]
+        val earlier = before as? State.Used ?: before?.earlier
+        _states.update { it + (chatId to State.Writing(draft, ask, started = System.currentTimeMillis(), earlier = earlier)) }
         running[chatId] = scope.launch {
             val text = StringBuilder()
+            val thinking = StringBuilder()
+            var thinkStart: Long? = null
+            var thinkEnd: Long? = null
             var names: (String) -> String = { it }
             val result = runCatching {
-                generate(chatId, draft, opening, onNames = { names = it }) { piece ->
-                    text.append(piece)
+                generate(chatId, draft, opening, ask, onNames = { names = it }) { piece, thought ->
+                    val at = System.currentTimeMillis()
+                    if (thought) {
+                        if (thinkStart == null && piece.isNotEmpty()) thinkStart = at
+                        thinking.append(piece)
+                    } else {
+                        if (thinkStart != null && thinkEnd == null && piece.isNotBlank()) thinkEnd = at
+                        text.append(piece)
+                    }
                     _states.update { now ->
                         val w = now[chatId] as? State.Writing ?: return@update now
-                        now + (chatId to w.copy(text = names(text.toString()).trimStart()))
+                        now + (chatId to w.copy(
+                            text = names(text.toString()).trimStart(),
+                            thinking = names(thinking.toString()).trim(),
+                            thoughtMs = thinkStart?.let { s -> thinkEnd?.let { it - s } },
+                        ))
                     }
                 }
             }
@@ -93,9 +145,9 @@ class SuggestionService @Inject constructor(
                 // A reply-length limit can end it mid-word; the composer gets whole sentences only.
                 val written = endOnSentence(names(text.toString()).trim())
                 val next = when {
-                    result.isFailure -> State.Failed(w.original, (result.exceptionOrNull() as? ApiError)?.userSummary() ?: "Couldn't write it.")
-                    written.isEmpty() -> State.Failed(w.original, "Nothing came back. Try again.")
-                    else -> State.Ready(w.original, written)
+                    result.isFailure -> State.Failed(w.original, w.ask, (result.exceptionOrNull() as? ApiError)?.userSummary() ?: "Couldn't write it.", w.earlier)
+                    written.isEmpty() -> State.Failed(w.original, w.ask, "Nothing came back. Try again.", w.earlier)
+                    else -> State.Ready(w.original, w.ask, w.started, written, w.thinking, w.thoughtMs, w.earlier)
                 }
                 now + (chatId to next)
             }
@@ -108,7 +160,25 @@ class SuggestionService @Inject constructor(
         running.remove(chatId)?.cancel()
         _states.update { now ->
             val w = now[chatId] as? State.Writing ?: return@update now
-            if (w.text.isBlank()) now - chatId else now + (chatId to State.Ready(w.original, endOnSentence(w.text.trim())))
+            if (w.text.isBlank()) now.putAway(chatId, w)
+            else now + (chatId to State.Ready(w.original, w.ask, w.started, endOnSentence(w.text.trim()), w.thinking, w.thoughtMs, w.earlier))
+        }
+    }
+
+    /** The written line goes into the composer; it is [State.Used] from here. */
+    fun use(chatId: Long): State.Used? {
+        val ready = _states.value[chatId] as? State.Ready ?: return null
+        val used = State.Used(ready.original, ready.ask, ready.text)
+        _states.update { it + (chatId to used) }
+        return used
+    }
+
+    /** The panel closed: what it wrote and nobody used goes, and a line used before keeps its Undo. */
+    fun dismiss(chatId: Long) {
+        running.remove(chatId)?.cancel()
+        _states.update { now ->
+            val s = now[chatId] ?: return@update now
+            if (s is State.Used) now else now.putAway(chatId, s)
         }
     }
 
@@ -117,12 +187,16 @@ class SuggestionService @Inject constructor(
         _states.update { it - chatId }
     }
 
+    private fun Map<Long, State>.putAway(chatId: Long, s: State): Map<Long, State> =
+        s.earlier?.let { this + (chatId to it) } ?: (this - chatId)
+
     private suspend fun generate(
         chatId: Long,
         draft: String,
         opening: String?,
+        ask: Ask,
         onNames: ((String) -> String) -> Unit,
-        onText: (String) -> Unit,
+        onPiece: (piece: String, thought: Boolean) -> Unit,
     ) {
         val chat = chatDao.get(chatId) ?: error("unknown chat $chatId")
         var history = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.serverId != null }
@@ -152,23 +226,33 @@ class SuggestionService @Inject constructor(
             mode = GenerateMode.Suggestion,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
-            draft = if (draft.isBlank()) SCRATCH else "$draft\n\n$REWRITE",
+            draft = SuggestionPrompt.line(
+                draft = draft,
+                perspective = ask.perspective,
+                guidance = SuggestionPrompt.guidance(ask.picks, ask.words, rewrite = draft.isNotBlank()),
+                name = who,
+                pronouns = played.persona?.pronouns,
+            ),
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
 
-        // A thinking model's reasoning is not part of the line.
+        // A thinking model's reasoning is not part of the line; it is kept apart, to be read.
         val parser = TagStreamParser(listOf("think", "thinking"))
         var inThink = false
         fun feed(events: Iterable<TagStreamParser.Event>) {
             for (e in events) when (e) {
                 is TagStreamParser.Event.Open -> inThink = true
                 is TagStreamParser.Event.Close -> inThink = false
-                is TagStreamParser.Event.Text -> if (!inThink) onText(e.text)
+                is TagStreamParser.Event.Text -> onPiece(e.text, inThink)
             }
         }
         transport.generate(envelope, inputs.second).collect { event ->
-            if (event is GenerationEvent.Delta) feed(parser.feed(event.text))
+            when (event) {
+                is GenerationEvent.Delta -> feed(parser.feed(event.text))
+                is GenerationEvent.Reasoning -> onPiece(event.text, true)
+                else -> Unit
+            }
         }
         feed(parser.finish())
     }
@@ -197,19 +281,5 @@ class SuggestionService @Inject constructor(
             if (kept.count { it == '"' } % 2 == 1) kept.append('"')
             return kept.toString()
         }
-
-        /** Write for me: the user's next line, theirs and short, never the character's. */
-        const val SCRATCH =
-            "(Write my next line for me. First person as me, in the story's style, actions in asterisks " +
-                "and speech in quotes. React to what just happened and do one clear thing. Two to four " +
-                "short sentences, and finish every one: end on a complete sentence. Never write the other " +
-                "character's words or reactions.)"
-
-        /** Enhance my draft: the same line, better written, not a longer scene. */
-        const val REWRITE =
-            "(Rewrite it as my own line, not a scene: first person as me, same tense, keep what I do " +
-                "and say and add nothing new, just make it read well. About the same length as my draft, " +
-                "a sentence or two longer at most, and finish every sentence: end on a complete one. Never " +
-                "write the other character's reaction.)"
     }
 }

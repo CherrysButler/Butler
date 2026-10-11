@@ -313,13 +313,14 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
     }
 }
 
-/** Chat habits kept on the phone: the keyboard, memory, and what the thinking line says. */
+/** Chat habits kept on the phone: the keyboard, Write for me, memory, and what the thinking line says. */
 @Composable
 private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: Boolean) {
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
     SettingsSection(title = "Sending", icon = Icons.Rounded.Keyboard) {
         SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend, icon = Icons.Rounded.Keyboard)
     }
+    WriteForMeSection(viewModel)
     SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
         SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory, icon = Icons.Rounded.History)
         SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize, icon = Icons.Rounded.Autorenew)
@@ -331,6 +332,40 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
         if (picturesOn) Branch { SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto) }
     }
     ThinkingListsSection(viewModel)
+}
+
+/**
+ * Whose voice Write for me writes in. Enhance keeps the draft's own unless its panel is told
+ * otherwise, and the panel can change this one for a single line too.
+ */
+@Composable
+private fun WriteForMeSection(viewModel: SettingsViewModel) {
+    val perspective by viewModel.perspective.collectAsStateWithLifecycle()
+    SettingsSection(
+        title = "Write for me",
+        icon = Icons.Rounded.AutoAwesome,
+        footnote = "Third person uses your persona's pronouns, or their name and they/them when it has none. Enhance keeps your draft's own voice unless you pick one in its panel.",
+    ) {
+        Text(
+            "Writes in",
+            style = MaterialTheme.typography.labelMedium,
+            color = ButlerTheme.colors.textMed,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+        )
+        val choices = com.cherry.butler.core.data.Perspective.entries
+        com.cherry.butler.ui.components.SegmentedChoice(
+            options = choices.map { it.label },
+            selected = choices.indexOf(perspective).coerceAtLeast(0),
+            onSelect = { i -> viewModel.setPerspective(choices[i]) },
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp),
+        )
+        com.cherry.butler.core.design.RpText(
+            text = perspective.example,
+            style = MaterialTheme.typography.bodySmall,
+            color = ButlerTheme.colors.textLow,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+        )
+    }
 }
 
 /**
@@ -495,7 +530,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Main("Settings", "", 0, listed = false),
     Model("Model", "Where replies come from, prompts, generation", com.cherry.butler.R.drawable.ic_set_model),
     Generation("Generation", "Length, sampling, replies", com.cherry.butler.R.drawable.ic_set_model, listed = false),
-    Chat("Chat", "Keyboard, memory, pictures, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
+    Chat("Chat", "Keyboard, Write for me, memory, pictures, thinking words",com.cherry.butler.R.drawable.ic_set_chat),
     Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
     Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     Profiles("Look profiles", "Saved looks, to put on in a tap or share", com.cherry.butler.R.drawable.ic_set_look, listed = false),

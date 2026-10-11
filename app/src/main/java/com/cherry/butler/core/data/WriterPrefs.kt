@@ -20,6 +20,16 @@ sealed interface Writer {
     data class Proxy(val id: String, val model: String? = null) : Writer
 }
 
+/**
+ * Whose voice the user's written lines take: "I eat the cheese", "she eats the cheese" (the
+ * persona's pronouns, or their name and they/them), "you eat the cheese".
+ */
+enum class Perspective(val label: String, val example: String) {
+    First("First", "*I step closer.*"),
+    Third("Third", "*She steps closer.*"),
+    Second("Second", "*You step closer.*"),
+}
+
 @Singleton
 class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
     private val prefs = context.getSharedPreferences("butler_prefs", Context.MODE_PRIVATE)
@@ -30,6 +40,15 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
     fun set(writer: Writer) {
         _writer.value = writer
         prefs.edit().putString(KEY, encode(writer)).apply()
+    }
+
+    /** Write for me's voice; first person, as it always was, until changed. Enhance keeps the draft's own. */
+    private val _perspective = MutableStateFlow(Perspective.entries.firstOrNull { it.name == prefs.getString(KEY_PERSPECTIVE, null) } ?: Perspective.First)
+    val perspective: StateFlow<Perspective> = _perspective.asStateFlow()
+
+    fun setPerspective(perspective: Perspective) {
+        _perspective.value = perspective
+        prefs.edit().putString(KEY_PERSPECTIVE, perspective.name).apply()
     }
 
     private fun encode(w: Writer) = when (w) {
@@ -48,6 +67,7 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
 
     private companion object {
         const val KEY = "writer"
+        const val KEY_PERSPECTIVE = "writer_perspective"
         /** Unit Separator: cannot occur in an id or a model name. */
         const val SEP = "\u001F"
     }

@@ -31,7 +31,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -90,6 +89,7 @@ class ChatViewModel @Inject constructor(
     private val picturePrefs: com.cherry.butler.core.data.PicturePrefs,
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
+    private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
 ) : ViewModel() {
 
     /** Whether the keyboard goes down as a message is sent (Settings). */
@@ -476,7 +476,7 @@ class ChatViewModel @Inject constructor(
      */
     fun onDraftChanged(text: String) {
         // Typing over a written line makes it the user's own: Undo no longer applies.
-        (suggestion.value as? SuggestionService.State.Ready)?.let { if (it.text != text) suggestions.clear(chatId) }
+        (suggestion.value as? SuggestionService.State.Used)?.let { if (it.text != text) suggestions.clear(chatId) }
         savedStateHandle[KEY_DRAFT] = text
         draftSave?.cancel()
         if (text.isBlank()) {
@@ -516,48 +516,76 @@ class ChatViewModel @Inject constructor(
 
     // ---- write for me / enhance my draft ------------------------------------------------
 
-    /** The line being written for the user, or the one just written (Undo / Again under it). */
+    /** The line being written in the Write panel, or the one used (Undo / Again under it). */
     val suggestion: StateFlow<SuggestionService.State?> by lazy {
         suggestions.states.map { it[chatId] }.stateIn(viewModelScope, SharingStarted.Eagerly, suggestions.states.value[chatId])
     }
 
-    init {
-        // A finished line goes into the composer; a failure says so and leaves the draft be.
-        viewModelScope.launch {
-            suggestions.states.map { it[chatId] }.distinctUntilChanged().collect { state ->
-                when (state) {
-                    is SuggestionService.State.Ready -> if (draft.value != state.text) {
-                        savedStateHandle[KEY_DRAFT] = state.text
-                        lastPlace.saveDraft(chatId, state.text)
-                    }
-                    is SuggestionService.State.Failed -> {
-                        suggestions.clear(chatId)
-                        _notices.send("Couldn't write it. ${state.message}")
-                    }
-                    else -> Unit
-                }
+    /** The Write panel, open: the words it works on (blank: from scratch) and how it was asked. */
+    data class WritePanel(val original: String, val ask: SuggestionService.Ask)
+
+    private val writeSetup = MutableStateFlow<WritePanel?>(null)
+
+    /**
+     * Open while the user sets it up, and whenever a line is being written, waits to be used,
+     * or failed: a line still being written finds its panel again when the chat is reopened.
+     */
+    val writePanel: StateFlow<WritePanel?> by lazy {
+        combine(writeSetup, suggestion) { setup, s ->
+            when (s) {
+                is SuggestionService.State.Writing, is SuggestionService.State.Ready, is SuggestionService.State.Failed -> WritePanel(s.original, s.ask)
+                else -> setup
             }
-        }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     }
 
-    /** Writes the next line from scratch, or rewrites what is in the composer. */
-    fun writeForMe() {
-        if (suggestion.value is SuggestionService.State.Writing) return
-        suggestions.write(chatId, draft.value.trim(), pendingIntro.value)
+    /** Write for me's voice (Settings › Chat); the panel opens on it. */
+    val perspective: StateFlow<com.cherry.butler.core.data.Perspective> = writerPrefs.perspective
+
+    /**
+     * The write key: the panel, on the composer's words. Empty, it writes in the chosen voice;
+     * with a draft it enhances it and keeps the draft's own voice unless the panel says otherwise.
+     */
+    fun openWritePanel() {
+        val draft = draft.value.trim()
+        writeSetup.value = WritePanel(draft, SuggestionService.Ask(perspective = if (draft.isEmpty()) writerPrefs.perspective.value else null))
+    }
+
+    /** Writes the panel's line as [ask] says: the first time, again, or with the guidance changed. */
+    fun write(ask: SuggestionService.Ask) {
+        val panel = writePanel.value ?: return
+        writeSetup.value = panel.copy(ask = ask)
+        suggestions.write(chatId, panel.original, pendingIntro.value, ask)
     }
 
     fun stopWriting() = suggestions.stop(chatId)
 
+    /** The written line into the composer, in place of what was there; the panel closes. */
+    fun useWritten() {
+        val used = suggestions.use(chatId) ?: return
+        writeSetup.value = null
+        savedStateHandle[KEY_DRAFT] = used.text
+        lastPlace.saveDraft(chatId, used.text)
+    }
+
+    /** Closed without using it: what it wrote goes. */
+    fun closeWritePanel() {
+        writeSetup.value = null
+        suggestions.dismiss(chatId)
+    }
+
     /** Puts back what was in the composer before it was written over. */
     fun undoWrite() {
-        val state = suggestion.value ?: return
+        val state = suggestion.value as? SuggestionService.State.Used ?: return
         suggestions.clear(chatId)
         onDraftChanged(state.original)
     }
 
+    /** Again, from the strip under a used line: the panel, writing at once as it was asked. */
     fun writeAgain() {
-        val state = suggestion.value ?: return
-        suggestions.write(chatId, state.original, pendingIntro.value)
+        val state = suggestion.value as? SuggestionService.State.Used ?: return
+        writeSetup.value = WritePanel(state.original, state.ask)
+        suggestions.write(chatId, state.original, pendingIntro.value, state.ask)
     }
 
     /** Persists the draft as a send and clears the composer. The network happens elsewhere. */
