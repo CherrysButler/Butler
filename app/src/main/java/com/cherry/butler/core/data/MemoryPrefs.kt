@@ -16,6 +16,10 @@ import javax.inject.Singleton
  *   chat that has a summary, so the server swaps the summarized messages for the summary.
  * - [autoSummarize]: Butler refreshes the summary on its own once [AUTO_EVERY] new
  *   messages have piled up past it. Only meaningful with [replacesHistory] on.
+ * - [compact] (Compact mode, a Butler special): once a reply finds the chat's context
+ *   [compactAt] percent full, Butler folds all but the last [compactKeep] messages into the
+ *   summary, from the summary before. Needs [replacesHistory], and takes over from
+ *   [autoSummarize] while it is on.
  */
 @Singleton
 class MemoryPrefs @Inject constructor(@ApplicationContext context: Context) {
@@ -37,10 +41,45 @@ class MemoryPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putBoolean(KEY_AUTO, on).apply()
     }
 
+    private val _compact = MutableStateFlow(prefs.getBoolean(KEY_COMPACT, false))
+    val compact: StateFlow<Boolean> = _compact.asStateFlow()
+
+    private val _compactKeep = MutableStateFlow(prefs.getInt(KEY_COMPACT_KEEP, DEFAULT_KEEP).coerceIn(KEEP_RANGE))
+    /** How many of the newest messages a compact leaves as they are. */
+    val compactKeep: StateFlow<Int> = _compactKeep.asStateFlow()
+
+    private val _compactAt = MutableStateFlow(prefs.getInt(KEY_COMPACT_AT, DEFAULT_AT).coerceIn(AT_RANGE))
+    /** How full the context is, in percent, when a compact begins. */
+    val compactAt: StateFlow<Int> = _compactAt.asStateFlow()
+
+    fun setCompact(on: Boolean) {
+        _compact.value = on
+        prefs.edit().putBoolean(KEY_COMPACT, on).apply()
+    }
+
+    fun setCompactKeep(n: Int) {
+        val kept = n.coerceIn(KEEP_RANGE)
+        _compactKeep.value = kept
+        prefs.edit().putInt(KEY_COMPACT_KEEP, kept).apply()
+    }
+
+    fun setCompactAt(percent: Int) {
+        val kept = percent.coerceIn(AT_RANGE)
+        _compactAt.value = kept
+        prefs.edit().putInt(KEY_COMPACT_AT, kept).apply()
+    }
+
     companion object {
         /** Messages past the summary before Butler summarizes again on its own. */
         const val AUTO_EVERY = 30
+        const val DEFAULT_KEEP = 12
+        const val DEFAULT_AT = 85
+        val KEEP_RANGE = 2..200
+        val AT_RANGE = 50..95
         private const val KEY_REPLACES = "memory_replaces_history"
         private const val KEY_AUTO = "memory_auto_summarize"
+        private const val KEY_COMPACT = "memory_compact"
+        private const val KEY_COMPACT_KEEP = "memory_compact_keep"
+        private const val KEY_COMPACT_AT = "memory_compact_at"
     }
 }

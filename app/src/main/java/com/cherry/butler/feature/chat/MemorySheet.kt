@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.cherry.butler.core.data.MemoryPrefs
+import com.cherry.butler.core.data.MemoryThoughts
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
@@ -39,8 +40,9 @@ import com.cherry.butler.ui.components.userMessage
 
 /**
  * A chat's memory: the summary Janitor folds into every prompt. It can be read and
- * rewritten by hand, or written fresh by the model ("Summarize now"), which streams in
- * here as it is written and is saved to the chat when it finishes.
+ * rewritten by hand, or written fresh by the model ("Summarize now", or a compact in Compact
+ * mode), which streams in here as it is written, its thought on the thinking line as a reply's
+ * is, and is saved to the chat when it finishes. The thought stays readable after.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +60,12 @@ fun MemorySheet(
     onReplacesHistory: (Boolean) -> Unit,
     onAutoSummarize: (Boolean) -> Unit,
     onDismiss: () -> Unit,
+    compactMode: Boolean = false,
+    /** The thought behind the summary as it stands, when one was kept. */
+    thought: MemoryThoughts.Thought? = null,
+    onOpenThought: () -> Unit = {},
 ) {
+    val compacting = run?.kind == MemoryService.Kind.Compact
     var draft by rememberSynced(summary.orEmpty())
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -76,11 +83,20 @@ fun MemorySheet(
             when {
                 running -> {
                     Text(
-                        "Writing a fresh summary of this chat…",
+                        if (compacting) "Folding older messages into memory…" else "Writing a fresh summary of this chat…",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                     )
+                    run?.thinking?.takeIf { it.isNotEmpty() }?.let { thinking ->
+                        ThinkingLine(
+                            text = thinking,
+                            streaming = run.text.isEmpty(),
+                            word = if (compacting) "Compacting" else "Summarizing",
+                            onOpen = onOpenThought,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                        )
+                    }
                     StreamingProse(
                         text = run?.text.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
@@ -95,9 +111,18 @@ fun MemorySheet(
                 else -> {
                     run?.error?.let { e ->
                         ErrataSlip(
-                            title = "Summary not saved",
+                            title = if (compacting) "Compact not saved" else "Summary not saved",
                             body = e.userMessage(),
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                    if (thought != null && draft == summary.orEmpty()) {
+                        ThinkingLine(
+                            text = thought.text,
+                            streaming = false,
+                            onOpen = onOpenThought,
+                            durationMs = thought.ms,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
                         )
                     }
                     FieldBlock(
@@ -142,9 +167,10 @@ fun MemorySheet(
             )
             SwitchRow(
                 title = "Summarize automatically",
-                subtitle = "Every ${MemoryPrefs.AUTO_EVERY} messages, for every chat",
+                subtitle = if (compactMode) "Compact mode does this while it is on" else "Every ${MemoryPrefs.AUTO_EVERY} messages, for every chat",
                 checked = autoSummarize,
                 onChange = onAutoSummarize,
+                enabled = !compactMode,
             )
             Spacer(Modifier.height(12.dp))
         }

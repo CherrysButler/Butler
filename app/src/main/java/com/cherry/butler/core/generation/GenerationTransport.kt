@@ -210,9 +210,12 @@ class HttpGenerationTransport(
         collector.streamFromProxy(payload, target)
     }
 
-    /** The second hop: the assembled payload goes to the user's proxy host. */
+    /**
+     * The second hop: the assembled payload goes to the user's proxy host, with no two lines
+     * of one role in a row ([ProxyPayload], which also says what Janitor's `middle-out` does).
+     */
     private suspend fun FlowCollector<GenerationEvent>.streamFromProxy(payload: JsonObject, target: ProxyTarget) {
-        val shaped = target.shape(payload)
+        val shaped = ProxyPayload.normalized(target.shape(payload))
         // What leaves for the proxy, minus anything secret: the model and whether routing rides along.
         Log.i(TAG, "proxy: model=${shaped["model"]} provider=${shaped["provider"] ?: "-"}")
         val request = Request.Builder()

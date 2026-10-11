@@ -323,7 +323,15 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
     WriteForMeSection(viewModel)
     SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
         SwitchRow("Summary replaces old messages", null, replaces, viewModel::setReplacesHistory, icon = Icons.Rounded.History)
-        SwitchRow("Summarize every ${MemoryPrefs.AUTO_EVERY} messages", null, auto, viewModel::setAutoSummarize, icon = Icons.Rounded.Autorenew)
+        val compact by viewModel.compact.collectAsStateWithLifecycle()
+        SwitchRow(
+            "Summarize every ${MemoryPrefs.AUTO_EVERY} messages",
+            if (compact) "Compact mode does this while it is on" else null,
+            auto,
+            viewModel::setAutoSummarize,
+            enabled = !compact,
+            icon = Icons.Rounded.Autorenew,
+        )
     }
     val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
@@ -535,7 +543,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     Profiles("Look profiles", "Saved looks, to put on in a tap or share", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
-    Specials("Butler specials", "Butter, highlights, tags", com.cherry.butler.R.drawable.ic_set_specials),
+    Specials("Butler specials", "Butter, highlights, compact mode", com.cherry.butler.R.drawable.ic_set_specials),
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
     Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates),
     Debug("Debug", "Proxy for Burp or mitmproxy", com.cherry.butler.R.drawable.ic_set_debug),
@@ -1190,8 +1198,9 @@ private fun RichTypingSection(viewModel: SettingsViewModel) {
 }
 
 /**
- * Butler's specials, which work by adding to what the user's own model is asked: Butter mode
- * for now. Each is switched on through a warning that says what it costs and where its tags go.
+ * Butler's specials, which work by adding to what the user's own model is asked: Butter mode,
+ * Highlights, and Compact mode. Each is switched on through a warning that says what it costs
+ * (and, for the ones with tags, where its tags go).
  */
 @Composable
 private fun SpecialsSection(viewModel: SettingsViewModel) {
@@ -1202,6 +1211,10 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
     val moods by viewModel.moods.collectAsStateWithLifecycle()
     var asking by remember { mutableStateOf(false) }
     var askingHighlights by remember { mutableStateOf(false) }
+    var askingCompact by remember { mutableStateOf(false) }
+    val compact by viewModel.compact.collectAsStateWithLifecycle()
+    val keep by viewModel.compactKeep.collectAsStateWithLifecycle()
+    val at by viewModel.compactAt.collectAsStateWithLifecycle()
     SettingsSection(
         title = "Butler specials",
         icon = Icons.Rounded.Star,
@@ -1239,6 +1252,45 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
                 DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
         }
+        SwitchRow(
+            "Compact mode",
+            "Near the context limit, older messages become memory",
+            compact,
+            { on -> if (on) askingCompact = true else viewModel.setCompact(false) },
+            icon = Icons.Rounded.History,
+        )
+        if (compact) {
+            Branch(last = false) {
+                NumberRow("Keep the last messages", "Left word for word", keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
+            }
+            Branch {
+                SliderRow(
+                    "Compact at",
+                    at.toFloat(),
+                    com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.first.toFloat()..com.cherry.butler.core.data.MemoryPrefs.AT_RANGE.last.toFloat(),
+                    5f,
+                    { "${it.toInt()}% full" },
+                    { viewModel.setCompactAt(it.toInt()) },
+                )
+            }
+        }
+    }
+    if (askingCompact) {
+        AddonWarning(
+            name = "Compact mode",
+            tokens = 0,
+            tag = "",
+            strip = strip,
+            tags = false,
+            cost = "When a reply finds the chat’s context $at% full, Butler asks your model for one extra generation: " +
+                "a summary of everything but the last $keep messages, built on the one before it. That summary then " +
+                "stands in for those messages, so the chat goes on without losing its thread. Each compact costs about " +
+                "as much as a reply, on your proxy or JLLM. It works through the chat’s memory, so “Summary replaces " +
+                "old messages” comes on with it, and it takes over from summarizing every " +
+                "${com.cherry.butler.core.data.MemoryPrefs.AUTO_EVERY} messages.",
+            onTurnOn = { askingCompact = false; viewModel.setCompact(true) },
+            onCancel = { askingCompact = false },
+        )
     }
     if (askingHighlights) {
         AddonWarning(
@@ -1312,8 +1364,9 @@ private fun MoodChips(on: Set<com.cherry.butler.core.generation.Mood>, onChange:
 
 /**
  * Said before a special is switched on: it runs on the user's own model and costs tokens,
- * and its tags either stay on this phone (clean on Janitor, gone if Butler's storage is
- * cleared) or go to Janitor too (kept with the account, shown raw on Janitor's site).
+ * and its tags (when it has any, [tags]) either stay on this phone (clean on Janitor, gone if
+ * Butler's storage is cleared) or go to Janitor too (kept with the account, shown raw on
+ * Janitor's site).
  */
 @Composable
 private fun AddonWarning(
@@ -1325,6 +1378,7 @@ private fun AddonWarning(
     onCancel: () -> Unit,
     cost: String = "This adds a short instruction to every reply, sent to your own model: about $tokens tokens of input " +
         "each time, and a little more output for the tags. It counts against your proxy or JLLM like any other text.",
+    tags: Boolean = true,
 ) {
     var keepHere by remember { mutableStateOf(strip) }
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
@@ -1342,24 +1396,26 @@ private fun AddonWarning(
                 color = ButlerTheme.colors.textMed,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
             )
-            Text(
-                "Where the tags go",
-                style = MaterialTheme.typography.labelMedium,
-                color = ButlerTheme.colors.textMed,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
-            )
-            ChoiceRow(
-                title = "Keep them on this ${com.cherry.butler.core.platform.Device.NAME}",
-                subtitle = "Janitor gets clean replies. Clearing Butler\u2019s data loses the marks",
-                selected = keepHere,
-                onClick = { keepHere = true },
-            )
-            ChoiceRow(
-                title = "Save them to Janitor too",
-                subtitle = "Janitor\u2019s site and app show them raw",
-                selected = !keepHere,
-                onClick = { keepHere = false },
-            )
+            if (tags) {
+                Text(
+                    "Where the tags go",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ButlerTheme.colors.textMed,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+                )
+                ChoiceRow(
+                    title = "Keep them on this ${com.cherry.butler.core.platform.Device.NAME}",
+                    subtitle = "Janitor gets clean replies. Clearing Butler\u2019s data loses the marks",
+                    selected = keepHere,
+                    onClick = { keepHere = true },
+                )
+                ChoiceRow(
+                    title = "Save them to Janitor too",
+                    subtitle = "Janitor\u2019s site and app show them raw",
+                    selected = !keepHere,
+                    onClick = { keepHere = false },
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
@@ -1554,9 +1610,21 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
     fun int(key: String, default: Int) = gen[key]?.jsonPrimitive?.intOrNull ?: gen[key]?.jsonPrimitive?.floatOrNull?.toInt() ?: default
     fun bool(key: String) = gen[key]?.jsonPrimitive?.booleanOrNull ?: false
 
-    SettingsSection(title = "Length", icon = Icons.Rounded.FormatSize) {
+    val length by viewModel.replyLength.collectAsStateWithLifecycle()
+    SettingsSection(
+        title = "Length",
+        icon = Icons.Rounded.FormatSize,
+        footnote = "Reply length asks the model in words, so a reply ends where it should. The hard limit cuts it off " +
+            "mid-sentence: leave it at 0, or well above the length picked.",
+    ) {
+        // Butler's own, kept on this phone; the rest are Janitor's and saved there.
+        DropRow(title = "Reply length", value = if (length == com.cherry.butler.core.generation.ReplyLength.Default) length.blurb else "${length.label}: ${length.blurb.replaceFirstChar { it.lowercase() }}") { close ->
+            com.cherry.butler.core.generation.ReplyLength.entries.forEach { option ->
+                DropItem(title = option.label, subtitle = option.blurb, selected = option == length, onClick = { close(); viewModel.setReplyLength(option) })
+            }
+        }
         // The defaults shown are the ones the website sends when nothing is saved.
-        NumberRow("Reply length", "0 = no limit", int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
+        NumberRow("Hard limit (tokens)", "0 = no limit", int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
         NumberRow("Context", null, int("context_length", 50_000), { viewModel.setGeneration("context_length", JsonPrimitive(it)) }, 512..1_000_000)
     }
     SettingsSection(title = "Sampling", icon = Icons.Rounded.Tune) {

@@ -135,26 +135,28 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * A copy of a saved proxy, key included: the key is read from Janitor (where the
-     * original keeps it) straight into the create request, never shown or kept. Its
-     * OpenRouter options come along. Returns the new proxy's id.
+     * A copy of a saved proxy. [form] is the editor's form as it stands, unsaved changes
+     * included (its id is ignored), and [options] the form's OpenRouter options; without them
+     * the copy is of the proxy as Janitor has it. The key is the one typed in the form, or else
+     * read from Janitor (where the original keeps it) straight into the create request, never
+     * shown or kept. Returns the new proxy's id.
      */
-    suspend fun cloneProxy(id: String): String {
-        val source = load(refresh = true).proxies.firstOrNull { it.id == id } ?: error("That proxy no longer exists.")
-        val before = _settings.value?.proxies.orEmpty().map { it.id }.toSet()
-        val after = saveProxy(
-            ProxyDraft(
-                id = null,
-                name = "${source.name} copy".take(MAX_NAME),
-                apiUrl = source.apiUrl,
-                model = source.model,
-                // The profile config, where the key is read from, knows this proxy by its client id.
-                apiKey = if (source.hasKey) profile.proxyKeyFor(source.clientId ?: id) ?: error("Couldn't read the key to copy.") else null,
-                promptId = source.promptId,
-            ),
-        )
+    suspend fun cloneProxy(id: String, form: ProxyDraft? = null, options: OpenRouterOptions? = null): String {
+        val settings = load(refresh = true)
+        val source = settings.proxies.firstOrNull { it.id == id } ?: error("That proxy no longer exists.")
+        val before = settings.proxies.map { it.id }.toSet()
+        // The profile config, where the key and the prompt's text are read from, knows this proxy by its client id.
+        val legacyId = source.clientId ?: id
+        val key = form?.apiKey ?: if (source.hasKey) profile.proxyKeyFor(legacyId) ?: error("Couldn't read the key to copy.") else null
+        val draft = cloneDraft(source, form, key, settings.prompts, profile.proxyPromptTextFor(legacyId))
+        val after = saveProxy(draft)
         val copy = after.proxies.firstOrNull { it.id !in before } ?: error("Janitor didn't return the copy.")
-        openRouter.set(copy.ids, openRouter.get(id))
+        // The prompt goes on the copy the way the editor saves one on an existing proxy, should
+        // the create have left it off or not said.
+        if (draft.promptId != null && copy.promptId != draft.promptId) {
+            saveProxy(draft.copy(id = copy.id, apiKey = null))
+        }
+        openRouter.set(copy.ids, options ?: openRouter.get(id))
         return copy.id
     }
 
@@ -211,8 +213,35 @@ class SettingsRepository @Inject constructor(
 
     private fun PromptDto.toPrompt() = Prompt(id, name, kind, content)
 
-    private companion object {
+    internal companion object {
         /** Janitor's limit on a proxy configuration's name (docs/JANITOR_API.md §27.2). */
         const val MAX_NAME = 255
+
+        /**
+         * The create request for a copy of [source]: the form's fields where there is a form,
+         * the server's where not, and [key] as the key.
+         */
+        fun cloneDraft(source: ProxyConfig, form: ProxyDraft?, key: String?, prompts: List<Prompt>, legacyPrompt: String?): ProxyDraft =
+            ProxyDraft(
+                id = null,
+                name = "${form?.name?.trim()?.ifEmpty { null } ?: source.name} copy".take(MAX_NAME),
+                apiUrl = form?.apiUrl?.trim()?.ifEmpty { null } ?: source.apiUrl,
+                model = form?.model?.trim() ?: source.model,
+                apiKey = key,
+                promptId = clonedPromptId(source, form, prompts, legacyPrompt),
+            )
+
+        /**
+         * Which prompt the copy links. A pick made in the form wins, None included. Otherwise
+         * the server's link; and when `/api-settings` leaves that out, the prompt whose text the
+         * profile's legacy config carries for this proxy (`jailbreakPrompt`), if one in the
+         * library matches it.
+         */
+        fun clonedPromptId(source: ProxyConfig, form: ProxyDraft?, prompts: List<Prompt>, legacyPrompt: String?): String? {
+            if (form != null && form.promptId != source.promptId) return form.promptId
+            source.promptId?.let { return it }
+            val text = legacyPrompt?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            return prompts.firstOrNull { it.content.trim() == text }?.id
+        }
     }
 }

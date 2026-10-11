@@ -211,6 +211,18 @@ class ProfileRepository @Inject constructor(
             ?.takeIf { it.isNotBlank() }
     }
 
+    /**
+     * The prompt text the profile's legacy config carries for a saved proxy (`jailbreakPrompt`
+     * of its `proxyConfigurations` entry), for linking a copy to the same library prompt when
+     * `/api-settings` doesn't name it. Read from the profile as last fetched.
+     */
+    internal suspend fun proxyPromptTextFor(proxyId: String): String? =
+        runCatching { profile() }.getOrNull()?.config?.get("proxyConfigurations")?.jsonArray
+            ?.mapNotNull { it as? JsonObject }
+            ?.firstOrNull { it["id"]?.jsonPrimitive?.contentOrNull == proxyId }
+            ?.get("jailbreakPrompt")?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
+            ?.takeIf { it.isNotBlank() }
+
     /** The `userConfig` block. Built fresh per generation; never cached as a string. */
     fun userConfig(profile: ProfileDto): JsonObject {
         val proxy = selectedProxy(profile)

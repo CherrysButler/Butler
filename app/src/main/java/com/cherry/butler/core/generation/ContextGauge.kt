@@ -22,6 +22,9 @@ class ContextGauge @Inject constructor(@ApplicationContext context: Context) {
 
     fun forChat(chatId: Long): Flow<Int?> = _all.map { it[chatId] }
 
+    /** The last reading for [chatId], or null before its first generation here. */
+    fun percent(chatId: Long): Int? = _all.value[chatId]
+
     fun clear() {
         _all.value = emptyMap()
         prefs.edit().clear().apply()

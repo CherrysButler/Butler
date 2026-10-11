@@ -28,12 +28,15 @@ class AccountService @Inject constructor(
     private val lastPlace: LastPlace,
     private val gauge: com.cherry.butler.core.generation.ContextGauge,
     private val openRouter: com.cherry.butler.core.data.OpenRouterOptionsStore,
+    private val memoryThoughts: com.cherry.butler.core.data.MemoryThoughts,
+    private val memory: com.cherry.butler.core.generation.MemoryService,
 ) {
     /** Lines the user wrote that Janitor has not accepted yet; signing out loses them. */
     suspend fun unsentCount(): Int = db.messageDao().countUnsent()
 
     suspend fun signOut() {
         pipeline.abandonAll()
+        memory.cancelAll()
         auth.signOut()
         withContext(Dispatchers.IO) { db.clearAllTables() }
         profile.clear()
@@ -43,5 +46,6 @@ class AccountService @Inject constructor(
         lastPlace.clear()
         gauge.clear()
         openRouter.clear()
+        memoryThoughts.clear()
     }
 }

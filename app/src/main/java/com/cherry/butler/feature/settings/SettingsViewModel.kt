@@ -243,6 +243,21 @@ class SettingsViewModel @Inject constructor(
     fun setButterTint(on: Boolean) = addons.setButterTint(on)
     fun setStripTags(strip: Boolean) = addons.setStripTags(strip)
 
+    /** Butler's reply length (Settings › Model), asked of the model in words. */
+    val replyLength: StateFlow<com.cherry.butler.core.generation.ReplyLength> = addons.length
+    fun setReplyLength(length: com.cherry.butler.core.generation.ReplyLength) = addons.setLength(length)
+
+    /** Compact mode (Settings › Butler specials). It works through the summary, so it switches that on. */
+    val compact: StateFlow<Boolean> = memory.compact
+    val compactKeep: StateFlow<Int> = memory.compactKeep
+    val compactAt: StateFlow<Int> = memory.compactAt
+    fun setCompact(on: Boolean) {
+        memory.setCompact(on)
+        if (on) memory.setReplacesHistory(true)
+    }
+    fun setCompactKeep(n: Int) = memory.setCompactKeep(n)
+    fun setCompactAt(percent: Int) = memory.setCompactAt(percent)
+
     val richOn: StateFlow<Boolean> = richTyping.enabled
     val richDefault: StateFlow<String?> = richTyping.defaultMark
     fun setRich(on: Boolean) = richTyping.setEnabled(on)
@@ -393,7 +408,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setReplacesHistory(on: Boolean) {
         memory.setReplacesHistory(on)
-        if (!on) memory.setAutoSummarize(false)
+        if (!on) {
+            memory.setAutoSummarize(false)
+            memory.setCompact(false)
+        }
     }
 
     fun setAutoSummarize(on: Boolean) {

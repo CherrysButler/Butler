@@ -165,12 +165,19 @@ class ProxyEditorViewModel @Inject constructor(
         }
     }
 
-    /** A copy of this proxy, key and OpenRouter options included; the key never surfaces. */
+    /**
+     * A copy of this proxy as the form shows it, edits not yet saved included: name, URL,
+     * model, the prompt picked, the OpenRouter options, and the key typed or else the saved
+     * one, which never surfaces. The original keeps what it had.
+     */
     fun copy(onDone: () -> Unit) {
         val id = proxyId ?: return
+        val f = _form.value
+        val draft = if (f.loaded) ProxyDraft(null, f.name, f.apiUrl, f.model, f.newKey.trim().takeIf { it.isNotEmpty() }, f.promptId) else null
+        val options = if (!f.loaded) null else if (f.isOpenRouter) f.openRouterOptions() else OpenRouterOptions()
         viewModelScope.launch {
             _form.update { it.copy(saving = true, error = null) }
-            runCatching { repository.cloneProxy(id) }
+            runCatching { repository.cloneProxy(id, draft, options) }
                 .onSuccess { onDone() }
                 .onFailure { e -> _form.update { it.copy(saving = false, error = e as? ApiError ?: ApiError.Unknown(e)) } }
         }

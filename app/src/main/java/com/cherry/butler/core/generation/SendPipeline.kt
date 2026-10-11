@@ -15,7 +15,7 @@ import com.cherry.butler.core.data.local.SendJobState
 import com.cherry.butler.core.data.remote.ChatRemoteSource
 import com.cherry.butler.core.data.remote.dto.PostMessageRequest
 import com.cherry.butler.core.network.ApiError
-import com.cherry.butler.core.stream.TagStreamParser
+import com.cherry.butler.core.stream.ThinkSplitter
 import com.cherry.butler.core.util.IsoTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -294,7 +294,7 @@ class SendPipeline @Inject constructor(
                     else -> {
                         if (job.state == SendJobState.COMPLETE) {
                             runCatching { background.finished(job) }
-                            runCatching { memory.maybeAutoSummarize(job.chatId) }
+                            runCatching { memory.afterReply(job.chatId) }
                         }
                         return
                     }
@@ -405,13 +405,26 @@ class SendPipeline @Inject constructor(
             existing = messageDao.get(botLocalId) ?: existing
         }
 
+        // A compact of this chat on its way goes first, so the reply is written from it; Stop
+        // ends the wait like it ends a stream, and the compact goes on by itself.
+        if (memory.isCompacting(job.chatId)) {
+            val waited = coroutineScope {
+                val wait = launch { memory.awaitCompact(job.chatId, COMPACT_WAIT_MS) }
+                activeStreams[job.chatId] = wait
+                try { wait.join() } finally { activeStreams.remove(job.chatId, wait) }
+                !wait.isCancelled
+            }
+            if (!waited) throw StoppedByUser()
+        }
+        val chatNow = chatDao.get(job.chatId) ?: chat
+
         val baseHistory = GuidedRetry.apply(historyFor(job.chatId, mode, existing), job.guidance)
-        // Butler's specials (Butter mode): on JLLM in the latest user line, on a proxy in the
-        // system prompt (below). Never stored.
+        // Butler's specials (reply length, Butter mode): on JLLM in the latest user line, on a
+        // proxy in the system prompt (below). Never stored.
         val addon = addons.instruction(mode)
         val userConfigNow = profileRepository.userConfig(profileRepository.profile())
         val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
-        val history = if (addon != null && jllm) addons.intoHistory(baseHistory, addon) else baseHistory
+        val history = if (addon != null && jllm) PromptAddons.intoHistory(baseHistory, addon) else baseHistory
         val profile = profileRepository.profile()
         val played = profileRepository.playedPersona(chat, history)
 
@@ -419,8 +432,8 @@ class SendPipeline @Inject constructor(
             chatId = chat.id,
             characterId = chat.characterId,
             userId = chat.userId.ifEmpty { profile.id },
-            summary = chat.summary,
-            summaryChatId = chat.summaryChatId,
+            summary = chatNow.summary,
+            summaryChatId = chatNow.summaryChatId,
             history = history,
             profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty()),
             userConfig = profileRepository.userConfig(profile),
@@ -429,20 +442,19 @@ class SendPipeline @Inject constructor(
             // Sent on every request while the switch is on and the chat has a summary, as
             // the website does (docs/JANITOR_API.md §27.4); the server then swaps the summarized
             // messages for the summary.
-            memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chat.summary.isNullOrBlank()).takeIf { it },
+            memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chatNow.summary.isNullOrBlank()).takeIf { it },
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
         val proxy = profileRepository.proxyTarget(profile).let { target ->
-            if (addon != null && !jllm) target?.then { payload -> addons.intoPayload(payload, addon) } else target
+            if (addon != null && !jllm) target?.then { payload -> PromptAddons.intoPayload(payload, addon) } else target
         }
 
         // CONTINUE appends to what is already there; everything else starts clean.
         // A continued reply goes on from its tagged copy, so its butter stays whole.
         val text = StringBuilder(if (mode == GenerateMode.Continue) existing.markup ?: existing.text else "")
         val thinking = StringBuilder(if (mode == GenerateMode.Continue) existing.thinking.orEmpty() else "")
-        val parser = TagStreamParser(THINK_TAGS)
-        var inThink = false
+        val splitter = ThinkSplitter(text, thinking)
         var requestId: String? = null
         var model: String? = null
         var contextPercent: Int? = null
@@ -483,26 +495,19 @@ class SendPipeline @Inject constructor(
                             thinking.append(event.text)
                         }
                         is GenerationEvent.Delta -> {
-                            for (e in parser.feed(event.text)) {
-                                when (e) {
-                                    is TagStreamParser.Event.Open -> inThink = true
-                                    is TagStreamParser.Event.Close -> inThink = false
-                                    is TagStreamParser.Event.Text -> if (inThink) {
-                                        if (thinkStart == null && e.text.isNotEmpty()) thinkStart = System.currentTimeMillis()
-                                        thinking.append(e.text)
-                                    } else {
-                                        if (thinkStart != null && thinkEnd == null && e.text.isNotBlank()) thinkEnd = System.currentTimeMillis()
-                                        text.append(e.text)
-                                    }
-                                }
-                            }
+                            val replyBefore = text.length
+                            val thoughtBefore = thinking.length
+                            splitter.feed(event.text)
+                            val now = System.currentTimeMillis()
+                            if (thinkStart == null && thinking.length > thoughtBefore) thinkStart = now
+                            if (thinkStart != null && thinkEnd == null && text.length > replyBefore && text.substring(replyBefore).isNotBlank()) thinkEnd = now
                         }
                         GenerationEvent.Done -> done = true
                     }
                     publish(botLocalId, text, thinking, model, contextPercent, thoughtMs())
                     flush(force = false)
                 }
-                for (e in parser.finish()) if (e is TagStreamParser.Event.Text) text.append(e.text)
+                splitter.finish()
             }
             activeStreams[job.chatId] = streamJob
             try {
@@ -700,7 +705,8 @@ class SendPipeline @Inject constructor(
         const val MAX_BACKOFF_MS = 30_000L
         const val PERSIST_INTERVAL_MS = 250L
         const val ADOPT_WINDOW_MS = 10 * 60 * 1000L
-        val THINK_TAGS = listOf("think", "thinking")
+        /** The longest a reply waits for a compact before it goes without it. */
+        const val COMPACT_WAIT_MS = 120_000L
     }
 }
 

@@ -104,6 +104,7 @@ import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
 import com.cherry.butler.core.design.RpText
 import com.cherry.butler.core.generation.ChoicesService
+import com.cherry.butler.core.generation.MemoryService
 import com.cherry.butler.core.generation.SendPipeline
 import com.cherry.butler.core.markdown.fillNames
 import com.cherry.butler.ui.components.Avatar
@@ -170,8 +171,14 @@ fun ChatScreen(
     val replacesHistory by viewModel.replacesHistory.collectAsStateWithLifecycle()
     val autoSummarize by viewModel.autoSummarize.collectAsStateWithLifecycle()
     val summaryEdit by viewModel.summaryEdit.collectAsStateWithLifecycle()
+    val compactMode by viewModel.compactMode.collectAsStateWithLifecycle()
+    val memoryThought by viewModel.memoryThought.collectAsStateWithLifecycle()
     var memoryOpen by remember { mutableStateOf(false) }
+    var memoryThoughtOpen by remember { mutableStateOf(false) }
     val summarizing = memoryRun != null && !memoryRun!!.done && memoryRun!!.error == null
+    val compacting = memoryRun?.kind == MemoryService.Kind.Compact
+    // A compact shows at the foot of the log while it runs, and stays there if it failed.
+    val compactShown = memoryRun?.takeIf { compacting && !it.done }
 
     LifecycleResumeEffect(viewModel) {
         viewModel.onShown()
@@ -377,6 +384,8 @@ fun ChatScreen(
             running = summarizing,
             replacesHistory = replacesHistory,
             autoSummarize = autoSummarize,
+            compactMode = compactMode,
+            thought = memoryThought,
             savingEdit = summaryEdit.saving,
             editError = summaryEdit.error?.let { "Not saved. ${it.userMessage()}" },
             onSummarize = viewModel::summarize,
@@ -384,7 +393,19 @@ fun ChatScreen(
             onSave = viewModel::saveSummary,
             onReplacesHistory = viewModel::setReplacesHistory,
             onAutoSummarize = viewModel::setAutoSummarize,
+            onOpenThought = { memoryThoughtOpen = true },
             onDismiss = { memoryOpen = false; viewModel.closeMemory() },
+        )
+    }
+    // The memory's thought: live while a summary or compact is being written, kept after.
+    if (memoryThoughtOpen) {
+        val live = memoryRun?.takeIf { summarizing }
+        val thought = live?.thinking ?: memoryThought?.text.orEmpty()
+        ThinkingSheet(
+            text = thought.fillNames(user = personaName, char = name, markUser = true, pronouns = personaPronouns),
+            streaming = live != null && live.text.isEmpty(),
+            word = if (live?.kind == MemoryService.Kind.Compact) "Compacting" else "Summarizing",
+            onDismiss = { memoryThoughtOpen = false },
         )
     }
 
@@ -454,7 +475,7 @@ fun ChatScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = if (summarizing) "Summarizing" else statusCaption(activeJob, streaming, refreshing, transcript.size, now),
+                            text = if (summarizing) (if (compacting) "Compacting" else "Summarizing") else statusCaption(activeJob, streaming, refreshing, transcript.size, now),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (busy || summarizing) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
                         )
@@ -550,7 +571,12 @@ fun ChatScreen(
                         onPickChoice = viewModel::sendChoice,
                         onHideChoices = viewModel::hideChoices,
                         onPickIntro = viewModel::pickIntro,
+                        onOpenCompact = { if (compactShown?.thinking.isNullOrEmpty()) memoryOpen = true else memoryThoughtOpen = true },
+                        onStopCompact = viewModel::cancelSummary,
+                        onCompactAgain = viewModel::compactAgain,
+                        onDismissCompact = viewModel::dismissCompact,
                     ),
+                    compact = compactShown,
                     intros = chat?.intros.orEmpty(),
                     unanswered = activeJob == null && transcript.lastOrNull()?.isBot == false,
                     showScene = background == null,
@@ -647,6 +673,10 @@ private class TranscriptActions(
     val onPickChoice: (String) -> Unit,
     val onHideChoices: () -> Unit,
     val onPickIntro: (MessageEntity, String) -> Unit,
+    val onOpenCompact: () -> Unit,
+    val onStopCompact: () -> Unit,
+    val onCompactAgain: () -> Unit,
+    val onDismissCompact: () -> Unit,
 )
 
 @Composable
@@ -671,6 +701,8 @@ private fun Transcript(
     intros: List<String> = emptyList(),
     /** The portrait at the top of the log; off when the chat has a background picture. */
     showScene: Boolean = true,
+    /** A compact running, or one that failed, shown at the foot of the log. */
+    compact: MemoryService.Run? = null,
 ) {
     val listState = rememberFlingListState(ahead = 2)
     val jobByUser = remember(jobs) { jobs.filter { it.userMessageLocalId != null }.associateBy { it.userMessageLocalId!! } }
@@ -734,6 +766,10 @@ private fun Transcript(
             .graphicsLayer { translationY = absorber.unabsorbed().toFloat() },
         contentPadding = PaddingValues(bottom = 12.dp),
     ) {
+        // The first item of a reversed list is the foot of the log.
+        if (compact != null) item(key = "compact", contentType = "compact") {
+            CompactRow(compact, actions)
+        }
         for (i in turns.indices.reversed()) {
             val turn = turns[i]
             val isLast = i == turns.lastIndex
@@ -779,6 +815,34 @@ private fun Transcript(
         }
     }
     host?.decor?.invoke(this, listState)
+    }
+}
+
+/**
+ * A compact under way, at the foot of the log: its thought drawn as a reply's is, and Stop.
+ * One that failed says why and offers another try; the chat is as it was either way.
+ */
+@Composable
+private fun CompactRow(run: MemoryService.Run, actions: TranscriptActions) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
+        val error = run.error
+        if (error == null) {
+            ThinkingLine(
+                // A model that doesn't think still shows the line, growing with the memory.
+                text = run.thinking.ifEmpty { run.text },
+                streaming = true,
+                word = "Compacting",
+                onOpen = actions.onOpenCompact,
+            )
+            TurnState("Folding older messages into memory") {
+                StateAction("Stop", actions.onStopCompact)
+            }
+        } else {
+            ErrataSlip(title = "Compact not saved", body = "${error.userMessage()} The chat is as it was.") {
+                StateAction("Dismiss", actions.onDismissCompact)
+                StateAction("Try again", actions.onCompactAgain, emphasis = true)
+            }
+        }
     }
 }
 

@@ -4,7 +4,7 @@ import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.MemoryPrefs
 import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.Variants
-import com.cherry.butler.core.stream.TagStreamParser
+import com.cherry.butler.core.stream.ThinkSplitter
 import com.cherry.butler.core.data.local.ButlerDatabase
 import com.cherry.butler.core.network.ApiError
 import kotlinx.coroutines.CoroutineScope
@@ -118,18 +118,12 @@ class ChoicesService @Inject constructor(
         }
 
         val text = StringBuilder()
-        val parser = TagStreamParser(listOf("think", "thinking"))
-        var inThink = false
+        // A thinking model's reasoning is not a choice, even when only its closing tag arrives.
+        val splitter = ThinkSplitter(text, StringBuilder())
         transport.generate(envelope, target).collect { event ->
-            if (event is GenerationEvent.Delta) for (e in parser.feed(event.text)) {
-                when (e) {
-                    is TagStreamParser.Event.Open -> inThink = true
-                    is TagStreamParser.Event.Close -> inThink = false
-                    is TagStreamParser.Event.Text -> if (!inThink) text.append(e.text)
-                }
-            }
+            if (event is GenerationEvent.Delta) splitter.feed(event.text)
         }
-        for (e in parser.finish()) if (e is TagStreamParser.Event.Text && !inThink) text.append(e.text)
+        splitter.finish()
         return parse(text.toString()).ifEmpty { throw ApiError.Server(code = 502, upstreamStatus = null) }
     }
 

@@ -90,6 +90,7 @@ class ChatViewModel @Inject constructor(
     private val richTyping: com.cherry.butler.core.data.RichTypingPrefs,
     private val addons: com.cherry.butler.core.generation.PromptAddons,
     private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
+    private val memoryThoughts: com.cherry.butler.core.data.MemoryThoughts,
 ) : ViewModel() {
 
     /** Whether the keyboard goes down as a message is sent (Settings). */
@@ -434,6 +435,14 @@ class ChatViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val replacesHistory: StateFlow<Boolean> = memoryPrefs.replacesHistory
     val autoSummarize: StateFlow<Boolean> = memoryPrefs.autoSummarize
+    /** Compact mode (Settings › Butler specials); while on, it does the summarizing. */
+    val compactMode: StateFlow<Boolean> = memoryPrefs.compact
+
+    /** What the model thought writing this chat's memory as it stands, when that was kept. */
+    val memoryThought: StateFlow<com.cherry.butler.core.data.MemoryThoughts.Thought?> by lazy {
+        combine(memoryThoughts.forChat(chatId), chat) { thought, c -> com.cherry.butler.core.data.MemoryThoughts.forSummary(thought, c?.summary) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }
 
     private val _summaryEdit = MutableStateFlow(EditStatus())
     val summaryEdit: StateFlow<EditStatus> = _summaryEdit.asStateFlow()
@@ -722,6 +731,17 @@ class ChatViewModel @Inject constructor(
 
     fun cancelSummary() = memory.cancel(chatId)
 
+    /** A compact that failed, asked for again now. */
+    fun compactAgain() {
+        memory.dismiss(chatId)
+        memory.compact(chatId)
+    }
+
+    /** A failed compact's notice, put away; the chat is as it was. */
+    fun dismissCompact() {
+        if (!memory.isRunning(chatId)) memory.dismiss(chatId)
+    }
+
     fun closeMemory() {
         // A finished or failed run has been seen; a running one keeps going in the background.
         if (!memory.isRunning(chatId)) memory.dismiss(chatId)
@@ -738,7 +758,11 @@ class ChatViewModel @Inject constructor(
 
     fun setReplacesHistory(on: Boolean) {
         memoryPrefs.setReplacesHistory(on)
-        if (!on) memoryPrefs.setAutoSummarize(false)
+        if (!on) {
+            memoryPrefs.setAutoSummarize(false)
+            // Compact mode works through the summary standing in for old messages.
+            memoryPrefs.setCompact(false)
+        }
     }
 
     fun setAutoSummarize(on: Boolean) {
