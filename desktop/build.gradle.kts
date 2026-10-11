@@ -6,6 +6,9 @@
  * SharedPreferences, Log, …) are small desktop stand-ins in the same packages.
  */
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -190,6 +193,81 @@ configurations.matching { it.name == "runtimeClasspath" }.configureEach {
     exclude(group = "org.jetbrains.kotlin", module = "kotlin-reflect")
 }
 
+/*
+ * Leaner jars for the app and its installer, swapped in for the full ones at run time (the
+ * compiler still sees the full ones):
+ * - the Material icons: the library holds thousands (37 MB); only the ones Butler's own
+ *   classes name are kept, read from the compiled code, so a new icon is picked up by itself;
+ * - SQLite and JNA: each carries native libraries for every system; only Windows x64 stays.
+ * Together they took about 45 MB of a 115 MB app folder.
+ */
+val slimJars = layout.buildDirectory.dir("slimJars")
+
+fun slimCopy(source: File, target: File, keep: (String) -> Boolean) {
+    target.parentFile.mkdirs()
+    ZipFile(source).use { zip ->
+        ZipOutputStream(target.outputStream().buffered()).use { out ->
+            for (e in zip.entries().asSequence()) {
+                if (!keep(e.name)) continue
+                out.putNextEntry(ZipEntry(e.name))
+                if (!e.isDirectory) zip.getInputStream(e).use { it.copyTo(out) }
+                out.closeEntry()
+            }
+        }
+    }
+}
+
+fun compileJar(prefix: String) = configurations.named("compileClasspath").map { cfg -> cfg.filter { it.name.startsWith(prefix) } }
+
+val slimIcons by tasks.registering {
+    dependsOn("compileKotlin")
+    val classes = layout.buildDirectory.dir("classes/kotlin/main")
+    val full = compileJar("material-icons-extended")
+    val out = slimJars.map { it.file("material-icons-extended-used.jar") }
+    inputs.files(full)
+    inputs.dir(classes)
+    outputs.file(out)
+    doLast {
+        val named = Regex("""androidx/compose/material/icons/((?:[a-z]+/)+)([A-Za-z0-9_]+Kt)""")
+        val used = HashSet<String>()
+        classes.get().asFile.walkTopDown().filter { it.extension == "class" }.forEach { f ->
+            named.findAll(String(f.readBytes(), Charsets.ISO_8859_1)).forEach {
+                used += "androidx/compose/material/icons/" + it.groupValues[1] + it.groupValues[2]
+            }
+        }
+        slimCopy(full.get().singleFile, out.get().asFile) { name ->
+            name.startsWith("META-INF/") || (name.endsWith(".class") && name.substringBefore('$').removeSuffix(".class") in used)
+        }
+        logger.lifecycle("Material icons kept: ${used.size}")
+    }
+}
+
+val slimNatives by tasks.registering {
+    val sqlite = compileJar("sqlite-bundled-jvm")
+    val jna = compileJar("jna-5")
+    val sqliteOut = slimJars.map { it.file("sqlite-bundled-windows.jar") }
+    val jnaOut = slimJars.map { it.file("jna-windows.jar") }
+    inputs.files(sqlite, jna)
+    outputs.files(sqliteOut, jnaOut)
+    doLast {
+        slimCopy(sqlite.get().singleFile, sqliteOut.get().asFile) { name ->
+            !name.startsWith("natives/") || name.startsWith("natives/windows_x64/")
+        }
+        val platformDir = Regex("""com/sun/jna/[a-z0-9]+-[a-z0-9-]+/.*""")
+        slimCopy(jna.get().singleFile, jnaOut.get().asFile) { name ->
+            !platformDir.matches(name) || name.startsWith("com/sun/jna/win32-x86-64/")
+        }
+    }
+}
+
+configurations.matching { it.name == "runtimeClasspath" }.configureEach {
+    exclude(group = "org.jetbrains.compose.material", module = "material-icons-extended")
+    exclude(group = "org.jetbrains.compose.material", module = "material-icons-extended-desktop")
+    exclude(group = "androidx.sqlite", module = "sqlite-bundled")
+    exclude(group = "androidx.sqlite", module = "sqlite-bundled-jvm")
+    exclude(group = "net.java.dev.jna", module = "jna")
+}
+
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
@@ -222,6 +300,9 @@ dependencies {
     // Android ships org.json in the platform; the desktop needs the library.
     implementation("org.json:json:20240303")
     implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-savedstate:${libs.versions.jbLifecycle.get()}")
+    // The lean copies of the jars left out of runtimeClasspath above.
+    runtimeOnly(files(slimIcons))
+    runtimeOnly(files(slimNatives))
 }
 
 kotlin {
@@ -276,6 +357,10 @@ compose.desktop {
                 menu = true
                 shortcut = true
                 perUserInstall = true
+                // Fixed for good: every later installer upgrades this Butler in place instead of
+                // installing a second one beside it.
+                upgradeUuid = "7dcce8b5-d332-4e96-9111-38dc040ec21a"
+                menuGroup = "Butler"
             }
         }
     }

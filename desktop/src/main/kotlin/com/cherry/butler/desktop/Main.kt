@@ -248,6 +248,8 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                         CompositionLocalProvider(
                             // Clicks answer with a hover wash, not the phone's ripple.
                             androidx.compose.foundation.LocalIndication provides com.cherry.butler.desktop.ui.HoverWash(MaterialTheme.colorScheme.onSurface),
+                            // A mouse and a wide window everywhere, the first start's guide included.
+                            com.cherry.butler.ui.components.LocalPointerMotion provides true,
                             LocalLastPlace provides graph.lastPlace(),
                             com.cherry.butler.ui.LocalAppShell provides { com.cherry.butler.desktop.ui.DesktopShell() },
                             com.cherry.butler.feature.chat.LocalEnterSends provides true,

@@ -12,6 +12,9 @@ object PackageManager {
 class PackageInfo {
     val versionName: String = com.cherry.butler.BuildConfig.VERSION_NAME
     val longVersionCode: Long = com.cherry.butler.BuildConfig.VERSION_CODE.toLong()
+    /** Unknown on the desktop: the same, so an install never reads as an update. */
+    val firstInstallTime: Long = 0L
+    val lastUpdateTime: Long = 0L
     /** A desktop build has no APK signature; the update check skips the key comparison. */
     val signingInfo: SigningInfo? = null
     val signatures: Array<Signature>? = null

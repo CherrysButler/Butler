@@ -32,10 +32,13 @@ fun AuthGate(viewModel: AuthViewModel = hiltViewModel()) {
     val status by viewModel.sessionStatus.collectAsStateWithLifecycle()
 
     when (status) {
-        is SessionStatus.Authenticated -> LocalAppShell.current()
         // A refresh that failed for want of network still has a session behind it; the app
         // carries on with it (SessionKeeper) instead of throwing the user out.
-        is SessionStatus.RefreshFailure -> LocalAppShell.current()
+        is SessionStatus.Authenticated, is SessionStatus.RefreshFailure -> Box(Modifier.fillMaxSize()) {
+            LocalAppShell.current()
+            // The first start's guide (or what's new after an update), over the app.
+            com.cherry.butler.feature.settings.FirstStartHost()
+        }
         is SessionStatus.Initializing -> LoadingScreen()
         else -> {
             val signingIn by viewModel.signingIn.collectAsStateWithLifecycle()

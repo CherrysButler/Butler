@@ -347,7 +347,7 @@ private fun ChatSection(viewModel: SettingsViewModel, replaces: Boolean, auto: B
  * otherwise, and the panel can change this one for a single line too.
  */
 @Composable
-private fun WriteForMeSection(viewModel: SettingsViewModel) {
+internal fun WriteForMeSection(viewModel: SettingsViewModel) {
     val perspective by viewModel.perspective.collectAsStateWithLifecycle()
     SettingsSection(
         title = "Write for me",
@@ -956,7 +956,7 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun CustomLookSheet(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
+internal fun CustomLookSheet(viewModel: SettingsViewModel, onDismiss: () -> Unit) {
     val custom by viewModel.custom.collectAsStateWithLifecycle()
     val recent by viewModel.recentColors.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<String?>(null) }
@@ -1164,7 +1164,7 @@ private fun ColorRow(title: String, subtitle: String, color: androidx.compose.ui
  * a chat's menu.
  */
 @Composable
-private fun RichTypingSection(viewModel: SettingsViewModel) {
+internal fun RichTypingSection(viewModel: SettingsViewModel) {
     val on by viewModel.richOn.collectAsStateWithLifecycle()
     val default by viewModel.richDefault.collectAsStateWithLifecycle()
     SettingsSection(
@@ -1568,7 +1568,7 @@ private fun BackgroundRow() {
 
 /** A thumbnail of the look (its ground, one card, a short red bar) with its name under it. */
 @Composable
-private fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val frame by androidx.compose.animation.animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule,
         animationSpec = com.cherry.butler.core.design.Motion.enter(com.cherry.butler.core.design.Motion.SHORT),
