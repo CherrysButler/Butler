@@ -95,6 +95,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             val theme by themePrefs.theme.collectAsState()
             val chatStyle by themePrefs.chatStyle.collectAsState()
+            val thinkingLook by themePrefs.thinkingLook.collectAsState()
+            val thoughtLook by themePrefs.thoughtLook.collectAsState()
             val look by textLook.look.collectAsState()
             val custom by themePrefs.custom.collectAsState()
             val chatFontKey by fontPrefs.chat.collectAsState()
@@ -116,7 +118,7 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(lockOn) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
             }
-            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale) {
+            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
                 androidx.compose.foundation.layout.Box {
                     // Kept composed under the lock so the user returns exactly where they were,
                     // but hidden from accessibility while covered.

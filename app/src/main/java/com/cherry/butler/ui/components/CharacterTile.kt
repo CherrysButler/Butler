@@ -1,5 +1,18 @@
 package com.cherry.butler.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import com.cherry.butler.core.design.Motion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,21 +60,52 @@ import com.cherry.butler.core.markdown.RichHtml
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 
-/** Gutter and gap shared by every two-up grid, so tiles line up across tabs. */
+/** Gutter and gap shared by every tile grid, so tiles line up across tabs. */
 object TileGrid {
     val gutter = 12.dp
     val gap = 10.dp
 
-    /** The width one tile gets in a two-column grid on this screen. */
+    /** Below this width a grid is a phone's two-up; above it, as many tiles as fit this wide. */
+    private val twoUpUntil = 600.dp
+    private val widestTile = 196.dp
+
+    /** How many tiles a row holds here: two on a phone, more on a wider window. */
+    @Composable
+    fun columns(): Int {
+        val screen = LocalConfiguration.current.screenWidthDp.dp
+        if (screen < twoUpUntil) return 2
+        return ((screen - gutter * 2 + gap) / (widestTile + gap)).toInt().coerceAtLeast(3)
+    }
+
+    /** The width one tile gets in this screen's grid. */
     @Composable
     fun tileWidth(): Dp {
         val screen = LocalConfiguration.current.screenWidthDp.dp
-        return (screen - gutter * 2 - gap) / 2
+        val n = columns()
+        return (screen - gutter * 2 - gap * (n - 1)) / n
     }
+}
+
+/**
+ * True where there is a mouse and room for motion (the desktop): tiles then answer the
+ * pointer and settle in as they arrive. A phone keeps them still, as every screen cuts there.
+ */
+val LocalPointerMotion = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/** The cards that have already settled in, so each does it only the first time it shows. */
+private object TileArrivals {
+    private val seen = object : LinkedHashMap<String, Unit>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Unit>?) = size > 3000
+    }
+
+    fun first(key: String): Boolean = seen.put(key, Unit) == null
 }
 
 /** Portrait height for a tile of [width]: a touch taller than square, as Janitor's are. */
 private fun portraitHeight(width: Dp): Dp = width * 1.08f
+
+/** The same shape as the CDN's crop parameter (25:27 is 1.08). */
+private const val PORTRAIT_ASPECT = "25:27"
 
 /**
  * The two-up character card, laid out the way Janitor lays it: the name across the top,
@@ -88,11 +132,34 @@ fun CharacterTile(
 ) {
     val height = portraitHeight(width)
     val shape = corner?.let { RoundedCornerShape(it) }
+    val motion = LocalPointerMotion.current
+    val hoverSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hovered by hoverSource.collectIsHoveredAsState()
+    // On a pointer: the hovered card raises its edge one tone and its picture leans in.
+    val edge by animateColorAsState(
+        if (motion && hovered) ButlerTheme.colors.textLow else Color.Transparent,
+        animationSpec = Motion.enter(Motion.SHORT),
+        label = "tile-edge",
+    )
+    val lean = animateFloatAsState(if (motion && hovered) 1.035f else 1f, animationSpec = tween(Motion.MEDIUM, easing = Motion.EaseOut), label = "tile-lean")
+    // The lean gets a layer only while it is leaning: a layer is one more picture replayed
+    // every frame the window draws, and a card at rest needs no more than its own.
+    val leaning by remember { androidx.compose.runtime.derivedStateOf { lean.value != 1f } }
+    // Arriving tiles settle in from a little below, once each: a card the grid rebuilds (a
+    // re-read of the list, a scroll back) was already seen and is simply there.
+    val fresh = remember { motion && TileArrivals.first("$name|$avatarUrl") }
+    val arrival = remember { Animatable(if (fresh) 0f else 1f) }
+    if (fresh) LaunchedEffect(Unit) { arrival.animateTo(1f, tween(Motion.MEDIUM, easing = Motion.EaseOut)) }
     Column(
         modifier = modifier
             .width(width)
+            .graphicsLayer {
+                alpha = arrival.value
+                translationY = (1f - arrival.value) * 10.dp.toPx()
+            }
             .card(shape = shape, color = containerColor, clip = false)
             .then(if (edgeColor != null) Modifier.border(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
+            .then(if (motion) Modifier.border(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
             .clickable(onClick = onClick),
     ) {
         Text(
@@ -102,10 +169,16 @@ fun CharacterTile(
             color = nameColor ?: MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            // One line's height exactly, whatever font a symbol in the name falls back to.
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .height(with(androidx.compose.ui.platform.LocalDensity.current) { MaterialTheme.typography.titleSmall.lineHeight.toDp() })
+                .clipToBounds(),
         )
-        Box(modifier = Modifier.width(width).height(height).background(ButlerTheme.colors.surfaceHigh)) {
-            TilePortrait(url = avatarUrl, name = name, width = width, height = height, obscured = obscured)
+        Box(modifier = Modifier.width(width).height(height).clipToBounds().background(ButlerTheme.colors.surfaceHigh)) {
+            Box(Modifier.fillMaxSize().then(if (leaning) Modifier.graphicsLayer { scaleX = lean.value; scaleY = lean.value } else Modifier)) {
+                TilePortrait(url = avatarUrl, name = name, width = width, height = height, obscured = obscured)
+            }
             if (chatCount != null) {
                 Row(
                     modifier = Modifier
@@ -187,7 +260,7 @@ private const val OBSCURED_PX = 10
  */
 fun tilePortraitRequest(context: android.content.Context, url: String?, wPx: Int, hPx: Int, obscured: Boolean): ImageRequest =
     ImageRequest.Builder(context)
-        .data(url)
+        .data(com.cherry.butler.core.config.JanitorConfig.sizedMediaUrl(url, if (obscured) OBSCURED_PX else wPx, PORTRAIT_ASPECT))
         .size(if (obscured) Size(OBSCURED_PX, OBSCURED_PX) else Size(wPx, hPx))
         .memoryCacheKey(if (obscured) "$url@obscured" else "$url@${wPx}x$hPx")
         .allowHardware(true)
@@ -209,6 +282,7 @@ fun PrefetchTilePortraits(
     val density = LocalDensity.current
     val wPx = with(density) { width.roundToPx() }
     val hPx = with(density) { portraitHeight(width).roundToPx() }
+    val ahead = TileGrid.columns() * AHEAD_ROWS
     // Bounded: the catalogue pages on without end. A key dropped here at worst asks the
     // loader again, which answers from its cache.
     val asked = remember {
@@ -216,12 +290,12 @@ fun PrefetchTilePortraits(
             override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Unit>?) = size > ASKED_MAX
         }
     }
-    androidx.compose.runtime.LaunchedEffect(state, count, wPx, hPx) {
+    androidx.compose.runtime.LaunchedEffect(state, count, wPx, hPx, ahead) {
         androidx.compose.runtime.snapshotFlow { state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
             .collect { last ->
                 if (last < 0) return@collect
                 val loader = coil.Coil.imageLoader(context)
-                for (i in (last + 1)..minOf(last + AHEAD, count - 1)) {
+                for (i in (last + 1)..minOf(last + ahead, count - 1)) {
                     val (url, obscured) = portraitAt(i) ?: continue
                     if (url == null || asked.put("$url@$obscured", Unit) != null) continue
                     loader.enqueue(tilePortraitRequest(context, url, wPx, hPx, obscured))
@@ -230,8 +304,8 @@ fun PrefetchTilePortraits(
     }
 }
 
-/** About two screens of cards. */
-private const val AHEAD = 12
+/** Rows of cards fetched ahead: about two screens on a phone, a screen on a wide window. */
+private const val AHEAD_ROWS = 6
 
 /** Prefetched keys remembered, so a scroll back doesn't ask again. */
 private const val ASKED_MAX = 600
@@ -254,7 +328,12 @@ fun BrowseTileFooter(
         creatorColor?.let { RichHtml.parseColor(it) }?.let { Color(it) }
             ?.takeIf { kotlin.math.abs(it.luminance() - ground.luminance()) > 0.3f } ?: red
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // Every line here has a fixed height: an emoji or a symbol drawn from a fallback font
+    // can carry a taller line, and a card must never grow by it, or rows stop ending level.
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val handleHeight = with(density) { MaterialTheme.typography.labelLarge.lineHeight.toDp() }
+    val blurbHeight = with(density) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 3
+    Row(modifier = Modifier.height(handleHeight).clipToBounds(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = "@$creatorName",
             style = MaterialTheme.typography.labelLarge,
@@ -281,6 +360,7 @@ fun BrowseTileFooter(
         minLines = 3,
         maxLines = 3,
         overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.height(blurbHeight).clipToBounds(),
     )
     FlowRow(
         modifier = Modifier.fillMaxWidth().height(24.dp),

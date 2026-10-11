@@ -87,6 +87,9 @@ fun ColorPickerSheet(
     }
     fun moved() { hex = hexOf(Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, sat, value)))) }
 
+    // A mouse and a wide window: a narrower panel, the wheel smaller and beside the controls
+    // rather than over them. A phone keeps the tall sheet, the wheel under a thumb.
+    val compact = LocalPointerMotion.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -94,6 +97,7 @@ fun ColorPickerSheet(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         scrimColor = SheetScrim,
         dragHandle = { SheetHandle() },
+        sheetMaxWidth = if (compact) 560.dp else androidx.compose.material3.BottomSheetDefaults.SheetMaxWidth,
     ) {
         Column(
             modifier = Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
@@ -106,62 +110,74 @@ fun ColorPickerSheet(
                 Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
             }
 
-            Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+            val wheel: @Composable () -> Unit = {
                 HueWheel(
                     hue = hue,
                     sat = sat,
                     value = value,
                     onChange = { h, s -> hue = h; sat = s; moved() },
+                    diameter = if (compact) 176.dp else 240.dp,
                 )
             }
+            val controls: @Composable () -> Unit = {
+                Text("Brightness", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed)
+                BrightnessBar(hue = hue, sat = sat, value = value, onChange = { value = it; moved() }, modifier = Modifier.padding(top = 8.dp))
 
-            Text("Brightness", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed)
-            BrightnessBar(hue = hue, sat = sat, value = value, onChange = { value = it; moved() }, modifier = Modifier.padding(top = 8.dp))
-
-            Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Hex", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.width(44.dp))
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(ButlerTheme.colors.surfaceHigh)
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                ) {
-                    BasicTextField(
-                        value = hex,
-                        onValueChange = { typed ->
-                            val clean = typed.uppercase().filter { it in "#0123456789ABCDEF" }.let { if (it.startsWith("#")) it else "#$it" }.take(7)
-                            hex = clean
-                            parseHex(clean)?.let { c ->
-                                val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(c.toArgb(), it) }
-                                hue = hsv[0]; sat = hsv[1]; value = hsv[2]
-                            }
-                        },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, fontFamily = FontFamily.Monospace),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { }),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            if (recent.isNotEmpty()) {
-                Text("Recent", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    recent.forEach { argb ->
-                        val c = Color(argb)
-                        Box(
-                            Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(c)
-                                .border(if (c.toArgb() == color.toArgb()) 2.dp else 1.dp, if (c.toArgb() == color.toArgb()) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
-                                .clickable(onClickLabel = hexOf(c)) { take(c) },
+                Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Hex", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.width(44.dp))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(ButlerTheme.colors.surfaceHigh)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                    ) {
+                        BasicTextField(
+                            value = hex,
+                            onValueChange = { typed ->
+                                val clean = typed.uppercase().filter { it in "#0123456789ABCDEF" }.let { if (it.startsWith("#")) it else "#$it" }.take(7)
+                                hex = clean
+                                parseHex(clean)?.let { c ->
+                                    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(c.toArgb(), it) }
+                                    hue = hsv[0]; sat = hsv[1]; value = hsv[2]
+                                }
+                            },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, fontFamily = FontFamily.Monospace),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { }),
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
+
+                if (recent.isNotEmpty()) {
+                    Text("Recent", style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed, modifier = Modifier.padding(top = 16.dp, bottom = 8.dp))
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        recent.forEach { argb ->
+                            val c = Color(argb)
+                            Box(
+                                Modifier
+                                    .size(if (compact) 28.dp else 36.dp)
+                                    .clip(CircleShape)
+                                    .background(c)
+                                    .border(if (c.toArgb() == color.toArgb()) 2.dp else 1.dp, if (c.toArgb() == color.toArgb()) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
+                                    .clickable(onClickLabel = hexOf(c)) { take(c) },
+                            )
+                        }
+                    }
+                }
+            }
+            if (compact) {
+                Row(modifier = Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    wheel()
+                    Spacer(Modifier.width(20.dp))
+                    Column(Modifier.weight(1f)) { controls() }
+                }
+            } else {
+                Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) { wheel() }
+                controls()
             }
 
             Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
@@ -186,7 +202,7 @@ fun ColorPickerSheet(
 
 /** Hue around the ring, strength from the middle out, shown at the current brightness. */
 @Composable
-private fun HueWheel(hue: Float, sat: Float, value: Float, onChange: (Float, Float) -> Unit) {
+private fun HueWheel(hue: Float, sat: Float, value: Float, onChange: (Float, Float) -> Unit, diameter: androidx.compose.ui.unit.Dp = 240.dp) {
     fun pick(pos: Offset, w: Float, h: Float) {
         val cx = w / 2f
         val cy = h / 2f
@@ -201,7 +217,7 @@ private fun HueWheel(hue: Float, sat: Float, value: Float, onChange: (Float, Flo
     }
     Canvas(
         modifier = Modifier
-            .size(240.dp)
+            .size(diameter)
             .pointerInput(Unit) { detectTapGestures { pick(it, size.width.toFloat(), size.height.toFloat()) } }
             .pointerInput(Unit) {
                 detectDragGestures(onDragStart = { pick(it, size.width.toFloat(), size.height.toFloat()) }) { change, _ ->

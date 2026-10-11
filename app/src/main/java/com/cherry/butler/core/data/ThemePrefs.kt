@@ -38,6 +38,29 @@ class ThemePrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putString(KEY_CHAT_STYLE, style.key).remove(KEY_BUBBLES).apply()
     }
 
+    /** What the thinking line shows while a thought is written, and what it folds to after. */
+    private val _thinkingLook = MutableStateFlow(
+        com.cherry.butler.core.design.ThinkingLook.entries.firstOrNull { it.key == prefs.getString(KEY_THINKING_LOOK, null) }
+            ?: com.cherry.butler.core.design.ThinkingLook.Butler,
+    )
+    val thinkingLook: StateFlow<com.cherry.butler.core.design.ThinkingLook> = _thinkingLook.asStateFlow()
+
+    fun setThinkingLook(look: com.cherry.butler.core.design.ThinkingLook) {
+        _thinkingLook.value = look
+        prefs.edit().putString(KEY_THINKING_LOOK, look.key).apply()
+    }
+
+    private val _thoughtLook = MutableStateFlow(
+        com.cherry.butler.core.design.ThoughtLook.entries.firstOrNull { it.key == prefs.getString(KEY_THOUGHT_LOOK, null) }
+            ?: com.cherry.butler.core.design.ThoughtLook.Stripe,
+    )
+    val thoughtLook: StateFlow<com.cherry.butler.core.design.ThoughtLook> = _thoughtLook.asStateFlow()
+
+    fun setThoughtLook(look: com.cherry.butler.core.design.ThoughtLook) {
+        _thoughtLook.value = look
+        prefs.edit().putString(KEY_THOUGHT_LOOK, look.key).apply()
+    }
+
     /** What the Custom look is made from. */
     private val _custom = MutableStateFlow(
         CustomColors(
@@ -85,5 +108,7 @@ class ThemePrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY = "app_theme"
         const val KEY_BUBBLES = "chat_bubbles"
         const val KEY_CHAT_STYLE = "chat_style"
+        const val KEY_THINKING_LOOK = "thinking_look"
+        const val KEY_THOUGHT_LOOK = "thought_look"
     }
 }

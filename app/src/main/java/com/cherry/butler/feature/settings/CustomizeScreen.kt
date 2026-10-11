@@ -12,6 +12,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -179,10 +180,11 @@ private fun Colours(look: RpLook, update: ((RpLook) -> RpLook) -> Unit, recent: 
     }
     val value = target.get(look)
     // An even grid, eight across: "Theme" first, the swatches, and the wheel last. A colour
-    // from the wheel that is not a swatch shows in the wheel's cell.
+    // from the wheel that is not a swatch shows in the wheel's cell. No wider than a phone's:
+    // across a desktop pane each circle grew to the size of a saucer.
     val cells = listOf<Long?>(null) + SWATCHES
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 16.dp).widthIn(max = 400.dp).fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         (cells + listOf(WHEEL)).chunked(8).forEach { row ->

@@ -41,6 +41,24 @@ object RpMarkdown {
      *   shows them). Off, the colour alone marks speech.
      * @param images lift `![alt](url)` out as [Block.Image]; off, it stays literal text.
      */
+    /**
+     * [parse] for finished text, remembered for the whole app: a message scrolled out of a
+     * transcript and back (or a list rebuilt) was parsed again each time it came into view.
+     * The blocks are immutable, so every view can share them. Text still being written goes
+     * through [parse] itself, or each token would push a finished message out.
+     */
+    fun parseShared(source: String, keepQuotes: Boolean = false, images: Boolean = false): List<Block> {
+        val key = ParseKey(source, keepQuotes, images)
+        synchronized(parsed) { parsed[key] }?.let { return it }
+        return parse(source, keepQuotes, images).also { synchronized(parsed) { parsed[key] = it } }
+    }
+
+    private data class ParseKey(val source: String, val keepQuotes: Boolean, val images: Boolean)
+
+    private val parsed = object : LinkedHashMap<ParseKey, List<Block>>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<ParseKey, List<Block>>?) = size > 300
+    }
+
     fun parse(source: String, keepQuotes: Boolean = false, images: Boolean = false): List<Block> {
         val blocks = ArrayList<Block>()
         val paragraph = StringBuilder()

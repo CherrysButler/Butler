@@ -106,6 +106,8 @@ fun ChatsScreen(
         tab != ChatsTab.All -> tabGroups
         else -> allGroups
     }
+    // A keyboard's refresh (the desktop's Ctrl+R) does what a pull does.
+    com.cherry.butler.ui.components.RegisterRefresh { groups.refresh() }
     // Each list keeps its own scroll; the full list's survives a search or a folder.
     val allListState = rememberFlingListState()
     val searchListState = rememberFlingListState()

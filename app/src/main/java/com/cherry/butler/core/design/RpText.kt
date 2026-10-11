@@ -117,7 +117,7 @@ fun RpText(
 ) {
     val styles = rememberRpStyles(color)
     val keepQuotes = LocalRpLook.current.showQuotes
-    val blocks = remember(text, keepQuotes, images) { RpMarkdown.parse(text, keepQuotes, images) }
+    val blocks = remember(text, keepQuotes, images) { RpMarkdown.parseShared(text, keepQuotes, images) }
     @Suppress("NAME_SHADOWING") val color = narrationInk(color)
 
     if (maxLines != Int.MAX_VALUE) {

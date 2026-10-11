@@ -99,7 +99,7 @@ fun ProfileScreen(
             count = 1,
             title = "Sign out",
             body = buildString {
-                append("Your chats stay on Janitor. This phone forgets them, and your settings, until you sign in again.")
+                append("Your chats stay on Janitor. This ${com.cherry.butler.core.platform.Device.NAME} forgets them, and your settings, until you sign in again.")
                 if (c.unsent > 0) {
                     append("\n\n")
                     append(if (c.unsent == 1) "1 message you wrote hasn't reached Janitor yet and will be lost." else "${c.unsent} messages you wrote haven't reached Janitor yet and will be lost.")

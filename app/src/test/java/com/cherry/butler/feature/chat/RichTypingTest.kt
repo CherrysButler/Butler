@@ -49,9 +49,37 @@ class RichTypingTest {
     }
 
     @Test
-    fun `a quote typed inside speech becomes an apostrophe`() {
-        val (value, _) = type(v(""), TypingState(Mark.Speech), "she said \"no\"", default = Mark.Speech)
-        assertEquals("\"she said 'no'\"", value.text)
+    fun `a quote typed inside speech pairs as apostrophes`() {
+        val (value, _) = type(v("\"she said  today\"", 10), TypingState(Mark.Speech), "\"no\"", default = Mark.Speech)
+        assertEquals("\"she said 'no' today\"", value.text)
+        assertEquals(14, value.selection.start)
+    }
+
+    @Test
+    fun `typed marks pair up and step over their closing side`() {
+        type(v(""), TypingState(null), "\"", default = null).first.let {
+            assertEquals("\"\"", it.text)
+            assertEquals(1, it.selection.start)
+        }
+        val (spoke, _) = type(v(""), TypingState(null), "\"hey\"", default = null)
+        assertEquals("\"hey\"", spoke.text)
+        assertEquals(5, spoke.selection.start)
+        val (bold, _) = type(v(""), TypingState(null), "**hi*", default = null)
+        assertEquals("**hi**", bold.text)
+        assertEquals(6, bold.selection.start)
+    }
+
+    @Test
+    fun `a mark typed over a selection wraps it`() {
+        val old = TextFieldValue("say hey now", TextRange(4, 7))
+        val (out, _) = RichTyping.onChange(old, TextFieldValue("say \" now", TextRange(5)), TypingState(null), null)
+        assertEquals("say \"hey\" now", out.text)
+        assertEquals(TextRange(5, 8), out.selection)
+    }
+
+    @Test
+    fun `a mark after a letter is typed alone`() {
+        assertEquals("don\"", type(v("don"), TypingState(null), "\"", default = null).first.text)
     }
 
     @Test
@@ -153,23 +181,25 @@ class RichTypingTest {
     }
 
     @Test
-    fun `deleting one side of a mark takes the other side with it`() {
-        // The closing mark.
-        backspace(v("*hi*", 4), TypingState(null), 1, default = null).first.let { assertEquals("hi", it.text) }
-        // The opening mark.
-        backspace(v("*hi*", 1), TypingState(null), 1, default = null).first.let {
-            assertEquals("hi", it.text)
+    fun `deleting one side of a mark with words deletes just that side`() {
+        backspace(v("*hi*", 4), TypingState(null), 1, default = null).first.let { assertEquals("*hi", it.text) }
+        backspace(v("\"hi\" yes", 1), TypingState(null), 1, default = null).first.let {
+            assertEquals("hi\" yes", it.text)
             assertEquals(0, it.selection.start)
         }
-        // One star of a bold mark.
-        backspace(v("**hi**", 6), TypingState(null), 1, default = null).first.let { assertEquals("hi", it.text) }
-        // A speech mark.
-        backspace(v("\"hi\" yes", 1), TypingState(null), 1, default = null).first.let { assertEquals("hi yes", it.text) }
+    }
+
+    @Test
+    fun `deleting one side of an empty pair takes both`() {
+        backspace(v("a \"\"", 3), TypingState(null), 1, default = null).first.let {
+            assertEquals("a ", it.text)
+            assertEquals(2, it.selection.start)
+        }
     }
 
     @Test
     fun `a mark typed by hand or a paste with marks is never wrapped`() {
-        assertEquals("*", type(v(""), TypingState(Mark.Action), "*").first.text)
+        assertEquals("**", type(v(""), TypingState(Mark.Action), "*").first.text)
         val paste = "*she waves* \"hi\""
         val (value, _) = RichTyping.onChange(v(""), v(paste), TypingState(Mark.Action), Mark.Action)
         assertEquals(paste, value.text)

@@ -184,11 +184,11 @@ private fun EmailDoor(
 ) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         // FieldBlock brings its own 16 on each side, the same as [edge].
-        FieldBlock(label = "E-mail", value = state.email, onChange = onEmail, placeholder = "you@example.com", keyboardType = KeyboardType.Email)
+        FieldBlock(label = "E-mail", value = state.email, onChange = onEmail, placeholder = "you@example.com", keyboardType = KeyboardType.Email, next = true)
         if (!state.codeSent) {
-            FieldBlock(label = "Password", value = state.password, onChange = onPassword, placeholder = "Your Janitor password", secret = true)
+            FieldBlock(label = "Password", value = state.password, onChange = onPassword, placeholder = "Your Janitor password", secret = true, onSubmit = { if (!busy) onSignIn() })
         } else {
-            FieldBlock(label = "Code from the e-mail", value = state.code, onChange = onCode, placeholder = "6 digits", keyboardType = KeyboardType.Number)
+            FieldBlock(label = "Code from the e-mail", value = state.code, onChange = onCode, placeholder = "6 digits", keyboardType = KeyboardType.Number, onSubmit = { if (!busy) onVerify() })
         }
         Spacer(Modifier.height(6.dp))
         if (!state.codeSent) {

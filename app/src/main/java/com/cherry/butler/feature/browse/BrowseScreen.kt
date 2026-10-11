@@ -188,7 +188,7 @@ fun BrowseScreen(
 
 /** The sliders key that opens the filter sheet; a red dot says filters are on. */
 @Composable
-private fun FilterKey(active: Int, onClick: () -> Unit) {
+internal fun FilterKey(active: Int, onClick: () -> Unit) {
     Box {
         IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Rounded.Tune, contentDescription = if (active > 0) "Filters, $active on" else "Filters", tint = MaterialTheme.colorScheme.onSurface)
@@ -210,7 +210,7 @@ private fun FilterKey(active: Int, onClick: () -> Unit) {
  * Weekly) and Hidden Gems. The lit part is what the grid shows; a part's menu opens on tap.
  */
 @Composable
-private fun ModeBar(
+internal fun ModeBar(
     sort: CharacterSort,
     special: SpecialMode?,
     onSort: (CharacterSort) -> Unit,
@@ -261,7 +261,7 @@ private fun ModeBar(
  * Every chosen tag must match.
  */
 @Composable
-private fun TagStrip(
+internal fun TagStrip(
     source: BrowseSource,
     onSource: (BrowseSource) -> Unit,
     chosen: List<Pair<Int, String>>,
@@ -271,9 +271,12 @@ private fun TagStrip(
     onRemoveTag: (Int) -> Unit,
     onRemoveCustom: (String) -> Unit,
     onAddCustom: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    state: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
     androidx.compose.foundation.lazy.LazyRow(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        state = state,
+        modifier = modifier.fillMaxWidth().padding(bottom = 6.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -310,7 +313,7 @@ private fun TagStrip(
 }
 
 @Composable
-private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emphasis: Boolean = false, tint: Color? = null, icon: ImageVector? = null) {
+internal fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emphasis: Boolean = false, tint: Color? = null, icon: ImageVector? = null) {
     val shape = com.cherry.butler.core.design.Pill
     val edge = when {
         tint != null -> if (selected) tint else tint.copy(alpha = 0.45f)
@@ -346,7 +349,7 @@ private fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emph
 }
 
 @Composable
-private fun Segment(
+internal fun Segment(
     label: String,
     icon: ImageVector,
     selected: Boolean,
@@ -379,7 +382,7 @@ private fun Segment(
 
 /** A segment with a menu: tapping it lights it and opens its choices. */
 @Composable
-private fun DropSegment(
+internal fun DropSegment(
     label: String,
     icon: ImageVector,
     selected: Boolean,
@@ -425,7 +428,7 @@ private fun DropSegment(
 }
 
 @Composable
-private fun CharacterRoster(
+internal fun CharacterRoster(
     characters: LazyPagingItems<Character>,
     hasSearch: Boolean,
     onCharacterClick: (String) -> Unit,
@@ -459,6 +462,7 @@ private fun CharacterRoster(
     }
 
     val tileWidth = TileGrid.tileWidth()
+    val columns = TileGrid.columns()
     // peek, not get: looking ahead must not make Paging load pages early.
     com.cherry.butler.ui.components.PrefetchTilePortraits(gridState, characters.itemCount, tileWidth) { i ->
         characters.peek(i)?.let { it.avatarUrl to it.isImageNsfw }
@@ -475,7 +479,7 @@ private fun CharacterRoster(
             status.empty && hadItems -> Unit
             status.empty -> EmptyState(hasSearch)
             else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Fixed(TileGrid.columns()),
                 state = gridState,
                 modifier = Modifier.fillMaxSize().then(if (letGo != null) Modifier.nestedScroll(letGo) else Modifier),
                 contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter),
@@ -487,10 +491,12 @@ private fun CharacterRoster(
                     key = { index -> characters.peek(index)?.id ?: index },
                     contentType = { "character" },
                 ) { index ->
-                    characters[index]?.let { character -> RosterTile(character, tileWidth) { onCharacterClick(character.id) } }
+                    // A placeholder (a spot not loaded yet) holds its card's shape, so rows keep their height.
+                    val character = characters[index]
+                    if (character != null) RosterTile(character, tileWidth) { onCharacterClick(character.id) } else SkeletonTile(tileWidth)
                 }
                 if (status.appending) {
-                    items(2, contentType = { "skeleton" }) { SkeletonTile(tileWidth) }
+                    items(columns, contentType = { "skeleton" }) { SkeletonTile(tileWidth) }
                 }
                 status.appendError?.let { error ->
                     item(span = { GridItemSpan(maxLineSpan) }, contentType = "error") {
@@ -529,7 +535,7 @@ private fun RosterTile(character: Character, tileWidth: Dp, onClick: () -> Unit)
  * A page change goes back to the top; the grid state is the same one the endless list keeps.
  */
 @Composable
-private fun PagedRoster(
+internal fun PagedRoster(
     page: BrowseViewModel.Page,
     hasSearch: Boolean,
     gridState: LazyGridState,
@@ -550,7 +556,7 @@ private fun PagedRoster(
             page.error != null -> ErrorState(page.error, onRetry = onRetry)
             page.items.isEmpty() && page.number == 1 -> EmptyState(hasSearch)
             else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Fixed(TileGrid.columns()),
                 state = gridState,
                 modifier = Modifier.fillMaxSize().then(if (letGo != null) Modifier.nestedScroll(letGo) else Modifier),
                 contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter),
@@ -587,17 +593,17 @@ private fun SkeletonGrid(tileWidth: Dp) {
         modifier = Modifier.fillMaxSize().padding(TileGrid.gutter),
         verticalArrangement = Arrangement.spacedBy(TileGrid.gap),
     ) {
+        val columns = TileGrid.columns()
         repeat(3) {
             Row(horizontalArrangement = Arrangement.spacedBy(TileGrid.gap)) {
-                SkeletonTile(tileWidth)
-                SkeletonTile(tileWidth)
+                repeat(columns) { SkeletonTile(tileWidth) }
             }
         }
     }
 }
 
 @Composable
-private fun ErrorState(error: Throwable, onRetry: () -> Unit) {
+internal fun ErrorState(error: Throwable, onRetry: () -> Unit) {
     CenteredMessage(
         icon = Icons.Rounded.CloudOff,
         title = error.userTitle(),
@@ -618,7 +624,7 @@ private fun ErrorState(error: Throwable, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun EmptyState(hasSearch: Boolean) {
+internal fun EmptyState(hasSearch: Boolean) {
     CenteredMessage(
         icon = Icons.Rounded.SearchOff,
         title = if (hasSearch) "No matches" else "Nothing here yet",

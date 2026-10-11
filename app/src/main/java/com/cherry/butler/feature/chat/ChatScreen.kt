@@ -380,6 +380,7 @@ fun ChatScreen(
         com.cherry.butler.feature.settings.BackgroundsSheet(chatId = viewModel.chatId, onDismiss = { backgroundOpen = false })
     }
 
+    LocalTranscriptHost.current?.let { host -> LaunchedEffect(busy) { host.onBusy(busy) } }
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
     background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key) }
     Scaffold(
@@ -562,6 +563,32 @@ private fun statusCaption(job: SendJobEntity?, live: SendPipeline.LiveReply?, re
     else -> "Saving"
 }
 
+/**
+ * What a desktop window adds to the transcript; null on the phone. The list's state goes out
+ * (the desktop scrolls it from the margins beside its reading column) and [decor] is drawn
+ * over the list (its scrollbar).
+ */
+class TranscriptHost(
+    val onList: (androidx.compose.foundation.lazy.LazyListState?) -> Unit,
+    val decor: @Composable androidx.compose.foundation.layout.BoxScope.(androidx.compose.foundation.lazy.LazyListState) -> Unit,
+    /** Whether a reply is on its way (sending, thinking or writing). */
+    val onBusy: (Boolean) -> Unit = {},
+)
+
+val LocalTranscriptHost = androidx.compose.runtime.staticCompositionLocalOf<TranscriptHost?> { null }
+
+/**
+ * A right-click on a line, where there is a mouse: it opens what a long-press opens. On the
+ * phone nothing is added.
+ */
+val LocalSecondaryClick = androidx.compose.runtime.staticCompositionLocalOf<Modifier.(onClick: () -> Unit) -> Modifier> { { this } }
+
+@Composable
+private fun Modifier.secondaryClick(onClick: () -> Unit): Modifier {
+    val add = LocalSecondaryClick.current
+    return this.add(onClick)
+}
+
 /** Every callback the transcript raises, gathered so the composables stay readable. */
 private class TranscriptActions(
     val onRetry: (Long) -> Unit,
@@ -654,6 +681,12 @@ private fun Transcript(
 
     // Newest at the bottom, first frame already scrolled there: reverseLayout with the
     // list reversed, which is also what keeps a growing reply from jumping the viewport.
+    val host = LocalTranscriptHost.current
+    androidx.compose.runtime.DisposableEffect(listState, host) {
+        host?.onList?.invoke(listState)
+        onDispose { host?.onList?.invoke(null) }
+    }
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         reverseLayout = true,
@@ -707,6 +740,8 @@ private fun Transcript(
         if (showScene) item(key = "scene", contentType = "scene") {
             Scene(url = characterAvatarUrl, name = characterName, onClick = onAvatarClick)
         }
+    }
+    host?.decor?.invoke(this, listState)
     }
 }
 
@@ -794,6 +829,7 @@ private fun BotTurn(
                     }
                 })
             }
+            .secondaryClick { if (!editing && !writing) actions.onLongPress(shown) }
             // No swipe: a sideways brush while reading changed the reply or asked for a new
             // one. Variants move only by the arrows under it.
     ) {
@@ -1013,6 +1049,7 @@ private fun ReplyBody(
                 word = if (steps != null) com.cherry.butler.core.generation.AgentSteps.summary(steps, true) else remember(message.localId) { ThinkingWords.forSeed(message.localId) },
                 onOpen = { actions.onOpenThought(message.localId) },
                 modifier = Modifier.padding(bottom = 10.dp),
+                durationMs = live?.thinkingMs ?: message.thinkingMs,
             )
         }
         when {
@@ -1147,7 +1184,8 @@ private fun UserTurn(
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         actions.onLongPress(message)
                     })
-                },
+                }
+                .secondaryClick { actions.onLongPress(message) },
         ) {
             RpText(
                 text = text,

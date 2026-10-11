@@ -38,6 +38,10 @@ data class TypingState(val mode: Mark?, val armed: Boolean = false, val inner: B
  * - Inside speech or an action a typed `"` becomes `'`, so a quote within them never ends
  *   or opens anything. Inside speech the " key is a ' key: it opens 'a quote' there, and
  *   pressed again steps out of it, still in the speech.
+ * - Marks typed by hand pair up as in a code editor: `"` gives `"|"`, `*` gives `*|*` (and a
+ *   second `*` in an empty one makes it bold), typing the closing mark steps over it, and a
+ *   mark typed over a selection wraps it. Deleting one side of a mark with words in it
+ *   deletes just that side; an empty pair goes whole.
  */
 object RichTyping {
 
@@ -119,15 +123,18 @@ object RichTyping {
         while (s < o.length - p && s < n.length - p && o[o.length - 1 - s] == n[n.length - 1 - s]) s++
         val removed = o.substring(p, o.length - s)
         val inserted = n.substring(p, n.length - s)
+        // A mark typed over a selection wraps it, the words still selected.
+        if (inserted.length == 1 && inserted[0] in PAIRED && !old.selection.collapsed &&
+            removed.isNotEmpty() && removed == o.substring(old.selection.min, old.selection.max)
+        ) {
+            val text = o.substring(0, p) + inserted + removed + inserted + o.substring(p + removed.length)
+            return TextFieldValue(text, TextRange(p + 1, p + 1 + removed.length)) to state.copy(armed = false)
+        }
         if (removed.isNotEmpty() && inserted.isEmpty()) return onDelete(o, new, p, p + removed.length, state)
         if (removed.isNotEmpty() || inserted.isEmpty()) return new to state
 
         val ctx = spanAt(o, p)
-        // A `*` typed right where the mark already closes steps over the closing mark instead of
-        // adding a third star (`*hi**` read as the start of bold).
-        if (inserted == "*" && ctx != null && ctx.mark != Mark.Speech && p == ctx.contentEnd) {
-            return TextFieldValue(o, TextRange(ctx.end)) to TypingState(default)
-        }
+        if (inserted.length == 1 && inserted[0] in PAIRED) typedMark(o, p, inserted[0], ctx, state, default)?.let { return it }
         val typed = if (quotesInside(ctx?.mark)) inserted.replace('"', '\'') else inserted
         val mode = state.mode
         // Marks typed by hand, and pastes (with marks or lines of their own, or long), are
@@ -148,6 +155,44 @@ object RichTyping {
         }
         return new to state
     }
+
+    /** The marks that pair up as they are typed. */
+    private const val PAIRED = "\"*"
+
+    /**
+     * A `"` or `*` typed by hand, as a code editor takes it: over its own closing mark it steps
+     * past it; where a pair can open, the pair goes in with the caret between. Null where
+     * neither applies (it is then typed as it is).
+     */
+    private fun typedMark(o: String, p: Int, c: Char, ctx: MarkSpan?, state: TypingState, default: Mark?): Pair<TextFieldValue, TypingState>? {
+        // The closing mark is already there: step over it, back to the default.
+        if (ctx != null && p == ctx.contentEnd &&
+            ((c == '*' && ctx.mark != Mark.Speech) || (c == '"' && ctx.mark == Mark.Speech))
+        ) {
+            return TextFieldValue(o, TextRange(ctx.end)) to TypingState(default)
+        }
+        // Inside speech or an action a quote is a ' (see above); over its closing ' it steps past.
+        val quoted = c == '"' && quotesInside(ctx?.mark)
+        if (quoted && p < o.length && o[p] == '\'') return TextFieldValue(o, TextRange(p + 1)) to state.copy(inner = false)
+        // A star in an empty *|* makes it bold: **|**.
+        if (c == '*' && p > 0 && p < o.length && o[p - 1] == '*' && o[p] == '*' &&
+            (p < 2 || o[p - 2] != '*') && (p + 1 >= o.length || o[p + 1] != '*')
+        ) {
+            return TextFieldValue(o.substring(0, p) + "**" + o.substring(p), TextRange(p + 1)) to state.copy(armed = false)
+        }
+        // A pair opens before a space, the end, punctuation or another mark, and not straight
+        // after a letter (the closing mark of something typed by hand).
+        val next = o.getOrNull(p)
+        val prev = o.getOrNull(p - 1)
+        val roomAfter = next == null || next.isWhitespace() || next in CLOSERS
+        if (!roomAfter || (prev != null && prev.isLetterOrDigit())) return null
+        val ch = if (quoted) '\'' else c
+        return TextFieldValue(o.substring(0, p) + ch + ch + o.substring(p), TextRange(p + 1)) to
+            state.copy(armed = false, inner = quoted)
+    }
+
+    /** What may follow the caret for a typed mark to open a pair there. */
+    private const val CLOSERS = "\"*')]}.,;:!?"
 
     /** Whether a mark opened before [at] is still open there (typed by hand, not closed yet). */
     fun unclosedBefore(text: String, at: Int): Boolean {
@@ -171,16 +216,17 @@ object RichTyping {
     private const val PASTE = 60
 
     /**
-     * A deletion. A mark deleted on one side takes its other side with it (`*hi` from `*hi*`
-     * becomes `hi`); a mark whose words are all deleted goes too, leaving no empty pair (`**`
-     * read as the start of bold), and typing there comes back in the same mark.
+     * A deletion, as a code editor does it: one side of a mark with words in it goes alone
+     * (`"hi` from `"hi"`); one side of an empty pair takes the other with it. A mark whose words
+     * are all deleted goes too, leaving no empty pair (`**` read as the start of bold), and
+     * typing there comes back in the same mark.
      */
     private fun onDelete(o: String, new: TextFieldValue, from: Int, to: Int, state: TypingState): Pair<TextFieldValue, TypingState> {
         val spans = spans(o)
         for (sp in spans) {
             val inOpen = from >= sp.start && to <= sp.contentStart
             val inClose = from >= sp.contentEnd && to <= sp.end
-            if (inOpen || inClose) {
+            if ((inOpen || inClose) && sp.contentStart == sp.contentEnd) {
                 val text = o.substring(0, sp.start) + o.substring(sp.contentStart, sp.contentEnd) + o.substring(sp.end)
                 val caret = if (inOpen) sp.start else sp.contentEnd - (sp.contentStart - sp.start)
                 return TextFieldValue(text, TextRange(caret)) to state.copy(armed = false, inner = false)

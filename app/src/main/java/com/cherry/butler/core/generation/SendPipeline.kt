@@ -97,6 +97,8 @@ class SendPipeline @Inject constructor(
         val thinking: String,
         val model: String?,
         val contextUsagePercent: Int?,
+        /** How long the thought took, once the reply's first word is in; null before and when there was no thought. */
+        val thinkingMs: Long? = null,
     )
 
     private val _live = MutableStateFlow<Map<Long, LiveReply>>(emptyMap())
@@ -446,6 +448,10 @@ class SendPipeline @Inject constructor(
         var contextPercent: Int? = null
         var lastWrite = 0L
         var done = false
+        // When the thought started and when the first word of the reply came: its duration.
+        var thinkStart: Long? = null
+        var thinkEnd: Long? = null
+        fun thoughtMs(): Long? = thinkStart?.let { start -> thinkEnd?.let { it - start } }
 
         messageDao.updateStream(botLocalId, text.toString(), thinking.toString().ifEmpty { null }, MessageStreamState.STREAMING, System.currentTimeMillis())
         publish(botLocalId, text, thinking, model, contextPercent)
@@ -472,19 +478,28 @@ class SendPipeline @Inject constructor(
                             event.model?.let { model = it }
                             event.contextUsagePercent?.let { contextPercent = it; gauge.record(job.chatId, it) }
                         }
-                        is GenerationEvent.Reasoning -> thinking.append(event.text)
+                        is GenerationEvent.Reasoning -> {
+                            if (thinkStart == null && event.text.isNotEmpty()) thinkStart = System.currentTimeMillis()
+                            thinking.append(event.text)
+                        }
                         is GenerationEvent.Delta -> {
                             for (e in parser.feed(event.text)) {
                                 when (e) {
                                     is TagStreamParser.Event.Open -> inThink = true
                                     is TagStreamParser.Event.Close -> inThink = false
-                                    is TagStreamParser.Event.Text -> if (inThink) thinking.append(e.text) else text.append(e.text)
+                                    is TagStreamParser.Event.Text -> if (inThink) {
+                                        if (thinkStart == null && e.text.isNotEmpty()) thinkStart = System.currentTimeMillis()
+                                        thinking.append(e.text)
+                                    } else {
+                                        if (thinkStart != null && thinkEnd == null && e.text.isNotBlank()) thinkEnd = System.currentTimeMillis()
+                                        text.append(e.text)
+                                    }
                                 }
                             }
                         }
                         GenerationEvent.Done -> done = true
                     }
-                    publish(botLocalId, text, thinking, model, contextPercent)
+                    publish(botLocalId, text, thinking, model, contextPercent, thoughtMs())
                     flush(force = false)
                 }
                 for (e in parser.finish()) if (e is TagStreamParser.Event.Text) text.append(e.text)
@@ -507,7 +522,8 @@ class SendPipeline @Inject constructor(
         flush(force = true)
         // Tags off before Janitor sees the reply (if the user chose so), kept here for drawing.
         val (clean, markup) = addons.finish(text.toString())
-        messageDao.finishReply(botLocalId, clean, markup, thinking.toString().ifEmpty { null }, System.currentTimeMillis())
+        val thinkingMs = thinkStart?.let { (thinkEnd ?: System.currentTimeMillis()) - it } ?: existing.thinkingMs
+        messageDao.finishReply(botLocalId, clean, markup, thinking.toString().ifEmpty { null }, thinkingMs, System.currentTimeMillis())
         requestId?.let { rid ->
             messageDao.setGenerationRequestIds(botLocalId, (existing.generationRequestIds + rid).distinct())
         }
@@ -660,8 +676,8 @@ class SendPipeline @Inject constructor(
         streamState = MessageStreamState.STREAMING, cachedAt = at,
     )
 
-    private fun publish(botLocalId: Long, text: StringBuilder, thinking: StringBuilder, model: String?, ctx: Int?) {
-        _live.update { it + (botLocalId to LiveReply(text.toString(), thinking.toString(), model, ctx)) }
+    private fun publish(botLocalId: Long, text: StringBuilder, thinking: StringBuilder, model: String?, ctx: Int?, thinkingMs: Long? = null) {
+        _live.update { it + (botLocalId to LiveReply(text.toString(), thinking.toString(), model, ctx, thinkingMs)) }
     }
 
     private fun unpublish(botLocalId: Long) {

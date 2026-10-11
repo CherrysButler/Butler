@@ -137,6 +137,8 @@ data class MessageEntity(
      * matching it (an edit, or a change made on the website).
      */
     val markup: String? = null,
+    /** How long the model thought before its first word, in millis; null when not recorded. */
+    val thinkingMs: Long? = null,
 )
 
 object MessageStreamState {

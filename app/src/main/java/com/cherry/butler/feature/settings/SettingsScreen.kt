@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.FormatQuote
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.ViewList
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -262,7 +263,8 @@ private fun SettingsBody(
             }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
             SettingsPage.Chat -> ChatSection(viewModel, replaces, auto)
-            SettingsPage.Look -> LookSection(viewModel, onOpenCustomize)
+            SettingsPage.Look -> LookSection(viewModel, onOpenCustomize, onOpenThinking = { onOpenPage(SettingsPage.Thinking) })
+            SettingsPage.Thinking -> ThinkingSection(viewModel)
             SettingsPage.RichTyping -> RichTypingSection(viewModel)
             SettingsPage.Specials -> SpecialsSection(viewModel)
             SettingsPage.App -> AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
@@ -493,6 +495,7 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Generation("Generation", "Length, sampling, replies", com.cherry.butler.R.drawable.ic_set_model, listed = false),
     Chat("Chat", "Keyboard, memory, pictures, thinking words", com.cherry.butler.R.drawable.ic_set_chat),
     Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
+    Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
     Specials("Butler specials", "Butter, highlights, tags", com.cherry.butler.R.drawable.ic_set_specials),
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
@@ -837,7 +840,7 @@ private fun generationSummary(gen: JsonObject): String {
 
 /** The look: three themes as tiles, the chat layout as a choice, and the text styling. */
 @Composable
-private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit) {
+private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit, onOpenThinking: () -> Unit) {
     val current by viewModel.theme.collectAsStateWithLifecycle()
     val chatStyle by viewModel.chatStyle.collectAsStateWithLifecycle()
     val custom by viewModel.custom.collectAsStateWithLifecycle()
@@ -864,6 +867,9 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
                 DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
             }
         }
+        val thinkingLook by viewModel.thinkingLook.collectAsStateWithLifecycle()
+        val thoughtLook by viewModel.thoughtLook.collectAsStateWithLifecycle()
+        LinkRow(title = "Thinking line", subtitle = "${thinkingLook.label} · ${thoughtLook.label}", onClick = onOpenThinking, icon = Icons.Rounded.Lightbulb)
         val paged by viewModel.pagedHome.collectAsStateWithLifecycle()
         DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll", icon = Icons.Rounded.ViewList) { close ->
             DropItem(title = "Endless scroll", subtitle = "More arrives as you reach the end", selected = !paged, onClick = { close(); viewModel.setPagedHome(false) })
@@ -1179,8 +1185,8 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
             HighlightsPromptField(custom, viewModel::setHighlightsPrompt)
         } }
         if (butter || highlights) {
-            DropRow(title = "Tags", value = if (strip) "Kept on this phone" else "Saved to Janitor too", icon = Icons.Rounded.Label) { close ->
-                DropItem(title = "Kept on this phone", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
+            DropRow(title = "Tags", value = if (strip) "Kept on this ${com.cherry.butler.core.platform.Device.NAME}" else "Saved to Janitor too", icon = Icons.Rounded.Label) { close ->
+                DropItem(title = "Kept on this ${com.cherry.butler.core.platform.Device.NAME}", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
                 DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
         }
@@ -1294,7 +1300,7 @@ private fun AddonWarning(
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
             )
             ChoiceRow(
-                title = "Keep them on this phone",
+                title = "Keep them on this ${com.cherry.butler.core.platform.Device.NAME}",
                 subtitle = "Janitor gets clean replies. Clearing Butler\u2019s data loses the marks",
                 selected = keepHere,
                 onClick = { keepHere = true },
@@ -1590,7 +1596,7 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
         SwitchRow(
             title = "Lock Butler",
             icon = Icons.Rounded.Lock,
-            subtitle = if (lock.canLock() || locked) null else "Set a screen lock on your phone first",
+            subtitle = if (lock.canLock() || locked) null else "Set a screen lock on your ${com.cherry.butler.core.platform.Device.NAME} first",
             checked = locked,
             enabled = lock.canLock() || locked,
             onChange = { turnOn ->

@@ -168,6 +168,10 @@ class SettingsViewModel @Inject constructor(
     val chatStyle: StateFlow<ChatStyle> = themes.chatStyle
 
     fun setChatStyle(style: ChatStyle) = themes.setChatStyle(style)
+    val thinkingLook: StateFlow<com.cherry.butler.core.design.ThinkingLook> = themes.thinkingLook
+    fun setThinkingLook(look: com.cherry.butler.core.design.ThinkingLook) = themes.setThinkingLook(look)
+    val thoughtLook: StateFlow<com.cherry.butler.core.design.ThoughtLook> = themes.thoughtLook
+    fun setThoughtLook(look: com.cherry.butler.core.design.ThoughtLook) = themes.setThoughtLook(look)
 
     /**
      * Changes to Janitor-side settings wait here until Save: switching JLLM and the proxy,

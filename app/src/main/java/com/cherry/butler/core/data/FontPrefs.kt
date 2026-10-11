@@ -102,15 +102,15 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
         const val DEFAULT_CHAT = "atkinson"
         const val DEFAULT_APP = "system"
 
-        /** The built-ins, by key and name: the bundled reading face and the phone's own families. */
+        /** The built-ins, by key and name: the bundled reading faces and the system's own families. */
         val BUILT_IN = listOf(
             "atkinson" to "Atkinson Hyperlegible",
-            "system" to "Phone's sans",
+            "system" to "System sans",
             "lora" to "Lora",
             "nunito" to "Nunito",
             "lexend" to "Lexend",
             "comic" to "Comic Neue",
-            "serif" to "Phone's serif",
+            "serif" to "System serif",
             "mono" to "Monospace",
         )
 

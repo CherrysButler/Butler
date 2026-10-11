@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
@@ -375,8 +378,17 @@ fun FieldBlock(
     keyboardType: KeyboardType = KeyboardType.Text,
     error: String? = null,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
+    /** What Enter (or the keyboard's action key) does: on to the next field, or [onSubmit]. */
+    next: Boolean = false,
+    onSubmit: (() -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val imeAction = when {
+        onSubmit != null -> androidx.compose.ui.text.input.ImeAction.Go
+        next -> androidx.compose.ui.text.input.ImeAction.Next
+        else -> androidx.compose.ui.text.input.ImeAction.Default
+    }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed)
         Box(
@@ -395,14 +407,31 @@ fun FieldBlock(
         ) {
             BasicTextField(
                 value = value,
-                onValueChange = onChange,
+                // A single-line field never takes a line break: a PC's Enter can arrive as one
+                // even when it is handled, and in a password it makes the password wrong.
+                onValueChange = { if (singleLine) onChange(it.filterNot { c -> c == '\n' || c == '\r' }) else onChange(it) },
                 singleLine = singleLine,
                 minLines = minLines,
                 textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions = KeyboardOptions(keyboardType = if (secret) KeyboardType.Password else keyboardType),
-                modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                keyboardOptions = KeyboardOptions(keyboardType = if (secret) KeyboardType.Password else keyboardType, imeAction = imeAction),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onGo = { onSubmit?.invoke() },
+                    onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) },
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focused = it.isFocused }
+                    // A hardware Enter (a PC, a phone's keyboard case) does the same.
+                    .onPreviewKeyEvent { e ->
+                        val enter = e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter
+                        if (!singleLine || !enter || (onSubmit == null && !next)) return@onPreviewKeyEvent false
+                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
+                            if (onSubmit != null) onSubmit() else focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+                        }
+                        true
+                    },
                 decorationBox = { inner ->
                     if (value.isEmpty()) Text(placeholder, style = textStyle, color = ButlerTheme.colors.textLow)
                     inner()

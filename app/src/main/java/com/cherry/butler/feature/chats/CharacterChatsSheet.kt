@@ -226,7 +226,7 @@ fun CharacterChatsSheet(
                     state.refreshError?.let { error ->
                         item(contentType = "error") {
                             Text(
-                                text = "Showing what's saved on this phone. ${error.userMessage()}",
+                                text = "Showing what's saved on this ${com.cherry.butler.core.platform.Device.NAME}. ${error.userMessage()}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ButlerTheme.colors.textLow,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

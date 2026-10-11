@@ -125,7 +125,7 @@ fun CreatorScreen(
             return@Column
         }
         LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+            columns = GridCells.Fixed(TileGrid.columns()),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, bottom = TileGrid.gutter),

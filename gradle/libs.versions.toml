@@ -23,6 +23,15 @@ paging = "3.3.5"
 coil = "2.7.0"
 biometric = "1.1.0"
 junit = "4.13.2"
+# Desktop (Compose Multiplatform, JVM). Paired with Kotlin 2.1.0.
+composeMultiplatform = "1.7.3"
+jbLifecycle = "2.8.4"
+jbNavigation = "2.8.0-alpha12"
+roomDesktop = "2.7.2"
+sqliteBundled = "2.5.2"
+coil3 = "3.0.4"
+dagger = "2.53.1"
+jna = "5.15.0"
 
 [libraries]
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
@@ -78,6 +87,22 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlin-test-junit = { group = "org.jetbrains.kotlin", name = "kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 
+# Desktop
+jb-lifecycle-viewmodel-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "jbLifecycle" }
+jb-lifecycle-runtime-compose = { group = "org.jetbrains.androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "jbLifecycle" }
+jb-navigation-compose = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref = "jbNavigation" }
+room-runtime-desktop = { group = "androidx.room", name = "room-runtime", version.ref = "roomDesktop" }
+room-paging-desktop = { group = "androidx.room", name = "room-paging", version.ref = "roomDesktop" }
+room-compiler-desktop = { group = "androidx.room", name = "room-compiler", version.ref = "roomDesktop" }
+sqlite-bundled = { group = "androidx.sqlite", name = "sqlite-bundled", version.ref = "sqliteBundled" }
+paging-common = { group = "androidx.paging", name = "paging-common", version.ref = "paging" }
+coil3-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil3" }
+coil3-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coil3" }
+dagger = { group = "com.google.dagger", name = "dagger", version.ref = "dagger" }
+dagger-compiler = { group = "com.google.dagger", name = "dagger-compiler", version.ref = "dagger" }
+jna-platform = { group = "net.java.dev.jna", name = "jna-platform", version.ref = "jna" }
+kotlinx-coroutines-swing = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-swing", version.ref = "kotlinxCoroutines" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
@@ -85,3 +110,5 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

@@ -11,7 +11,6 @@ import java.util.Locale
 data class Character(
     val id: String,
     val name: String,
-    val description: String,
     /** Bare filename from the API; use [avatarUrl] to render it. */
     val avatar: String?,
     val creatorName: String,
@@ -23,7 +22,11 @@ data class Character(
     val isImageNsfw: Boolean,
     val tagNames: List<String>,
     val customTags: List<String>,
-    /** The description as a short plain line for cards, worked out off the main thread. */
+    /**
+     * The description as a short plain line for cards, worked out off the main thread. The
+     * description itself isn't kept: cards show only this, and the character page reads its
+     * own (a list holds thousands of these, and descriptions run to thousands of characters).
+     */
     val blurb: String = "",
     val totalTokens: Int = 0,
     val isProxyEnabled: Boolean = false,

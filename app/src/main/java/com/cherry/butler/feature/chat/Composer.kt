@@ -1,5 +1,9 @@
 package com.cherry.butler.feature.chat
 
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.setValue
@@ -13,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
@@ -32,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +52,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,6 +62,7 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.data.PersonaOption
 import com.cherry.butler.ui.components.Avatar
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.widthIn
 import com.cherry.butler.ui.components.HairlineRule
 import com.cherry.butler.ui.components.hairlineFrame
 import com.cherry.butler.ui.components.card
@@ -68,6 +76,15 @@ import androidx.compose.ui.draw.clip
  * into the field, and a written line can be undone or written again until it is edited.
  * The draft is already in saved state before it is ever sent.
  */
+/** True where Enter should send rather than start a new line (a PC keyboard). */
+val LocalEnterSends = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/**
+ * The widest the text window grows, centred, with the ground either side: a wide PC window
+ * otherwise stretches it edge to edge. Unbounded on the phone, where it spans the screen.
+ */
+val LocalComposerMaxWidth = androidx.compose.runtime.staticCompositionLocalOf { androidx.compose.ui.unit.Dp.Unspecified }
+
 @Composable
 fun Composer(
     draft: String,
@@ -119,7 +136,9 @@ fun Composer(
             .background(MaterialTheme.colorScheme.background)
             .navigationBarsPadding()
             .imePadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+    Column(Modifier.widthIn(max = LocalComposerMaxWidth.current).fillMaxWidth()) {
         (suggestion as? SuggestionService.State.Ready)?.let { written ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 6.dp),
@@ -184,6 +203,8 @@ fun Composer(
                             modifier = Modifier.padding(bottom = 6.dp),
                         )
                     }
+                    // The field has drawn the marks' version: the keyboard has it now.
+                    SideEffect { imeText.unseen = false }
                     BasicTextField(
                         value = field,
                         onValueChange = { new ->
@@ -191,13 +212,16 @@ fun Composer(
                                 // When the marks change what was typed, the keyboard still holds its own
                                 // copy until the field redraws, and can send that copy again in the same
                                 // frame (Gboard does on a backspace). Its text is then what it sent last
-                                // time: not an edit, so the marks' version stands.
-                                val stale = new.text == imeText.value && new.text != field.text
+                                // time: not an edit, so the marks' version stands. Only until the field
+                                // redraws: after it, the same text is a real edit (deleting the space a
+                                // step out of `*test*` added gives back exactly what was sent before).
+                                val stale = imeText.unseen && new.text == imeText.value && new.text != field.text
                                 imeText.value = new.text
                                 if (!stale) {
                                     val (v, st) = RichTyping.onChange(field, new, typing, richDefault)
                                     field = v
                                     typing = st
+                                    imeText.unseen = v.text != new.text
                                 }
                             } else {
                                 field = new
@@ -209,7 +233,19 @@ fun Composer(
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         visualTransformation = if (rich) marks else androidx.compose.ui.text.input.VisualTransformation.None,
                         maxLines = 6,
-                        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focused = it.isFocused }
+                            // On a PC keyboard Enter sends and Shift+Enter starts a new line;
+                            // a phone's Enter stays a new line.
+                            .then(
+                                if (LocalEnterSends.current) Modifier.onPreviewKeyEvent { e ->
+                                    val enter = e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter
+                                    if (!enter || e.isShiftPressed) return@onPreviewKeyEvent false
+                                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && !busy && writing == null && draft.isNotBlank()) onSend()
+                                    true
+                                } else Modifier,
+                            ),
                         decorationBox = { inner ->
                             if (field.text.isEmpty()) {
                                 Text(
@@ -235,6 +271,7 @@ fun Composer(
             AdvanceKey(busy = busy, enabled = draft.isNotBlank() && writing == null, onSend = onSend, onStop = onStop)
         }
     }
+    }
 }
 
 /**
@@ -254,6 +291,9 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
                     .clip(MaterialTheme.shapes.small)
                     .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
                     .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+                    // Never takes the focus: a click with a mouse moved it off the box, which hid
+                    // the keys (they show while the box has it) and lost the caret.
+                    .focusProperties { canFocus = false }
                     .clickable(onClickLabel = mark.key.replaceFirstChar { it.uppercase() }) { onPress(mark) }
                     .semantics { contentDescription = if (quoteKey) "Quote inside speech" else mark.key.replaceFirstChar { it.uppercase() } },
                 contentAlignment = Alignment.Center,
@@ -428,4 +468,7 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
 private val KEY_HEIGHT = 36.dp
 
 /** What the keyboard last reported; read in the edit callback only, so it is no state. */
-private class KeyboardCopy(var value: String? = null)
+private class KeyboardCopy(var value: String? = null) {
+    /** The marks changed the keyboard's text and the field hasn't drawn that yet. */
+    var unseen = false
+}

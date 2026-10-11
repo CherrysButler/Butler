@@ -39,6 +39,7 @@ import com.cherry.butler.core.design.narrationInk
 import com.cherry.butler.core.design.LocalRpLook
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -73,6 +74,12 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cherry.butler.core.design.ButlerTheme
+import com.cherry.butler.core.design.LocalThinkingLook
+import com.cherry.butler.core.design.LocalThoughtLook
+import com.cherry.butler.core.design.ThinkingLook
+import com.cherry.butler.core.design.ThoughtLook
+import kotlin.math.ceil
+import kotlin.math.min
 import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
 import com.cherry.butler.core.design.RpStyles
@@ -80,6 +87,7 @@ import com.cherry.butler.core.design.rememberRpStyles
 import com.cherry.butler.core.markdown.RpMarkdown
 import com.cherry.butler.core.markdown.RpMarkdown.Block
 import com.cherry.butler.ui.components.HairlineRule
+import com.cherry.butler.ui.components.hairline
 import com.cherry.butler.ui.components.hairlineFrame
 import com.cherry.butler.ui.components.rememberDitherTiles
 import kotlin.math.roundToInt
@@ -113,7 +121,18 @@ fun StreamingProse(
     var revealed by remember { mutableFloatStateOf(total.toFloat()) }
     LaunchedEffect(Unit) {
         var last = 0L
+        var reported = false
         while (true) {
+            if (!done) reported = false
+            if (revealed >= target) {
+                if (revealed > target) revealed = target.toFloat()
+                if (done && !reported) { reported = true; reportRevealed() }
+                // Caught up: no frames are asked for until more text arrives (or the stream
+                // ends). Waiting on the model used to redraw the window every display frame.
+                androidx.compose.runtime.snapshotFlow { target > revealed || (done && !reported) }.first { it }
+                last = 0L
+                continue
+            }
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.1f)
                 last = now
@@ -121,7 +140,6 @@ fun StreamingProse(
                 if (revealed > goal) revealed = goal
                 val behind = goal - revealed
                 if (behind > 0f) revealed = (revealed + maxOf(REVEAL_MIN_CPS, behind * REVEAL_CATCH_UP) * dt).coerceAtMost(goal)
-                if (done && revealed >= goal) reportRevealed()
             }
         }
     }
@@ -217,14 +235,18 @@ private fun AnnotatedString.revealedTo(cut: Int, block: Block, styles: RpStyles,
 /** A hard on/off blink, the way a game's text cursor blinks: no fade. */
 @Composable
 private fun rememberCaretBlink(): () -> Boolean {
-    val transition = rememberInfiniteTransition(label = "caret")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 1_000, easing = LinearEasing), RepeatMode.Restart),
-        label = "caret-phase",
-    )
-    return { phase < 0.55f }
+    // Two changes a second, so two redraws a second: a continuous animation here asked for
+    // every display frame (60 to 180 a second) to show the same two states.
+    val on = remember { androidx.compose.runtime.mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            on.value = true
+            kotlinx.coroutines.delay(550)
+            on.value = false
+            kotlinx.coroutines.delay(450)
+        }
+    }
+    return { on.value }
 }
 
 private fun Modifier.caret(color: Color, layout: () -> TextLayoutResult?, at: () -> Int, visible: () -> Boolean): Modifier =
@@ -254,35 +276,39 @@ private fun Block.toAnnotated(styles: RpStyles): AnnotatedString = when (this) {
 /**
  * The model's reasoning, folded to one line.
  *
- * While the thought is being written the line's ground is a dither field that drifts:
- * dots light and die in a slow wave along the row, and the field thickens as the thought
- * grows, so the work is visible without a word of it moving. The plate breathes red on
- * top. When the reply begins the field snaps to black in one frame and the line folds to
- * its first words. A tap opens the whole thought in a sheet.
+ * While the thought is being written the line shows the reader's chosen animation
+ * (ThinkingLook): a little butler walking the row with the reply on his tray, bands of dither
+ * drifting along it, or a field of dots like Browse's; the plate breathes red beside
+ * it. Once the reply begins, the line takes the reader's chosen shape (ThoughtLook): the
+ * stripe with the thought's first words, a small square where the animation goes on with an
+ * arrow beside it, or a button saying how long the thought took. A tap opens the whole thought in a sheet.
  */
 @Composable
-fun ThinkingLine(text: String, streaming: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier, word: String = "Thinking") {
+fun ThinkingLine(
+    text: String,
+    streaming: Boolean,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+    word: String = "Thinking",
+    /** How long the thought took, when it was recorded. */
+    durationMs: Long? = null,
+) {
+    if (!streaming) {
+        when (LocalThoughtLook.current) {
+            ThoughtLook.Button -> { ThoughtButton(durationMs, onOpen, modifier); return }
+            ThoughtLook.Box -> { ThoughtBox(onOpen, modifier); return }
+            ThoughtLook.Stripe -> Unit
+        }
+    }
     val red = MaterialTheme.colorScheme.primary
-    val tiles = rememberDitherTiles(ButlerTheme.colors.rule, dotPx = 3)
-    val transition = rememberInfiniteTransition(label = "thinking")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 2_600, easing = LinearEasing), RepeatMode.Restart),
-        label = "thinking-drift",
-    )
-    val breath by transition.animateFloat(
+    val breath by rememberInfiniteTransition(label = "thinking").animateFloat(
         initialValue = 0.5f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(durationMillis = 1_100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "thinking-breath",
     )
-    // Density rises with the thought: a few dots at the first token, a dense field by ~1500 chars.
-    val fill = 0.15f + 0.55f * (text.length / 1_500f).coerceIn(0f, 1f)
-
     // The word and the field are laid out side by side with a fixed gap between them, so the
-    // field never reaches the word, whatever its length. (It used to be placed by measuring,
-    // which missed the row's padding and let the field run under the word's last dot.)
+    // field never reaches the word, whatever its length.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -299,34 +325,10 @@ fun ThinkingLine(text: String, streaming: Boolean, onOpen: () -> Unit, modifier:
             modifier = if (streaming) Modifier.graphicsLayer { alpha = breath } else Modifier,
         )
         Spacer(Modifier.width(4.dp))
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .drawBehind {
-                    if (!streaming) return@drawBehind
-                    // One band per dither tile (4 dots of 3 px), so density changes in fine
-                    // steps aligned to the dot grid instead of in wide blocks.
-                    val bandW = 12f
-                    val bands = (size.width / bandW).toInt().coerceAtLeast(1)
-                    for (i in 0 until bands) {
-                        val x = (i + 0.5f) / bands
-                        // Two waves travelling the row at different speeds read as drift, not a scan.
-                        val wave = 0.5f + 0.35f * sin((x - phase) * TWO_PI) + 0.15f * sin((x * 2.3f + phase * 1.7f) * TWO_PI)
-                        // The field rises out of the word: already present right after it, full a little in.
-                        val ramp = 0.4f + 0.6f * (x / 0.15f).coerceIn(0f, 1f)
-                        var level = ((fill * wave * ramp) * (tiles.levels + 1)).roundToInt() - 1
-                        // Right after the word there is always at least a trace, so the field
-                        // reads as coming out of it whatever the wave is doing.
-                        if (x < 0.12f) level = level.coerceAtLeast(0)
-                        if (level < 0) continue
-                        val w = if (i == bands - 1) size.width - i * bandW else bandW
-                        drawRect(tiles.brush(level), topLeft = Offset(i * bandW, 0f), size = Size(w, size.height))
-                    }
-                },
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (!streaming) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+            if (streaming) {
+                ThinkingField(length = text.length, look = LocalThinkingLook.current, modifier = Modifier.matchParentSize())
+            } else {
                 Text(
                     text = text.lines().joinToString(" "),
                     style = MaterialTheme.typography.bodySmall,
@@ -346,6 +348,143 @@ fun ThinkingLine(text: String, streaming: Boolean, onOpen: () -> Unit, modifier:
     }
 }
 
+/** "Thought for 12s": how long the model took, or just "Thought" when nothing recorded it. */
+fun thoughtFor(ms: Long?): String = when {
+    ms == null -> "Thought"
+    ms < 1_000 -> "Thought for a moment"
+    ms < 60_000 -> "Thought for ${ms / 1_000}s"
+    else -> "Thought for ${ms / 60_000}m ${ms / 1_000 % 60}s"
+}
+
+/** A finished thought as a small key: how long it took, and a tap to read it. */
+@Composable
+private fun ThoughtButton(durationMs: Long?, onOpen: () -> Unit, modifier: Modifier) {
+    Row(
+        modifier = modifier
+            .hairlineFrame(ButlerTheme.colors.outlineFaint)
+            .clickable(onClick = onOpen)
+            .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = thoughtFor(durationMs), style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textMed)
+        Spacer(Modifier.width(2.dp))
+        Icon(imageVector = Icons.Rounded.ExpandLess, contentDescription = "Read the thought", tint = ButlerTheme.colors.textLow, modifier = Modifier.size(16.dp))
+    }
+}
+
+/**
+ * A finished thought as two squares joined in one frame: the thinking animation, then the
+ * arrow. A tap on either reads it.
+ */
+@Composable
+private fun ThoughtBox(onOpen: () -> Unit, modifier: Modifier) {
+    val outline = ButlerTheme.colors.outlineFaint
+    Row(
+        modifier = modifier
+            .height(ThoughtSquare)
+            .hairlineFrame(outline)
+            .clickable(onClickLabel = "Read the thought", onClick = onOpen),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(ThoughtSquare)) {
+            ThinkingField(length = 600, look = LocalThinkingLook.current, modifier = Modifier.matchParentSize(), still = true)
+        }
+        Box(Modifier.width(hairline()).fillMaxHeight().background(outline))
+        Box(Modifier.size(ThoughtSquare), contentAlignment = Alignment.Center) {
+            Icon(imageVector = Icons.Rounded.ExpandLess, contentDescription = null, tint = ButlerTheme.colors.textLow, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/** Each of the after-thought's two squares. */
+private val ThoughtSquare = 40.dp
+
+/** The animation of a thought being written, filling its box. */
+@Composable
+private fun ThinkingField(length: Int, look: ThinkingLook, modifier: Modifier, still: Boolean = false) {
+    when (look) {
+        // The thought is done: in its box the butler stands, he doesn't march.
+        ThinkingLook.Butler -> ThinkingButler(modifier, still = still)
+        ThinkingLook.Dither -> DitherBands(length, modifier)
+        ThinkingLook.Field -> DotField(length, modifier)
+    }
+}
+
+/**
+ * The line's first animation: one band of dither tiles per 12 px along the row, two waves
+ * travelling it at different speeds so it reads as drift, not a scan. The field rises out of
+ * the word and thickens with the thought: a few dots at the first token, a dense field by
+ * ~1500 characters.
+ */
+@Composable
+private fun DitherBands(length: Int, modifier: Modifier) {
+    val tiles = rememberDitherTiles(ButlerTheme.colors.rule, dotPx = 3)
+    // Drifts only while on screen.
+    val shown = rememberOnScreen()
+    val clock = rememberThinkingClock(running = shown.value)
+    val fill = 0.15f + 0.55f * (length / 1_500f).coerceIn(0f, 1f)
+    Box(
+        modifier.onScreen(shown).drawBehind {
+            val phase = (clock.value / 1_000_000L % 2_600L) / 2_600f
+            val bandW = 12f
+            val bands = (size.width / bandW).toInt().coerceAtLeast(1)
+            for (i in 0 until bands) {
+                val x = (i + 0.5f) / bands
+                val wave = 0.5f + 0.35f * sin((x - phase) * TWO_PI) + 0.15f * sin((x * 2.3f + phase * 1.7f) * TWO_PI)
+                val ramp = 0.4f + 0.6f * (x / 0.15f).coerceIn(0f, 1f)
+                var level = ((fill * wave * ramp) * (tiles.levels + 1)).roundToInt() - 1
+                // Right after the word there is always at least a trace, so the field reads
+                // as coming out of it whatever the wave is doing.
+                if (x < 0.12f) level = level.coerceAtLeast(0)
+                if (level < 0) continue
+                val w = if (i == bands - 1) size.width - i * bandW else bandW
+                drawRect(tiles.brush(level), topLeft = Offset(i * bandW, 0f), size = Size(w, size.height))
+            }
+        },
+    )
+}
+
+/**
+ * The dot field, as the desktop's Browse has it: two waves crossing a grid of dither
+ * tiles (four dots of 2 dp), so density changes in fine steps aligned to the dot grid. It
+ * rises out of the word and thickens with the thought: a few dots at the first token, a
+ * dense field by ~1500 characters.
+ */
+@Composable
+private fun DotField(length: Int, modifier: Modifier) {
+    // Browse's dots: 2 dp each, whatever the screen's density, so the field reads as full.
+    val dot = with(androidx.compose.ui.platform.LocalDensity.current) { 2.dp.roundToPx() }.coerceAtLeast(2)
+    val tiles = rememberDitherTiles(ButlerTheme.colors.rule, dotPx = dot)
+    // Drifts only while on screen.
+    val shown = rememberOnScreen()
+    val clock = rememberThinkingClock(running = shown.value)
+    // Denser than the bands from the start, as Browse's field is; still thickening as the thought grows.
+    val fill = 0.6f + 0.3f * (length / 1_500f).coerceIn(0f, 1f)
+    Box(
+        modifier.onScreen(shown).drawBehind {
+            val phase = (clock.value / 1_000_000L % 9_000L) / 9_000f
+            val tile = 4f * dot
+            val cols = ceil(size.width / tile).toInt().coerceAtLeast(1)
+            val rows = ceil(size.height / tile).toInt().coerceAtLeast(1)
+            for (j in 0 until rows) for (i in 0 until cols) {
+                val x = (i + 0.5f) / cols
+                val y = (j + 0.5f) / rows
+                val wave = 0.55f + 0.3f * sin((x * 1.3f + y * 0.8f - phase) * TWO_PI) + 0.15f * sin((x * 2.7f - y * 1.9f + phase * 2f) * TWO_PI)
+                val ramp = 0.4f + 0.6f * (x / 0.15f).coerceIn(0f, 1f)
+                var level = ((fill * wave * ramp) * (tiles.levels + 1)).roundToInt() - 1
+                // Right after the word there is always at least a trace, so the field reads
+                // as coming out of it whatever the waves are doing.
+                if (x < 0.12f) level = level.coerceAtLeast(0)
+                if (level < 0) continue
+                drawRect(
+                    tiles.brush(level),
+                    topLeft = Offset(i * tile, j * tile),
+                    size = Size(min(tile, size.width - i * tile), min(tile, size.height - j * tile)),
+                )
+            }
+        },
+    )
+}
 private const val TWO_PI = (2.0 * Math.PI).toFloat()
 
 /** A blinking block on its own, for places that are not a text layout. */

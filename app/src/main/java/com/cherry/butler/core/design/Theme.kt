@@ -101,6 +101,8 @@ fun ButlerTheme(
     appFont: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
     chatFont: androidx.compose.ui.text.font.FontFamily = ReadingFamily,
     appTextScale: Float = 1f,
+    thinkingLook: ThinkingLook = ThinkingLook.Butler,
+    thoughtLook: ThoughtLook = ThoughtLook.Stripe,
     content: @Composable () -> Unit,
 ) {
     val typography = androidx.compose.runtime.remember(appFont, chatFont, appTextScale) { butlerTypography(appFont, chatFont, appTextScale) }
@@ -121,6 +123,8 @@ fun ButlerTheme(
         LocalAppFont provides appFont,
         LocalChatFont provides chatFont,
         LocalAppTextScale provides appTextScale,
+        LocalThinkingLook provides thinkingLook,
+        LocalThoughtLook provides thoughtLook,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

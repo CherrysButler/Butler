@@ -157,7 +157,7 @@ class ChatTransfer @Inject constructor(
     /** The chat as it reads on screen: the shown reply of each turn, oldest first. */
     suspend fun export(chatId: Long): TransferChat {
         runCatching { chats.refreshChat(chatId) }
-        val chat = chatDao.get(chatId) ?: throw ApiError.Api(404, "BUTLER_NO_CHAT", serverMessage = "That chat isn't on this phone.")
+        val chat = chatDao.get(chatId) ?: throw ApiError.Api(404, "BUTLER_NO_CHAT", serverMessage = "That chat isn't on this ${com.cherry.butler.core.platform.Device.NAME}.")
         val rows = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.text.isNotBlank() }
         return TransferChat(
             characterId = chat.characterId,
@@ -222,7 +222,7 @@ class ChatTransfer @Inject constructor(
      * rebuilt line by line. Returns the new chat's id.
      */
     suspend fun branch(chatId: Long, upTo: MessageEntity, progress: (Int, Int) -> Unit = { _, _ -> }): Long {
-        val chat = chatDao.get(chatId) ?: throw ApiError.Api(404, "BUTLER_NO_CHAT", serverMessage = "That chat isn't on this phone.")
+        val chat = chatDao.get(chatId) ?: throw ApiError.Api(404, "BUTLER_NO_CHAT", serverMessage = "That chat isn't on this ${com.cherry.butler.core.platform.Device.NAME}.")
         val serverId = upTo.serverId
         if (serverId != null) {
             val forked = runCatching { remote.fork(chatId, serverId, chat.personaId) }

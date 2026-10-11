@@ -50,7 +50,7 @@ fun Avatar(
     val px = with(density) { size.roundToPx() }
     val request = remember(url, px, obscured) {
         ImageRequest.Builder(context)
-            .data(url)
+            .data(com.cherry.butler.core.config.JanitorConfig.sizedMediaUrl(url, if (obscured) OBSCURED_PX else px, "1:1"))
             .size(if (obscured) Size(OBSCURED_PX, OBSCURED_PX) else Size(px, px))
             .memoryCacheKey(if (obscured) "$url@obscured" else "$url@$px")
             .allowHardware(true)

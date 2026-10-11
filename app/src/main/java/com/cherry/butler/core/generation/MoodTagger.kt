@@ -115,7 +115,7 @@ class MoodTagger @Inject constructor(
         } else {
             // Tags go to Janitor too: the reply there is patched with them.
             fresh.serverId?.let { chatRemote.patchMessage(chatId, it, buildJsonObject { put("message", tagged) }) }
-            messageDao.finishReply(botLocalId, tagged, null, fresh.thinking, System.currentTimeMillis())
+            messageDao.finishReply(botLocalId, tagged, null, fresh.thinking, fresh.thinkingMs, System.currentTimeMillis())
         }
     }
 

@@ -289,7 +289,7 @@ private fun CommentAuthorDto?.toAuthor() = CommentAuthor(
 private fun CharacterDto.toCharacter(): Character {
     val desc = shownDescription
     return Character(
-        id = id, name = name, description = desc, avatar = avatar,
+        id = id, name = name, avatar = avatar,
         creatorName = creatorName, creatorVerified = creatorVerified, creatorPlusBadge = creatorPlusBadge,
         chatCount = stats.chat, messageCount = stats.message,
         isNsfw = isNsfw, isImageNsfw = isImageNsfw,

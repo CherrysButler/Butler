@@ -44,6 +44,19 @@ object JanitorConfig {
     fun avatarUrl(fileName: String?): String? =
         fileName?.takeIf { it.isNotBlank() }?.let { "$BOT_AVATARS/$it" }
 
+    /**
+     * The media CDN resizes on request (verified 2026-10-10): `?width=` scales, and
+     * `aspect_ratio=w:h` centre-crops to that shape, which is exactly what a Crop slot shows.
+     * Uploads run to 4096 px, so a thumb fetched this way is a fraction of the bytes and of
+     * the decode. Widths go up in steps of 64, so a window resized a little reuses the same
+     * file. Anything not on the media host passes through unchanged.
+     */
+    fun sizedMediaUrl(url: String?, widthPx: Int, aspect: String? = null): String? {
+        if (url == null || !url.startsWith(MEDIA_BASE) || '?' in url) return url
+        val step = if (widthPx <= 32) 32 else (widthPx + 63) / 64 * 64
+        return if (aspect == null) "$url?width=$step" else "$url?width=$step&aspect_ratio=$aspect"
+    }
+
     /** Persona avatars are bare file names under `/avatars` (verified 2026-10-03). */
     fun personaAvatarUrl(fileName: String?): String? =
         fileName?.takeIf { it.isNotBlank() }?.let { if (it.startsWith("http")) it else "$MEDIA_BASE/avatars/$it" }

@@ -208,8 +208,8 @@ interface MessageDao {
     suspend fun setMarkup(localId: Long, markup: String?)
 
     /** A finished reply: the text Janitor gets, and the tagged copy kept here (or null). */
-    @Query("UPDATE messages SET text = :text, markup = :markup, thinking = :thinking, streamState = NULL, cachedAt = :now WHERE localId = :localId")
-    suspend fun finishReply(localId: Long, text: String, markup: String?, thinking: String?, now: Long)
+    @Query("UPDATE messages SET text = :text, markup = :markup, thinking = :thinking, thinkingMs = :thinkingMs, streamState = NULL, cachedAt = :now WHERE localId = :localId")
+    suspend fun finishReply(localId: Long, text: String, markup: String?, thinking: String?, thinkingMs: Long?, now: Long)
 
     /** Bot rows that were stopped before any text arrived and never reached the server. */
     @Query("DELETE FROM messages WHERE chatId = :chatId AND isBot = 1 AND serverId IS NULL AND text = '' AND streamState = 'partial'")

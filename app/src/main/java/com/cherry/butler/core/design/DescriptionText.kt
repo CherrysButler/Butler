@@ -47,7 +47,7 @@ fun DescriptionText(
     }
     val styles = rememberRpStyles(color)
     val keepQuotes = LocalRpLook.current.showQuotes
-    val doc = remember(text, keepQuotes) { DescriptionLayout.layout(RpMarkdown.parse(text, keepQuotes)) }
+    val doc = remember(text, keepQuotes) { DescriptionLayout.layout(RpMarkdown.parseShared(text, keepQuotes)) }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (item in doc) {

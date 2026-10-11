@@ -56,9 +56,19 @@ class CharacterRepository @Inject constructor(
     fun browse(query: BrowseQuery): Flow<PagingData<Character>> = Pager(
         config = PagingConfig(
             pageSize = CharacterRemoteSource.PAGE_SIZE,
-            prefetchDistance = CharacterRemoteSource.PAGE_SIZE / 2,
-            initialLoadSize = CharacterRemoteSource.PAGE_SIZE,
-            enablePlaceholders = false,
+            // Two pages ahead: a full-screen desktop grid is twelve cards a row, and half a page
+            // ahead was barely one row, so a quick scroll ran into cards not fetched yet.
+            prefetchDistance = CharacterRemoteSource.PAGE_SIZE * 2,
+            // A page landing re-reads the list from the database around where the reader is,
+            // and only this window comes back loaded; every card outside it turns back into a
+            // skeleton until it is read again (and then settles in again, as if new). A
+            // full-screen grid with the rows built ahead of it holds about a hundred cards, so
+            // three pages (102) left its edges flickering. Eight pages is one cheap local read.
+            initialLoadSize = CharacterRemoteSource.PAGE_SIZE * 8,
+            // Placeholders keep every character at its own position: a re-read that starts
+            // part-way down the list would otherwise make its first row item 0 and slide every
+            // card along the grid's rows whenever that start isn't a multiple of the row.
+            enablePlaceholders = true,
         ),
         remoteMediator = CharacterRemoteMediator(query, remote, db, ::keepTopCustomTags),
         pagingSourceFactory = { db.characterDao().pagingSource(query.cacheKey) },
@@ -78,10 +88,33 @@ class CharacterRepository @Inject constructor(
     }
 }
 
+/**
+ * A card's blurb, worked out once per description. Cleaning it takes several regex passes,
+ * and the mapping runs on the main thread each time a page lands and the list re-reads
+ * itself; without this, every landing cleaned every card in the window again.
+ */
+private object Blurbs {
+    /** What a blurb was made from, so a changed description is noticed without keeping it. */
+    private class Entry(val length: Int, val name: String, val blurb: String)
+
+    // Keyed by character id: the key used to be the whole description joined to the name,
+    // a new string as long as the description (often thousands of characters), built and
+    // hashed for every card on every re-read, only to find a short line.
+    private val cache = object : LinkedHashMap<String, Entry>(512, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>?) = size > 2000
+    }
+
+    fun of(id: String, description: String, name: String): String {
+        synchronized(cache) { cache[id] }?.let { if (it.length == description.length && it.name == name) return it.blurb }
+        val blurb = description.plainPreview(220).fillNames(user = null, char = name)
+        synchronized(cache) { cache[id] = Entry(description.length, name, blurb) }
+        return blurb
+    }
+}
+
 internal fun CharacterEntity.toDomain() = Character(
     id = id,
     name = name,
-    description = description,
     avatar = avatar,
     creatorName = creatorName,
     creatorVerified = creatorVerified,
@@ -92,7 +125,7 @@ internal fun CharacterEntity.toDomain() = Character(
     isImageNsfw = isImageNsfw,
     tagNames = tagNames,
     customTags = customTags,
-    blurb = description.plainPreview(220).fillNames(user = null, char = name),
+    blurb = Blurbs.of(id, description, name),
     totalTokens = totalTokens,
     isProxyEnabled = isProxyEnabled,
     creatorColor = creatorColor,

@@ -22,3 +22,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Butler"
 include(":app")
+// The Windows app: the same Kotlin as :app, compiled for the desktop JVM.
+include(":desktop")

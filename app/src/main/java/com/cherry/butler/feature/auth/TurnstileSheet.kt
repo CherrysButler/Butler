@@ -25,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.ui.components.SheetHandle
@@ -102,7 +101,7 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
                     @JavascriptInterface fun onError(code: String) = post { onError(code) }
                 }, "Butler")
                 // The origin is what the site key is bound to; the page itself is Butler's.
-                loadDataWithBaseURL("https://janitorai.com/", page(dark), "text/html", "utf-8", null)
+                loadDataWithBaseURL("https://janitorai.com/", turnstilePage(dark), "text/html", "utf-8", null)
             }
         },
         // The clearance can land a moment after the token; take whatever arrived by the time
@@ -114,20 +113,3 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
         },
     )
 }
-
-private fun page(dark: Boolean): String = """
-<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-<style>html,body{margin:0;padding:0;background:transparent}#w{display:flex;justify-content:center}</style>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=butlerReady&render=explicit" async defer></script>
-<script>
-function butlerReady(){
-  turnstile.render('#w',{
-    sitekey:'${JanitorConfig.TURNSTILE_SITE_KEY}',
-    theme:'${if (dark) "dark" else "light"}',
-    callback:function(t){Butler.onToken(t)},
-    'error-callback':function(c){Butler.onError(String(c))},
-    'expired-callback':function(){Butler.onError('expired')}
-  });
-}
-</script></head><body><div id="w"></div></body></html>
-""".trimIndent()

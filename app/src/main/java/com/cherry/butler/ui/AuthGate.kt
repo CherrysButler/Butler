@@ -18,15 +18,24 @@ import io.github.jan.supabase.auth.status.SessionStatus
  * Top-level router: watches the Supabase session and shows the login screen, a
  * brief loading state while the stored session is restored, or the app itself.
  */
+/**
+ * The signed-in app: the phone's tabs ([ButlerRoot]) unless a platform supplies its own
+ * shell (the desktop's rail).
+ */
+val LocalAppShell = androidx.compose.runtime.staticCompositionLocalOf<@Composable () -> Unit> { { ButlerRoot() } }
+
+/** What the sign-in form sits in: the whole phone screen, or the desktop's door. */
+val LocalDoorFrame = androidx.compose.runtime.staticCompositionLocalOf<@Composable (@Composable () -> Unit) -> Unit> { { form -> form() } }
+
 @Composable
 fun AuthGate(viewModel: AuthViewModel = hiltViewModel()) {
     val status by viewModel.sessionStatus.collectAsStateWithLifecycle()
 
     when (status) {
-        is SessionStatus.Authenticated -> ButlerRoot()
+        is SessionStatus.Authenticated -> LocalAppShell.current()
         // A refresh that failed for want of network still has a session behind it; the app
         // carries on with it (SessionKeeper) instead of throwing the user out.
-        is SessionStatus.RefreshFailure -> ButlerRoot()
+        is SessionStatus.RefreshFailure -> LocalAppShell.current()
         is SessionStatus.Initializing -> LoadingScreen()
         else -> {
             val signingIn by viewModel.signingIn.collectAsStateWithLifecycle()
@@ -34,6 +43,7 @@ fun AuthGate(viewModel: AuthViewModel = hiltViewModel()) {
             val ended by viewModel.sessionEnded.collectAsStateWithLifecycle()
             val email by viewModel.email.collectAsStateWithLifecycle()
             val challenge by viewModel.challenge.collectAsStateWithLifecycle()
+            LocalDoorFrame.current {
             LoginScreen(
                 signingIn = signingIn,
                 error = error,
@@ -53,6 +63,7 @@ fun AuthGate(viewModel: AuthViewModel = hiltViewModel()) {
                 onCancelCaptcha = viewModel::cancelCaptcha,
                 onDismissError = viewModel::dismissError,
             )
+            }
         }
     }
 }
