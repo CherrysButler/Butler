@@ -101,31 +101,6 @@ fun DesktopBrowse(onCharacterClick: (String) -> Unit, viewModel: BrowseViewModel
     }
 
     val focusManager = LocalFocusManager.current
-    // The development benchmark scrolls this grid from here, where a frame clock is at hand.
-    val benchScope = rememberCoroutineScope()
-    androidx.compose.runtime.DisposableEffect(viewModel.gridState) {
-        val grid = viewModel.gridState
-        com.cherry.butler.desktop.DesktopBench.scroller = { px, ms ->
-            benchScope.launch {
-                // A steady speed, frame by frame, that a stray wheel or hover can't interrupt.
-                grid.scroll(androidx.compose.foundation.MutatePriority.PreventUserInput) {
-                    val start = androidx.compose.runtime.withFrameNanos { it }
-                    var done = 0f
-                    while (true) {
-                        val elapsed = (androidx.compose.runtime.withFrameNanos { it } - start) / 1_000_000f
-                        val target = px * (elapsed / ms).coerceAtMost(1f)
-                        done += scrollBy(target - done)
-                        if (elapsed >= ms) break
-                    }
-                }
-            }.join()
-        }
-        com.cherry.butler.desktop.DesktopBench.toTop = { benchScope.launch { grid.scrollToItem(0) }.join() }
-        onDispose {
-            com.cherry.butler.desktop.DesktopBench.scroller = null
-            com.cherry.butler.desktop.DesktopBench.toTop = null
-        }
-    }
     // Four cards across at most, in a column down the middle; the room either side is the
     // door's dither, drifting and gathering under the pointer. A wall of portraits edge to edge
     // was more to take in (and to draw) than anyone browses at once. The field steps 12 times a
@@ -135,7 +110,7 @@ fun DesktopBrowse(onCharacterClick: (String) -> Unit, viewModel: BrowseViewModel
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().trackPointer(pointer).wheelScrolls(viewModel.gridState)) {
     val column = minOf(maxWidth, BrowseColumn)
     if (maxWidth > column + 48.dp) {
-        DitherField(pointer, column, Modifier.fillMaxSize(), DitherShape.Column, driftFps = Integer.getInteger("butler.dither.fps", 12))
+        DitherField(pointer, column, Modifier.fillMaxSize(), DitherShape.Column, driftFps = 12)
     }
     PaneSize(column, maxHeight, Modifier.align(Alignment.TopCenter).width(column)) {
     Column(Modifier.fillMaxSize()) {

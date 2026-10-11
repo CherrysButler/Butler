@@ -173,16 +173,8 @@ fun DesktopShell() {
     }
     DisposableEffect(Unit) {
         DesktopTray.openChat = { id -> navController.navigate(Routes.chat(id)) { popUpTo(Routes.TABS) } }
-        com.cherry.butler.desktop.DesktopTour.controls = com.cherry.butler.desktop.DesktopTour.Controls(
-            section = { dest -> tab = dest; navController.popBackStack(Routes.TABS, inclusive = false) },
-            character = { panelCharacter = it },
-            chat = { id -> navController.navigate(Routes.chat(id)) { popUpTo(Routes.TABS) } },
-            back = { navController.popBackStack() },
-            open = { route -> navController.navigate(route) },
-        )
         onDispose {
             DesktopTray.openChat = null
-            com.cherry.butler.desktop.DesktopTour.controls = null
         }
     }
 

@@ -21,8 +21,6 @@ object FrameLog {
 
     fun startIfOn() {
         if (!prefs.getBoolean(KEY, false)) return
-        // Development: a measuring run can keep the log and its trace out of what it measures.
-        if (System.getProperty("butler.framelog") == "off") return
         System.setProperty("skiko.fps.enabled", "true")
         System.setProperty("skiko.fps.periodSeconds", "2")
         runCatching {
@@ -60,8 +58,6 @@ object FrameLog {
      */
     @Volatile private var attached = false
 
-    /** Development: told of every frame (when it began, how long it took to build), for the motion probe. */
-    @Volatile var probe: ((startNs: Long, buildNs: Long) -> Unit)? = null
 
     /** A line in files/frames.log, straight to the file (stdout is only redirected when the log is on). */
     fun line(text: String) = runCatching { file.appendText(text + "\n") }
@@ -84,7 +80,6 @@ object FrameLog {
             val t0 = System.nanoTime()
             inner.onRender(canvas, w, h, nanoTime)
             val t1 = System.nanoTime()
-            probe?.invoke(t0, t1 - t0)
             if (count < builds.size) builds[count++] = t1 - t0
             if (last != 0L) {
                 val gap = t0 - last

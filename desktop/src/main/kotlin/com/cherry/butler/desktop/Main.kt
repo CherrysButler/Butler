@@ -54,14 +54,12 @@ import java.awt.event.WindowFocusListener
  * up where it stopped, and the same AuthGate and ButlerRoot draw inside.
  */
 fun main(args: Array<String>) {
-    StartupClock.mark("main")
     FrameLog.startIfOn()
     linkLog("start", args.toList())
     // A second launch (a janitor: sign-in link from the browser) goes to the Butler already open.
     if (!DesktopInstance.claim(args) { handed -> takeLinks(handed); if ("--quit" !in handed) focusWindow?.invoke() }) return
     // Nothing to quit: this was the only Butler.
     if ("--quit" in args) return
-    StartupClock.mark("claim")
     com.cherry.butler.core.diagnostics.Diagnostics.installCrashKeeper(DesktopContext)
     val graph = DesktopGraph.component
     installImageLoader { graph.okHttpClient() }
@@ -74,13 +72,10 @@ fun main(args: Array<String>) {
     Thread({
         runCatching { DesktopInstance.registerLinks() }
         runCatching { graph.database(); graph.okHttpClient(); graph.supabase(); graph.chatRepository() }
-        StartupClock.mark("warm")
         graph.pipeline().resumeAll()
     }, "butler-warm").start()
-    StartupClock.mark("graph")
     // Cold start through the OAuth redirect.
     takeLinks(args.toList())
-    StartupClock.mark("ready")
 
     application {
         val state = rememberWindowState(
@@ -141,11 +136,9 @@ fun main(args: Array<String>) {
             },
         ) {
             LaunchedEffect(Unit) {
-                StartupClock.mark("window")
                 focusWindow = { java.awt.EventQueue.invokeLater { shown = true; window.isMinimized = false; window.toFront(); window.requestFocus() } }
                 FilePickers.owner = window
                 WindowFrame.install(window)
-                DesktopTour.window = window
                 val refresh = window.graphicsConfiguration.device.displayMode.refreshRate
                 FramePacer.install(window, refresh)
                 WindowFrame.groundUnderFrames(window)
@@ -199,28 +192,6 @@ private fun takeLinks(args: List<String>) {
         return
     }
     val link = args.firstOrNull { it.startsWith("${com.cherry.butler.core.config.JanitorConfig.OAUTH_SCHEME}://") } ?: return
-    if (DesktopBench.isBench(link)) {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            delay(4_000)
-            DesktopBench.run()
-        }
-        return
-    }
-    if (DesktopMotionBench.isMotion(link)) {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { runCatching { DesktopMotionBench.run() }.onFailure { FrameLog.line("[motion] $it") } }
-        return
-    }
-    if (DesktopPreview.isPreview(link)) {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch { runCatching { DesktopPreview.run() }.onFailure { FrameLog.line("[preview] $it") } }
-        return
-    }
-    if (DesktopTour.isTour(link)) {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-            delay(4_000)
-            DesktopTour.run()
-        }
-        return
-    }
     val code = android.net.Uri.parse(link).getQueryParameter("code") ?: return
     val auth = DesktopGraph.component.supabase().auth
     DesktopToasts.show("Finishing sign-in…")
@@ -345,7 +316,7 @@ private fun installImageLoader(client: () -> okhttp3.OkHttpClient) {
             // competed with the frame being drawn and held more pictures half-made at once.
             .decoderCoroutineContext(kotlinx.coroutines.Dispatchers.Default.limitedParallelism(2))
             .fetcherCoroutineContext(kotlinx.coroutines.Dispatchers.IO.limitedParallelism(6))
-            .memoryCache { MemoryCache.Builder().maxSizeBytes(Integer.getInteger("butler.imagecache.mb", 20) * 1024L * 1024).build() }
+            .memoryCache { MemoryCache.Builder().maxSizeBytes(20 * 1024L * 1024).build() }
             .diskCache {
                 DiskCache.Builder()
                     .directory(DesktopContext.cacheDir.resolve("images").toOkioPath())

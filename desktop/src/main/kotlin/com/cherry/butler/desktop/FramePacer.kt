@@ -25,7 +25,6 @@ object FramePacer {
         layer.renderDelegate = object : SkikoRenderDelegate {
             override fun onRender(canvas: Canvas, width: Int, height: Int, nanoTime: Long) {
                 frameStart = System.nanoTime()
-                StartupClock.firstFrame()
                 inner.onRender(canvas, width, height, nanoTime)
             }
         }
