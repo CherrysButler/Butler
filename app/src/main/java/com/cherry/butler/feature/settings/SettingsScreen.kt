@@ -364,6 +364,14 @@ private fun ChatSection(viewModel: SettingsViewModel) {
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
     SettingsSection(title = "Sending", icon = Icons.Rounded.Keyboard) {
         SwitchRow("Keyboard closes on send", null, closeKeyboard, viewModel::setCloseKeyboardOnSend, icon = Icons.Rounded.Keyboard)
+        // A PC keyboard's: which of Enter and Shift+Enter sends; the other starts a new line.
+        if (com.cherry.butler.feature.chat.LocalEnterSends.current) {
+            val shiftSends by viewModel.shiftEnterSends.collectAsStateWithLifecycle()
+            DropRow(title = "Send with", value = if (shiftSends) "Shift+Enter" else "Enter", icon = Icons.Rounded.Keyboard) { close ->
+                DropItem(title = "Enter", subtitle = "Shift+Enter starts a new line", selected = !shiftSends, onClick = { close(); viewModel.setShiftEnterSends(false) })
+                DropItem(title = "Shift+Enter", subtitle = "Enter starts a new line", selected = shiftSends, onClick = { close(); viewModel.setShiftEnterSends(true) })
+            }
+        }
     }
     WriteForMeSection(viewModel)
     CompactSection(viewModel)

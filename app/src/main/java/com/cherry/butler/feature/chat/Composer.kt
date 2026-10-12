@@ -1,6 +1,10 @@
 package com.cherry.butler.feature.chat
 
 import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -76,6 +80,36 @@ import androidx.compose.ui.draw.clip
 /** True where Enter should send rather than start a new line (a PC keyboard). */
 val LocalEnterSends = androidx.compose.runtime.staticCompositionLocalOf { false }
 
+/** Where one is open: Shift+Enter sends and Enter starts a new line (ChatPrefs.shiftEnterSends). */
+val LocalShiftEnterSends = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/**
+ * Enter in a message field on a PC keyboard: one of Enter and Shift+Enter sends ([send]), the
+ * other starts a new line, as [shiftSends] says (Settings › Chat › Send with). The line break
+ * is put in here: Compose's desktop field types nothing for Shift+Enter. Returns whether the
+ * key was Enter (and so taken); Ctrl or Alt with it is left alone.
+ */
+internal fun enterKey(
+    e: androidx.compose.ui.input.key.KeyEvent,
+    shiftSends: Boolean,
+    value: TextFieldValue,
+    onValue: (TextFieldValue) -> Unit,
+    send: () -> Unit,
+): Boolean {
+    val enter = e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter
+    if (!enter || e.isCtrlPressed || e.isAltPressed) return false
+    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
+        if (e.isShiftPressed == shiftSends) {
+            send()
+        } else {
+            val from = minOf(value.selection.start, value.selection.end)
+            val to = maxOf(value.selection.start, value.selection.end)
+            onValue(TextFieldValue(value.text.replaceRange(from, to, "\n"), TextRange(from + 1)))
+        }
+    }
+    return true
+}
+
 /**
  * The widest the text window grows, centred, with the ground either side: a wide PC window
  * otherwise stretches it edge to edge. Unbounded on the phone, where it spans the screen.
@@ -107,6 +141,8 @@ fun Composer(
     onUndoPicture: () -> Unit = {},
     onDescribeAgain: () -> Unit = {},
     onRemovePicture: () -> Unit = {},
+    /** On a PC keyboard, Shift+Enter sends and Enter starts a new line (see [enterKey]). */
+    shiftEnterSends: Boolean = false,
 ) {
     // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
     // outside (sent, written for you, undone) resets the caret to the end.
@@ -186,9 +222,7 @@ fun Composer(
                     }
                     // The field has drawn the marks' version: the keyboard has it now.
                     SideEffect { imeText.unseen = false }
-                    BasicTextField(
-                        value = field,
-                        onValueChange = { new ->
+                    val change: (TextFieldValue) -> Unit = { new ->
                             if (rich) {
                                 // When the marks change what was typed, the keyboard still holds its own
                                 // copy until the field redraws, and can send that copy again in the same
@@ -208,7 +242,10 @@ fun Composer(
                                 field = new
                             }
                             if (field.text != draft) onDraftChanged(field.text)
-                        },
+                    }
+                    BasicTextField(
+                        value = field,
+                        onValueChange = change,
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
@@ -217,14 +254,11 @@ fun Composer(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onFocusChanged { focused = it.isFocused }
-                            // On a PC keyboard Enter sends and Shift+Enter starts a new line;
-                            // a phone's Enter stays a new line.
+                            // On a PC keyboard one of Enter and Shift+Enter sends, the other starts
+                            // a new line; a phone's Enter stays a new line.
                             .then(
                                 if (LocalEnterSends.current) Modifier.onPreviewKeyEvent { e ->
-                                    val enter = e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter
-                                    if (!enter || e.isShiftPressed) return@onPreviewKeyEvent false
-                                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && !busy && draft.isNotBlank()) onSend()
-                                    true
+                                    enterKey(e, shiftEnterSends, field, change) { if (!busy && draft.isNotBlank()) onSend() }
                                 } else Modifier,
                             ),
                         decorationBox = { inner ->

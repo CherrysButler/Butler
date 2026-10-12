@@ -192,6 +192,7 @@ fun ChatScreen(
     val pictureKey by viewModel.pictureKey.collectAsStateWithLifecycle()
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val closeKeyboard by viewModel.closeKeyboardOnSend.collectAsStateWithLifecycle()
+    val shiftEnterSends by viewModel.shiftEnterSends.collectAsStateWithLifecycle()
     val send: () -> Unit = {
         if (closeKeyboard) keyboard?.hide()
         if (Build.VERSION.SDK_INT >= 33 && viewModel.shouldAskNotifications()) {
@@ -510,6 +511,7 @@ fun ChatScreen(
         },
         bottomBar = {
             Composer(
+                shiftEnterSends = shiftEnterSends,
                 draft = draft,
                 onDraftChanged = viewModel::onDraftChanged,
                 busy = busy,
@@ -603,6 +605,7 @@ fun ChatScreen(
             onOpenThought = { writeThoughtOpen = true },
             onClose = viewModel::closeWritePanel,
             composerHeight = with(androidx.compose.ui.platform.LocalDensity.current) { composerHeight.toDp() },
+            shiftEnterSends = shiftEnterSends,
         )
     }
     }

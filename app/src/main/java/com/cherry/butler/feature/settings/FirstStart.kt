@@ -227,21 +227,18 @@ private fun WelcomeStep() {
     }
 }
 
-/** What 0.4.2 brought, for someone who had Butler before it. */
+/** What 0.4.3 brought, for someone who had Butler before it. */
 @Composable
 private fun NewsStep() {
     StepHead("What's new in ${BuildConfig.VERSION_NAME}", "A look at what changed. The next steps set up the new choices.")
     val news = listOf(
-        "Write for me" to "Writes in its own panel now: guide it with quick picks or your own words, and pick the voice (I, she, you).",
-        "Reply length" to "Short, medium or long, told to the model itself, on proxies and JLLM.",
-        "Compact mode" to "Near the context limit, older messages fold into a summary and the latest stay word for word.",
-        "The thinking line" to "Three looks while a reply is thought out, and three for the finished thought.",
-        "Personas" to "Export and import them, edit the default one from a chat, find chats by persona.",
-        "Look profiles" to "Save a whole look, put it back on in a tap, share it as a file.",
-        "Fonts and text" to "Added fonts with real bold and italics, and app text up to 175%.",
-        "Rich typing" to "Marks pair up as you type, the way a code editor does.",
-        "New reply" to "Hold it to ask again without the guidance sheet.",
+        "Butler has been revived!" to "Again! Don't kill Butler!!",
+        "Create bots" to "Make your own characters right here, with drafts so you don't lose your progress.",
+        "Your profile bio" to "Edit it right from Butler.",
+        "Summaries" to "Pick a different model to summarize your chats, in Settings › Model.",
+        "Many bug fixes" to "Things just work better.",
     )
+
     Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         news.forEach { (title, line) ->
             Row {

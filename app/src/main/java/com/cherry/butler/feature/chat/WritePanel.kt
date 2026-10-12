@@ -109,15 +109,19 @@ fun WritePanel(
     onClose: () -> Unit,
     /** How tall the composer stands, so the desktop card rises from just above it. */
     composerHeight: Dp = 0.dp,
+    /** On a PC keyboard, Shift+Enter writes and Enter starts a new line (see enterKey). */
+    shiftEnterSends: Boolean = false,
 ) {
     val flight = state?.takeIf { it is SuggestionService.State.Writing || it is SuggestionService.State.Ready || it is SuggestionService.State.Failed }
-    if (LocalPointerMotion.current) {
-        DeskCard(onClose = onClose, composerHeight = composerHeight) {
-            WritePanelBody(panel, flight, personaPronouns, word, onWrite, onStop, onUse, onOpenThought, onClose, focusGuide = true)
-        }
-    } else {
-        PhoneSheet(onClose = onClose) {
-            WritePanelBody(panel, flight, personaPronouns, word, onWrite, onStop, onUse, onOpenThought, onClose, focusGuide = false)
+    androidx.compose.runtime.CompositionLocalProvider(LocalShiftEnterSends provides shiftEnterSends) {
+        if (LocalPointerMotion.current) {
+            DeskCard(onClose = onClose, composerHeight = composerHeight) {
+                WritePanelBody(panel, flight, personaPronouns, word, onWrite, onStop, onUse, onOpenThought, onClose, focusGuide = true)
+            }
+        } else {
+            PhoneSheet(onClose = onClose) {
+                WritePanelBody(panel, flight, personaPronouns, word, onWrite, onStop, onUse, onOpenThought, onClose, focusGuide = false)
+            }
         }
     }
 }
@@ -197,7 +201,9 @@ private fun WritePanelBody(
     // The panel's own say, from how it was last asked; it lives as long as the panel is open.
     var perspective by remember { mutableStateOf(panel.ask.perspective) }
     var picks by remember { mutableStateOf(panel.ask.picks) }
-    var words by remember { mutableStateOf(panel.ask.words) }
+    var wordsField by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(panel.ask.words, androidx.compose.ui.text.TextRange(panel.ask.words.length))) }
+    val words = wordsField.text
+    val shiftEnterSends = LocalShiftEnterSends.current
     val writing = flight is SuggestionService.State.Writing
     val ask = SuggestionService.Ask(picks = picks, words = words.trim(), perspective = if (rewrite) perspective else perspective ?: Perspective.First)
     val run = { if (!writing) onWrite(ask) }
@@ -276,8 +282,10 @@ private fun WritePanelBody(
                     .padding(horizontal = 14.dp, vertical = 14.dp),
             ) {
                 BasicTextField(
-                    value = words,
-                    onValueChange = { words = it.take(300) },
+                    value = wordsField,
+                    onValueChange = { v ->
+                        wordsField = if (v.text.length <= 300) v else androidx.compose.ui.text.input.TextFieldValue(v.text.take(300), androidx.compose.ui.text.TextRange(300))
+                    },
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
@@ -286,13 +294,10 @@ private fun WritePanelBody(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focus)
-                        // On a PC keyboard Enter writes and Shift+Enter starts a new line, as in the composer.
+                        // On a PC keyboard the send key writes and the other starts a new line, as in the composer.
                         .then(
                             if (LocalEnterSends.current) Modifier.onPreviewKeyEvent { e ->
-                                val enter = e.key == Key.Enter || e.key == Key.NumPadEnter
-                                if (!enter || e.isShiftPressed) return@onPreviewKeyEvent false
-                                if (e.type == KeyEventType.KeyDown) run()
-                                true
+                                enterKey(e, shiftEnterSends, wordsField, { v -> if (v.text.length <= 300) wordsField = v }) { run() }
                             } else Modifier,
                         ),
                     decorationBox = { inner ->

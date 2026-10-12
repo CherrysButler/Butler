@@ -108,6 +108,10 @@ class SettingsViewModel @Inject constructor(
     val closeKeyboardOnSend: StateFlow<Boolean> = chat.closeKeyboardOnSend
     fun setCloseKeyboardOnSend(on: Boolean) = chat.setCloseKeyboardOnSend(on)
 
+    /** On a PC keyboard, which of Enter and Shift+Enter sends. */
+    val shiftEnterSends: StateFlow<Boolean> = chat.shiftEnterSends
+    fun setShiftEnterSends(on: Boolean) = chat.setShiftEnterSends(on)
+
     /** Thinking words: Claude's list (on or off, added to or taken from) and the user's lists. */
     val claudeOn: StateFlow<Boolean> = chat.claudeOn
     fun setClaudeOn(on: Boolean) = chat.setClaudeOn(on)

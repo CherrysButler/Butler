@@ -22,11 +22,15 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.ui.AuthGate
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.handleDeeplinks
+import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.launch
 import com.cherry.butler.core.security.AppLock
 import com.cherry.butler.ui.LockScreen
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import javax.inject.Inject
+
+/** Where the sign-in swap runs: not the activity's, so a rotation mid-swap doesn't cancel it. */
+private val signInScope = kotlinx.coroutines.MainScope()
 
 @AndroidEntryPoint
 /** A FragmentActivity because the phone's fingerprint/screen-lock prompt (BiometricPrompt) needs one. */
@@ -87,8 +91,8 @@ class MainActivity : FragmentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // Cold start via the OAuth redirect.
-        supabase.handleDeeplinks(intent)
+        // Cold start via the OAuth redirect; not again when the activity is only being recreated.
+        if (savedInstanceState == null) takeSignIn(intent)
         // With no saved state of its own, the app was stopped outright: reopen where the user was.
         lastPlace.markColdStart(savedInstanceState == null)
         if (savedInstanceState == null) takeOpenChat(intent)
@@ -140,11 +144,37 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /**
+     * The OAuth redirect (`janitor://auth/...?code=`): its code swapped for a session, once.
+     * Done here rather than by supabase-kt's handleDeeplinks, whose own job let a failed swap
+     * take the app down ("both auth code and code verifier should be non-empty", when a
+     * redirect came round again with its verifier already used). The link is taken off the
+     * intent so nothing replays it; a failure says so instead of crashing.
+     */
+    private fun takeSignIn(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != com.cherry.butler.core.config.JanitorConfig.OAUTH_SCHEME ||
+            data.host != com.cherry.butler.core.config.JanitorConfig.OAUTH_HOST
+        ) return
+        intent.data = null
+        val code = data.getQueryParameter("code")?.takeIf { it.isNotBlank() } ?: return
+        signInScope.launch {
+            try {
+                supabase.auth.exchangeCodeForSession(code)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                com.cherry.butler.core.diagnostics.Diagnostics.record("auth", "sign-in exchange failed: ${e.javaClass.simpleName}")
+                android.widget.Toast.makeText(applicationContext, "Sign-in didn't finish. Please try again.", android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         // Warm start: the janitor://auth/google redirect returning from the browser.
-        supabase.handleDeeplinks(intent)
+        takeSignIn(intent)
         takeOpenChat(intent)
     }
 }

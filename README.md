@@ -68,6 +68,11 @@ Butler on Windows, built for a big screen and a keyboard, not a phone app stretc
 * **Find chats by persona.** Type `persona:` in search, pick one, and keep typing to narrow it down.
 * **The keyboard goes down when you send**, unless you'd rather it stayed up (Settings › Chat).
 
+### ✍️ Make your own bots
+
+* **Create bots!** Write your own characters right in Butler, with drafts so you never lose your progress.
+* **Edit your profile bio.**
+
 ### 🎨 Make it yours
 
 * **Themes!** Janitor Classic, Lights out, Daylight, and **Custom**: pick an accent and a background and Butler builds the rest. Go Advanced and set every single colour, even how round the corners are.
@@ -91,6 +96,7 @@ Butler on Windows, built for a big screen and a keyboard, not a phone app stretc
 * **Context length from inside the chat.** see how full your context is.
 * **Thinking levels.** Low, medium, high (and more) for OpenRouter models that think, set per proxy.
 * **Write for me, on another model.** Write for me doesn't have to use your default model. Kimi for the bot, DeepSeek for your lines, whatever you like.
+* **Summaries, on another model too.** Pick a different model to summarize your chats.
 
 ### 📦 And the rest
 
@@ -116,7 +122,7 @@ i got sick enough of it to just build my own. i hope you like it!
 
 ## Does it lack something?
 
-For **ordinary** users? No. but if you make bots, you're probably still on the website for that. so: coming soon, with cool features! i don't make bots myself, but i'll ask creators in the community what they actually want. open for feedback.
+For **ordinary** users? No. and if you make bots, you can make them right here now! i don't make bots myself, so tell me what creators actually want. open for feedback.
 
 ## Found a bug? Got an idea?
 

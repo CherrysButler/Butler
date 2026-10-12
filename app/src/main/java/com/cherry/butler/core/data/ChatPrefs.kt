@@ -35,6 +35,19 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
     private val _closeKeyboardOnSend = MutableStateFlow(prefs.getBoolean(KEY_CLOSE_KEYBOARD, true))
     val closeKeyboardOnSend: StateFlow<Boolean> = _closeKeyboardOnSend.asStateFlow()
 
+    private val _shiftEnterSends = MutableStateFlow(prefs.getBoolean(KEY_SHIFT_ENTER_SENDS, false))
+
+    /**
+     * On a PC keyboard: Shift+Enter sends and Enter starts a new line (true), or the other way
+     * round (false, as it always was). A phone's Enter is always a new line.
+     */
+    val shiftEnterSends: StateFlow<Boolean> = _shiftEnterSends.asStateFlow()
+
+    fun setShiftEnterSends(on: Boolean) {
+        _shiftEnterSends.value = on
+        prefs.edit().putBoolean(KEY_SHIFT_ENTER_SENDS, on).apply()
+    }
+
     private val _claudeOn = MutableStateFlow(prefs.getBoolean(KEY_BUTLER_ON, true))
     /** Whether Claude's list is in the pool. */
     val claudeOn: StateFlow<Boolean> = _claudeOn.asStateFlow()
@@ -145,6 +158,7 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
 
     private companion object {
         const val KEY_CLOSE_KEYBOARD = "close_keyboard_on_send"
+        const val KEY_SHIFT_ENTER_SENDS = "shift_enter_sends"
         const val KEY_BUTLER_ON = "thinking_words_butler"
         const val KEY_CLAUDE_ADDED = "thinking_claude_added"
         const val KEY_CLAUDE_REMOVED = "thinking_claude_removed"
