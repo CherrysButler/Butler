@@ -61,7 +61,7 @@ class LookProfileFormatTest {
         assertEquals(ChatStyle.Janitor, back.chatStyle)
         assertEquals(ThinkingLook.Dither, back.thinkingLook)
         assertEquals(CustomColors(accent = 0xFFFF00AAL, ground = 0xFF000000L, overrides = mapOf("cards" to 0xFF222222L), corners = 2f), back.custom)
-        assertEquals(RpLook(speech = 0x80FF0000L, textSize = 24), back.text)
+        assertEquals(RpLook(speech = 0x80FF0000L, textSize = com.cherry.butler.core.design.MAX_TEXT_SIZE), back.text)
         assertEquals(null, back.appFont)
         assertEquals("lora", back.chatFont)
     }

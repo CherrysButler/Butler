@@ -89,12 +89,15 @@ fun CustomizeScreen(onBack: () -> Unit, viewModel: CustomizeViewModel = hiltView
             }
         }
 
-        // The preview stays put while the controls scroll under it.
+        // The preview stays put while the controls scroll under it. At the largest sizes it
+        // scrolls inside itself rather than pushing the controls off the screen.
         Column(
             modifier = Modifier
                 .padding(horizontal = 12.dp)
                 .fillMaxWidth()
+                .heightIn(max = 260.dp)
                 .card(shape = MaterialTheme.shapes.large)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
             Text("PREVIEW", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ButlerTheme.colors.textLow)
@@ -112,7 +115,7 @@ fun CustomizeScreen(onBack: () -> Unit, viewModel: CustomizeViewModel = hiltView
                 SliderRow(
                     title = "Size",
                     value = look.textSize.toFloat(),
-                    range = 13f..22f,
+                    range = com.cherry.butler.core.design.MIN_TEXT_SIZE.toFloat()..com.cherry.butler.core.design.MAX_TEXT_SIZE.toFloat(),
                     step = 1f,
                     format = { "${it.toInt()}" },
                     onCommit = { v -> viewModel.update { it.copy(textSize = v.toInt()) } },

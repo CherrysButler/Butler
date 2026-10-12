@@ -27,6 +27,13 @@ data class RpLook(
     val textSize: Int = 16,
 )
 
+/**
+ * The chat text size's reach, in sp. Large on purpose: readers with low vision asked for
+ * text far past a comfortable default (40 sp is about two and a half times it).
+ */
+const val MIN_TEXT_SIZE = 12
+const val MAX_TEXT_SIZE = 40
+
 val LocalRpLook = staticCompositionLocalOf { RpLook() }
 
 /** The reading style for chat prose, at the reader's chosen size. */

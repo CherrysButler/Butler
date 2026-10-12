@@ -339,7 +339,9 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
         )
 
         const val MIN_SCALE = 0.85f
-        const val MAX_SCALE = 1.75f
+
+        /** Two and a half times: asked for by readers with low vision. */
+        const val MAX_SCALE = 2.5f
 
         /** Letter spacing's reach, in hundredths of an em: a touch tighter to quite airy. */
         const val MIN_SPACING = -3

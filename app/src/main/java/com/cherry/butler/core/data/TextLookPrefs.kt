@@ -42,7 +42,7 @@ class TextLookPrefs @Inject constructor(@ApplicationContext context: Context) {
         strong = color(K_STRONG),
         italicActions = prefs.getBoolean(K_ITALIC, true),
         showQuotes = prefs.getBoolean(K_QUOTES, true),
-        textSize = prefs.getInt(K_SIZE, 16).coerceIn(12, 24),
+        textSize = prefs.getInt(K_SIZE, 16).coerceIn(com.cherry.butler.core.design.MIN_TEXT_SIZE, com.cherry.butler.core.design.MAX_TEXT_SIZE),
     )
 
     private fun color(key: String): Long? = if (prefs.contains(key)) prefs.getLong(key, 0L) else null

@@ -148,7 +148,7 @@ object LookProfileFormat {
                 strong = color(text?.get("strong")),
                 italicActions = (text?.get("italic_actions") as? JsonPrimitive)?.booleanOrNull ?: defaults.italicActions,
                 showQuotes = (text?.get("show_quotes") as? JsonPrimitive)?.booleanOrNull ?: defaults.showQuotes,
-                textSize = ((text?.get("size") as? JsonPrimitive)?.intOrNull ?: defaults.textSize).coerceIn(12, 24),
+                textSize = ((text?.get("size") as? JsonPrimitive)?.intOrNull ?: defaults.textSize).coerceIn(com.cherry.butler.core.design.MIN_TEXT_SIZE, com.cherry.butler.core.design.MAX_TEXT_SIZE),
             ),
             appFont = fonts?.string("app")?.takeIf { it.isNotBlank() },
             chatFont = fonts?.string("chat")?.takeIf { it.isNotBlank() },
