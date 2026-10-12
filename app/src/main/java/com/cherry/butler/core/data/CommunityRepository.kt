@@ -149,9 +149,10 @@ class CommunityRepository @Inject constructor(
 
     suspend fun similar(characterId: String): List<Character> = remote.similar(characterId).map { it.toCharacter() }
 
-    suspend fun publishedChats(characterId: String): Pair<List<PublishedChatCard>, Int> {
-        val page = remote.publishedChats(characterId)
-        return page.chats.map { c ->
+    /** One page of a character's published chats, most viewed first, and how many there are in all. */
+    suspend fun publishedChats(characterId: String, page: Int = 1): Pair<List<PublishedChatCard>, Int> {
+        val found = remote.publishedChats(characterId, page)
+        return found.chats.map { c ->
             PublishedChatCard(
                 slug = c.slug,
                 title = c.title?.takeIf { it.isNotBlank() } ?: "Untitled",
@@ -162,7 +163,7 @@ class CommunityRepository @Inject constructor(
                 views = (c.stats?.get("view_count") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0,
                 publishedAt = IsoTime.parseMillis(c.publishedAt),
             )
-        } to page.total
+        } to found.total
     }
 
     suspend fun publishedChat(slug: String): PublishedTranscript {

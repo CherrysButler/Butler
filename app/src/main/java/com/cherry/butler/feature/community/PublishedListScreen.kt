@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
@@ -43,7 +43,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Every published chat with one character: the "See all" behind the page's two. */
+/**
+ * Every published chat with one character: the "See all" behind the page's two, a page at a
+ * time as the list nears its end, until there are as many as Janitor counts.
+ */
 @HiltViewModel
 class PublishedListViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -52,22 +55,58 @@ class PublishedListViewModel @Inject constructor(
     private val characterId: String = checkNotNull(savedStateHandle["characterId"])
     val name: String = savedStateHandle.get<String>("name").orEmpty()
 
-    private val _chats = MutableStateFlow<List<PublishedChatCard>?>(null)
-    val chats: StateFlow<List<PublishedChatCard>?> = _chats.asStateFlow()
+    data class State(
+        /** Null until the first page is in. */
+        val chats: List<PublishedChatCard>? = null,
+        val total: Int = 0,
+        val page: Int = 0,
+        val end: Boolean = false,
+        val loading: Boolean = false,
+        val error: ApiError? = null,
+    )
 
-    private val _error = MutableStateFlow<ApiError?>(null)
-    val error: StateFlow<ApiError?> = _error.asStateFlow()
+    private val _state = MutableStateFlow(State())
+    val state: StateFlow<State> = _state.asStateFlow()
+
+    private var job: kotlinx.coroutines.Job? = null
 
     init {
-        load()
+        more()
     }
 
+    /** From the top: Ctrl+R, or Retry on a first page that failed. */
     fun load() {
-        _error.value = null
-        viewModelScope.launch {
-            runCatching { repository.publishedChats(characterId).first }
-                .onSuccess { _chats.value = it }
-                .onFailure { _error.value = it as? ApiError ?: ApiError.Unknown(it) }
+        job?.cancel()
+        _state.value = State()
+        more()
+    }
+
+    /** The next page, unless one is on its way or there are no more. */
+    fun more() {
+        val s = _state.value
+        if (s.loading || s.end) return
+        _state.value = s.copy(loading = true, error = null)
+        job = viewModelScope.launch {
+            val page = s.page + 1
+            runCatching { repository.publishedChats(characterId, page) }
+                .onSuccess { (cards, total) ->
+                    val before = s.chats.orEmpty()
+                    val all = (before + cards).distinctBy { it.slug }
+                    _state.value = s.copy(
+                        chats = all,
+                        total = total,
+                        page = page,
+                        // A short page, the count reached, or a page with nothing new (should the
+                        // page be ignored, the same 20 again): no more to ask for.
+                        end = cards.size < com.cherry.butler.core.data.remote.CommunityRemoteSource.PUBLISHED_PAGE ||
+                            all.size >= total || all.size == before.size,
+                        loading = false,
+                    )
+                }
+                .onFailure { e ->
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    _state.value = s.copy(loading = false, error = e as? ApiError ?: ApiError.Unknown(e))
+                }
         }
     }
 }
@@ -76,8 +115,9 @@ class PublishedListViewModel @Inject constructor(
 fun PublishedListScreen(onBack: () -> Unit, onOpen: (String) -> Unit, viewModel: PublishedListViewModel = hiltViewModel()) {
     // Ctrl+R / F5 on the desktop.
     com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
-    val chats by viewModel.chats.collectAsStateWithLifecycle()
-    val error by viewModel.error.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val chats = state.chats
+    val error = state.error
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
@@ -85,17 +125,28 @@ fun PublishedListScreen(onBack: () -> Unit, onOpen: (String) -> Unit, viewModel:
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text("Published chats", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                if (viewModel.name.isNotBlank()) {
-                    Text(viewModel.name, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val sub = listOfNotNull(viewModel.name.takeIf { it.isNotBlank() }, state.total.takeIf { it > 0 }?.let { "%,d".format(it) })
+                if (sub.isNotEmpty()) {
+                    Text(sub.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
         val list = chats
         when {
-            list == null && error != null -> InlineErrorCard(error!!, onRetry = viewModel::load, modifier = Modifier.padding(16.dp))
+            list == null && error != null -> InlineErrorCard(error, onRetry = viewModel::load, modifier = Modifier.padding(16.dp))
             list == null -> Column { repeat(5) { SkeletonRosterRow(withMargin = false) } }
             else -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-                items(list, key = { it.slug }, contentType = { "published" }) { chat -> PublishedRow(chat) { onOpen(chat.slug) } }
+                itemsIndexed(list, key = { _, c -> c.slug }, contentType = { _, _ -> "published" }) { i, chat ->
+                    // Five from the end, the next page is asked for.
+                    if (i >= list.size - 5) androidx.compose.runtime.LaunchedEffect(list.size) { viewModel.more() }
+                    PublishedRow(chat) { onOpen(chat.slug) }
+                }
+                when {
+                    state.error != null -> item(key = "error", contentType = "error") {
+                        InlineErrorCard(state.error!!, onRetry = viewModel::more, modifier = Modifier.padding(16.dp))
+                    }
+                    !state.end -> item(key = "more", contentType = "skeleton") { SkeletonRosterRow(withMargin = false) }
+                }
             }
         }
     }

@@ -42,6 +42,11 @@ class CommunityRemoteSource @Inject constructor(
     private val json: Json,
 ) {
     private val base = JanitorConfig.BACKEND_BASE
+
+    companion object {
+        /** Published chats a page (see [publishedChats]). */
+        const val PUBLISHED_PAGE = 20
+    }
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     suspend fun comments(characterId: String, page: Int): List<ReviewDto> =
@@ -80,8 +85,15 @@ class CommunityRemoteSource @Inject constructor(
             json.decodeFromString(ListSerializer(CharacterDto.serializer()), it)
         }
 
-    suspend fun publishedChats(characterId: String): PublishedChatsDto =
-        get("$base/chats/public/character/$characterId") { json.decodeFromString(PublishedChatsDto.serializer(), it) }
+    /**
+     * `{chats, total}`, [PUBLISHED_PAGE] a page, most viewed first: the website's own call
+     * (`?page=N&sort=view_count`, captured 2026-10-12; a character with 451 answered 20 and
+     * `total: 451`). Without a page only the first 20 ever came.
+     */
+    suspend fun publishedChats(characterId: String, page: Int = 1): PublishedChatsDto =
+        get("$base/chats/public/character/$characterId?page=${page.coerceAtLeast(1)}&sort=view_count") {
+            json.decodeFromString(PublishedChatsDto.serializer(), it)
+        }
 
     suspend fun publishedChat(slug: String): PublishedContentDto =
         get("$base/chats/public/$slug/content") { json.decodeFromString(PublishedContentDto.serializer(), it) }
