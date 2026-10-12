@@ -86,7 +86,7 @@ private val Extended = AppTheme.entries.associateWith { extendedColors(it.tones)
 /** How chat lines are laid out (a Settings choice). */
 enum class ChatStyle(val key: String, val label: String, val blurb: String) {
     Story("story", "Story", "Replies run as prose; your lines sit in an outlined box"),
-    Bubbles("bubbles", "Bubbles", "Your lines as filled chat bubbles"),
+    Bubbles("bubbles", "Bubbles", "Replies and your lines as filled chat bubbles"),
     Janitor("janitor", "Janitor", "Avatar and name beside every line, as in Janitor"),
 }
 

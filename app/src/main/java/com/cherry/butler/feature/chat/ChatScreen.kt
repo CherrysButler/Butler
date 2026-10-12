@@ -883,6 +883,9 @@ private fun Scene(url: String?, name: String, onClick: () -> Unit = {}) {
 
 private val SCENE_HEIGHT = 220.dp
 
+/** A reply's bubble (Bubbles): the mirror of yours, sharp at the top left under the name. */
+private val BotBubble = RoundedCornerShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+
 /**
  * One reply, with its variants. The last reply follows a horizontal drag a third of the
  * way, then steps to the neighbouring variant (or asks for a new one past the end) and
@@ -942,6 +945,7 @@ private fun BotTurn(
             // one. Variants move only by the arrows under it.
     ) {
         val janitor = LocalChatStyle.current == ChatStyle.Janitor
+        val bubbles = LocalChatStyle.current == ChatStyle.Bubbles
         if (!janitor) {
             // A steady height: the tools appearing when a reply finishes must not shift the page.
             // A floor rather than a fixed height, so a large text size isn't cut off.
@@ -982,6 +986,9 @@ private fun BotTurn(
                 onCancel = actions.onEditCancel,
             )
         } else {
+            // Bubbles: the reply in a bubble too, its sharp corner up toward the character's name,
+            // as yours points toward you.
+            Box(if (bubbles) Modifier.fillMaxWidth().card(shape = BotBubble).padding(horizontal = 16.dp, vertical = 12.dp) else Modifier) {
             AnimatedContent(
                 targetState = shown.localId,
                 transitionSpec = {
@@ -1011,6 +1018,7 @@ private fun BotTurn(
                     personaPronouns = personaPronouns,
                     actions = actions,
                 )
+            }
             }
         }
 
