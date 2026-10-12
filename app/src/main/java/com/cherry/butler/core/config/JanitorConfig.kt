@@ -16,8 +16,12 @@ object JanitorConfig {
             "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jbXp4dHpvbW1wbnhreW5kZGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjgzNzA3NDAsImV4cCI6MjA0Mzk0Njc0MH0." +
             "UfRPni4ga9Lmin8j0JjV5ouuK9bXp8tsqPJ8pMTDDAI"
 
-    // Backend REST + LLM services
-    const val BACKEND_BASE = "https://janitorai.com/mb"
+    /**
+     * The website's REST backend. The mobile app's `/mb` twin takes the same paths and shapes,
+     * but since 2026-10-12 it answers only clients that pass Play Integrity (Firebase App
+     * Check), which is Janitor's own app alone; Butler speaks to the website's routes.
+     */
+    const val BACKEND_BASE = "https://janitorai.com/hampter"
     /**
      * The website's generation routes: `POST /generateAlpha` for a proxy (Janitor assembles the
      * prompt and hands the OpenAI payload back for the device to send; captured 2026-09-23,
@@ -29,7 +33,8 @@ object JanitorConfig {
 
     /** The website build's `x-app-version`, sent with generation calls as the website does. */
     const val WEB_APP_VERSION = "10.0.0.116"
-    const val NOTIFS_BASE = "https://janitorai.com/notifs/mobile"
+    /** The website's notifications service (the mobile app's is `/notifs/mobile`). */
+    const val NOTIFS_BASE = "https://janitorai.com/notifs"
 
     // Media CDN (the only non-Janitor-first-party host we ever contact is Supabase above)
     const val MEDIA_BASE = "https://ella.janitorai.com"
