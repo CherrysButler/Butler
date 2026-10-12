@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.Json
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +54,28 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
         _appScale.value = s
         prefs.edit().putFloat(KEY_APP_SCALE, s).apply()
     }
+
+    private val _spacing = MutableStateFlow(readSpacing())
+
+    /**
+     * Letter spacing per font, by key, in hundredths of an em. It goes with the font, not with
+     * where it's used: a font set for both chat and app is spaced the same in both. A font not
+     * here is drawn as it comes (0).
+     */
+    val spacing: StateFlow<Map<String, Int>> = _spacing.asStateFlow()
+
+    fun setSpacing(key: String, hundredths: Int) {
+        val v = hundredths.coerceIn(MIN_SPACING, MAX_SPACING)
+        val next = if (v == 0) _spacing.value - key else _spacing.value + (key to v)
+        if (next == _spacing.value) return
+        _spacing.value = next
+        prefs.edit().putString(KEY_SPACING, Json.encodeToString(SPACING, next)).apply()
+    }
+
+    private fun readSpacing(): Map<String, Int> =
+        runCatching { prefs.getString(KEY_SPACING, null)?.let { Json.decodeFromString(SPACING, it) } }.getOrNull().orEmpty()
+            .mapValues { it.value.coerceIn(MIN_SPACING, MAX_SPACING) }
+            .filterValues { it != 0 }
 
     /** One face of an added font: its file, and the weight and slant the file declares. */
     data class Face(val file: File, val weight: Int, val italic: Boolean) {
@@ -194,6 +219,7 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
         }
         if (_chat.value == key) setChat(DEFAULT_CHAT)
         if (_app.value == key) setApp(DEFAULT_APP)
+        setSpacing(key, 0)
         _added.value = listAdded()
     }
 
@@ -212,6 +238,7 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
         }
         val key = FAMILY + home.name
         prefs.edit().putString(KEY_MOVED + fileKey, key).apply()
+        _spacing.value[fileKey]?.let { setSpacing(key, it); setSpacing(fileKey, 0) }
         if (_chat.value == fileKey) setChat(key)
         if (_app.value == fileKey) setApp(key)
         return home
@@ -313,6 +340,12 @@ class FontPrefs @Inject constructor(@ApplicationContext private val context: Con
 
         const val MIN_SCALE = 0.85f
         const val MAX_SCALE = 1.75f
+
+        /** Letter spacing's reach, in hundredths of an em: a touch tighter to quite airy. */
+        const val MIN_SPACING = -3
+        const val MAX_SPACING = 15
+        private const val KEY_SPACING = "font_spacing"
+        private val SPACING = MapSerializer(String.serializer(), Int.serializer())
         private const val KEY_APP_SCALE = "font_app_scale"
         private const val KEY_CHAT = "font_chat"
         private const val KEY_APP = "font_app"

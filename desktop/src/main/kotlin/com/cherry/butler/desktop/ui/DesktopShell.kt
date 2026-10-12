@@ -214,6 +214,8 @@ fun DesktopShell() {
         onDispose { com.cherry.butler.desktop.DesktopKeys.archive = null }
     }
 
+    ChatListWatch(section = tab.takeIf { route == Routes.TABS })
+
     val chatLight = remember { ChatLight() }
     CompositionLocalProvider(
         LocalLeaveGuard provides leaveGuard,
@@ -228,6 +230,7 @@ fun DesktopShell() {
             hoverColor = ButlerTheme.colors.textMed,
         ),
         LocalChatLight provides chatLight,
+        com.cherry.butler.ui.components.LocalBackdropHost provides remember { com.cherry.butler.ui.components.BackdropHost() },
         com.cherry.butler.ui.components.LocalRefreshHandle provides com.cherry.butler.desktop.DesktopKeys.screen,
     ) {
         Box(Modifier.fillMaxSize()) {
@@ -634,3 +637,31 @@ private fun RememberPlace(
 
 /** The mark the character editor leaves on Your characters after a save. */
 private const val STUDIO_SAVED = "studio_saved"
+
+/**
+ * Keeps the chat list (the Chats pane and the rail's faces) up with chats started elsewhere.
+ * The list asks Janitor once, at start; a desktop window stays open for days. So while the
+ * window has focus, the newest page is fetched again: on coming back to the window, on
+ * changing section, and every [CHAT_WATCH_EVERY_MS], never closer than [CHAT_WATCH_GAP_MS].
+ */
+@Composable
+private fun ChatListWatch(section: TopLevelDestination?) {
+    val focused = androidx.compose.ui.platform.LocalWindowInfo.current.isWindowFocused
+    val chats = remember { com.cherry.butler.desktop.DesktopGraph.component.chatRepository() }
+    val last = remember { longArrayOf(0L) }
+    LaunchedEffect(focused, section) {
+        if (!focused) return@LaunchedEffect
+        while (true) {
+            val now = System.currentTimeMillis()
+            if (now - last[0] >= CHAT_WATCH_GAP_MS) {
+                last[0] = now
+                runCatching { chats.syncLatest() }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            }
+            kotlinx.coroutines.delay(CHAT_WATCH_EVERY_MS)
+        }
+    }
+}
+
+private const val CHAT_WATCH_EVERY_MS = 2 * 60 * 1000L
+private const val CHAT_WATCH_GAP_MS = 20 * 1000L

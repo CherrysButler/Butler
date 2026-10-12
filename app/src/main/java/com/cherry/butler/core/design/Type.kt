@@ -16,6 +16,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.cherry.butler.R
 import kotlin.math.roundToInt
@@ -85,12 +87,32 @@ val ProseFamily: FontFamily
 /** How much larger the app's own text is drawn (Settings › Look › App text size); 1 = as designed. */
 val LocalAppTextScale = androidx.compose.runtime.staticCompositionLocalOf { 1f }
 
+/** The app font's and the chat font's letter spacing (FontPrefs.spacing), in hundredths of an em. */
+val LocalAppLetterSpacing = androidx.compose.runtime.staticCompositionLocalOf { 0 }
+val LocalChatLetterSpacing = androidx.compose.runtime.staticCompositionLocalOf { 0 }
+
+/** [style] in the chat font, spaced as that font is. For prose drawn in a UI role's size. */
+@Composable
+@androidx.compose.runtime.ReadOnlyComposable
+fun proseOf(style: TextStyle): TextStyle =
+    style.copy(fontFamily = LocalChatFont.current, letterSpacing = (LocalChatLetterSpacing.current / 100f).em)
+
+/** A role's own tracking (in sp) with the font's letter spacing added, at [size]. */
+private fun spaced(base: TextUnit, size: TextUnit, hundredths: Int): TextUnit =
+    if (hundredths == 0) base else ((if (base.isSpecified) base.value else 0f) + size.value * hundredths / 100f).sp
+
 /**
  * [ButlerTypography] in the chosen fonts: [chat] for prose (bodyLarge, sized by the chat's own
- * setting), [app] for every other role, scaled by [appScale].
+ * setting), [app] for every other role, scaled by [appScale]. Each font's letter spacing
+ * ([appSpacing], [chatSpacing], hundredths of an em) is added to the role's own tracking.
  */
-fun butlerTypography(app: FontFamily, chat: FontFamily, appScale: Float = 1f): Typography = ButlerTypography.run {
-    fun TextStyle.ui() = copy(fontFamily = app, fontSize = fontSize * appScale, lineHeight = lineHeight * appScale)
+fun butlerTypography(app: FontFamily, chat: FontFamily, appScale: Float = 1f, appSpacing: Int = 0, chatSpacing: Int = 0): Typography = ButlerTypography.run {
+    fun TextStyle.ui() = copy(
+        fontFamily = app,
+        fontSize = fontSize * appScale,
+        lineHeight = lineHeight * appScale,
+        letterSpacing = spaced(letterSpacing, fontSize * appScale, appSpacing),
+    )
     Typography(
         displaySmall = displaySmall.ui(),
         headlineMedium = headlineMedium.ui(),
@@ -98,7 +120,8 @@ fun butlerTypography(app: FontFamily, chat: FontFamily, appScale: Float = 1f): T
         titleLarge = titleLarge.ui(),
         titleMedium = titleMedium.ui(),
         titleSmall = titleSmall.ui(),
-        bodyLarge = bodyLarge.copy(fontFamily = chat),
+        // In em, so it holds when the chat's own size is set (proseStyle).
+        bodyLarge = bodyLarge.copy(fontFamily = chat, letterSpacing = (chatSpacing / 100f).em),
         bodyMedium = bodyMedium.ui(),
         bodySmall = bodySmall.ui(),
         labelLarge = labelLarge.ui(),
@@ -186,7 +209,7 @@ fun plateStyle(level: PlateLevel): TextStyle {
         fontWeight = FontWeight.Bold,
         fontSize = size,
         lineHeight = size * 1.3f,
-        letterSpacing = if (level == PlateLevel.Small) 0.2.sp else 0.sp,
+        letterSpacing = spaced(if (level == PlateLevel.Small) 0.2.sp else 0.sp, size, LocalAppLetterSpacing.current),
         platformStyle = PlatformTextStyle(includeFontPadding = false),
     )
 }

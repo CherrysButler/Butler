@@ -205,7 +205,7 @@ fun RichHtmlEditor(
                 enabled = enabled,
                 minLines = minLines,
                 placeholder = if (placeholder.isNotEmpty()) ({ Text(placeholder, color = ButlerTheme.colors.textLow) }) else null,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = com.cherry.butler.core.design.ProseFamily),
+                textStyle = com.cherry.butler.core.design.proseOf(MaterialTheme.typography.bodyMedium),
                 shape = MaterialTheme.shapes.medium,
                 colors = RichTextEditorDefaults.outlinedRichTextEditorColors(
                     containerColor = ButlerTheme.colors.surfaceHigh,

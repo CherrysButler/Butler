@@ -521,6 +521,9 @@ class ChatViewModel @Inject constructor(
         backgrounds.forChat(chatId).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     }
 
+    /** On the PC: the background across the window rather than behind the chat's column. */
+    val backgroundAcrossWindow: StateFlow<Boolean> = backgrounds.acrossWindow
+
     // ---- write for me / enhance my draft ------------------------------------------------
 
     /** The line being written in the Write panel, or the one used (Undo / Again under it). */

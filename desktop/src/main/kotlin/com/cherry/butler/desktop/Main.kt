@@ -214,7 +214,8 @@ private fun ButlerThemed(graph: DesktopComponent, content: @androidx.compose.run
     val addedFonts by fontPrefs.added.collectAsState()
     val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
     val scale by fontPrefs.appScale.collectAsState()
-    ButlerTheme(theme = theme, custom = custom, appFont = appFont, appTextScale = scale) {
+    val fontSpacing by fontPrefs.spacing.collectAsState()
+    ButlerTheme(theme = theme, custom = custom, appFont = appFont, appTextScale = scale, appLetterSpacing = fontSpacing[appFontKey] ?: 0) {
         CompositionLocalProvider(
             androidx.compose.foundation.LocalIndication provides com.cherry.butler.desktop.ui.HoverWash(MaterialTheme.colorScheme.onSurface),
         ) { content() }
@@ -236,13 +237,14 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
     val chatFontKey by fontPrefs.chat.collectAsState()
     val appFontKey by fontPrefs.app.collectAsState()
     val appTextScale by fontPrefs.appScale.collectAsState()
+    val fontSpacing by fontPrefs.spacing.collectAsState()
     // Keyed on the added fonts too: a face added to the family in use joins it at once.
     val addedFonts by fontPrefs.added.collectAsState()
     val chatFont = remember(chatFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, chatFontKey) }
     val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
     val locked by appLock.locked.collectAsState()
     @Suppress("UNUSED_VARIABLE") val light = theme.isLight(custom)
-    ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
+    ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
         val ground = MaterialTheme.colorScheme.background
         androidx.compose.runtime.LaunchedEffect(ground) { onGround(ground.toArgb()) }
         Box(Modifier.fillMaxSize()) {

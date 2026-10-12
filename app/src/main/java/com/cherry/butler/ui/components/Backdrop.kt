@@ -14,7 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
@@ -74,6 +76,18 @@ fun Backdrop(
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = dim)))
     }
 }
+
+/**
+ * Somewhere wider than the chat for its background to spread to: the PC's window, which holds a
+ * chat as a column down its middle (ChatBackgrounds.acrossWindow). Null on the phone, where the
+ * chat is the screen. A chat spreading its background hands it here and draws none itself.
+ */
+@androidx.compose.runtime.Stable
+class BackdropHost {
+    var shown: com.cherry.butler.core.data.ChatBackground? by mutableStateOf(null)
+}
+
+val LocalBackdropHost = androidx.compose.runtime.staticCompositionLocalOf<BackdropHost?> { null }
 
 /** How much larger the picture is drawn, which is also how far it can drift: 2% each way. */
 private const val PARALLAX_SCALE = 1.04f

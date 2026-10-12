@@ -28,11 +28,14 @@ import com.cherry.butler.feature.chat.LocalComposerMaxWidth
 import com.cherry.butler.feature.chat.LocalSecondaryClick
 import com.cherry.butler.feature.chat.LocalTranscriptHost
 import com.cherry.butler.feature.chat.TranscriptHost
+import com.cherry.butler.ui.components.Backdrop
+import com.cherry.butler.ui.components.LocalBackdropHost
 
 /**
  * A chat in a PC window: the phone's chat, whole (its bar, the story, the composer), in a
  * column down the middle of the pane, under the faint light an open chat casts over the window
- * (ChatLight). No pattern, nothing that follows the pointer: the story is what moves. The wheel scrolls the story from
+ * (ChatLight). Its background is behind the column, or across the pane when the chat hands
+ * it over (BackdropHost). No pattern, nothing that follows the pointer: the story is what moves. The wheel scrolls the story from
  * anywhere, a scrollbar runs down the column's edge, a right-click on a line opens its actions.
  */
 @Composable
@@ -61,7 +64,9 @@ internal fun DesktopChat(content: @Composable () -> Unit) {
         onDispose { light?.on = false; light?.warm = false }
     }
     LaunchedEffect(busy) { light?.warm = busy }
+    val spread = LocalBackdropHost.current?.shown
     BoxWithConstraints(Modifier.fillMaxSize().wheelScrolls(list, reverse = true)) {
+        spread?.let { Backdrop(dim = it.dim, parallax = false, file = it.file, fileKey = it.key) }
         val column = (maxWidth * ColumnShare).coerceAtLeast(ColumnAtLeast).coerceAtMost(maxWidth)
         PaneSize(column, maxHeight, Modifier.align(Alignment.TopCenter).width(column).castsChatLight(light)) {
             CompositionLocalProvider(

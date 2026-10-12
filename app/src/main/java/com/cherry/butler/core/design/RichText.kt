@@ -52,7 +52,7 @@ fun RichText(
     style: TextStyle = MaterialTheme.typography.bodyMedium,
     color: Color = MaterialTheme.colorScheme.onSurface,
 ) {
-    @Suppress("NAME_SHADOWING") val style = style.copy(fontFamily = ProseFamily)
+    @Suppress("NAME_SHADOWING") val style = proseOf(style)
     if (!RichHtml.looksLikeHtml(text)) {
         RpText(text = text, modifier = modifier, style = style, color = color)
         return

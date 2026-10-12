@@ -150,6 +150,10 @@ class BackgroundsViewModel @Inject constructor(private val store: ChatBackground
     }
 
     fun delete(id: String) = store.delete(id)
+
+    /** On the PC: across the window, or behind the chat's column. */
+    val acrossWindow: StateFlow<Boolean> = store.acrossWindow
+    fun setAcrossWindow(on: Boolean) = store.setAcrossWindow(on)
 }
 
 /** What the editor is working on: a picture just picked, or one already saved. */
@@ -183,6 +187,9 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
         ChatBackgroundChoice.Default -> if (chatId == null || globalId != null) globalId else null
     }
     val noneHere = if (chatId == null) globalId == null else choice == ChatBackgroundChoice.None
+    // The PC: a wide window, a chat as a column in it, and no tilt to drift with.
+    val desktop = com.cherry.butler.ui.components.LocalBackdropHost.current != null
+    val tileRatio = if (desktop) 16f / 10f else 9f / 16f
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -210,10 +217,24 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
                 }
                 Option(label = "None", selected = noneHere, onClick = { viewModel.useNone(chatId) })
             }
+            if (desktop) {
+                val across by viewModel.acrossWindow.collectAsStateWithLifecycle()
+                Text(
+                    "Where it shows",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ButlerTheme.colors.textLow,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+                )
+                Row(modifier = Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Option(label = "Behind the chat", selected = !across, onClick = { viewModel.setAcrossWindow(false) })
+                    Option(label = "Across the window", selected = across, onClick = { viewModel.setAcrossWindow(true) })
+                }
+            }
             error?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.danger, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
             }
-            // Three to a row, the shape of a phone; the first is always "add".
+            // Three to a row, the shape of the screen they fill (a phone's, or a PC's window);
+            // the first is always "add".
             val tiles: List<SavedBackground?> = listOf<SavedBackground?>(null) + library
             Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 tiles.chunked(3).forEach { row ->
@@ -221,7 +242,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
                         row.forEach { item ->
                             val m = Modifier.weight(1f)
                             if (item == null) {
-                                AddTile(m) { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                                AddTile(m, tileRatio) { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
                             } else {
                                 SavedTile(
                                     item = item,
@@ -231,6 +252,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
                                     onUse = { viewModel.use(item.id, chatId) },
                                     onEdit = { editing = Editing.Saved(item) },
                                     onDelete = { viewModel.delete(item.id) },
+                                    ratio = tileRatio,
                                     modifier = m,
                                 )
                             }
@@ -251,6 +273,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
             startParallax = start?.parallax ?: true,
             saveLabel = if (e is Editing.New) "Use" else "Save",
             bars = bars,
+            canDrift = !desktop,
             onSave = { blur, dim, parallax ->
                 editing = null
                 when (e) {
@@ -283,10 +306,10 @@ private fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AddTile(modifier: Modifier, onClick: () -> Unit) {
+private fun AddTile(modifier: Modifier, ratio: Float, onClick: () -> Unit) {
     Box(
         modifier = modifier
-            .aspectRatio(9f / 16f)
+            .aspectRatio(ratio)
             .clip(MaterialTheme.shapes.medium)
             .background(ButlerTheme.colors.surfaceHigh)
             .border(1.dp, ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
@@ -310,6 +333,7 @@ private fun SavedTile(
     onUse: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    ratio: Float,
     modifier: Modifier,
 ) {
     val context = LocalContext.current
@@ -319,7 +343,7 @@ private fun SavedTile(
     }
     Box(
         modifier = modifier
-            .aspectRatio(9f / 16f)
+            .aspectRatio(ratio)
             .clip(MaterialTheme.shapes.medium)
             .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
             .clickable(onClickLabel = "Use this background", onClick = onUse),
@@ -369,7 +393,8 @@ private enum class Panel { None, Blur, Dim }
  * top. Three keys at the bottom: blur (left slider), drift (on/off), dim (right slider).
  * Blur follows the finger on a small copy and is redone at full size when it lifts.
  * [bars] are the screen's system bars, measured outside this window: a dialog window does
- * not always get them, and without them the keys sat under the navigation bar.
+ * not always get them, and without them the keys sat under the navigation bar. Drift follows
+ * the phone's tilt, so without [canDrift] (the PC) its key isn't there.
  */
 @Composable
 private fun BackgroundEditor(
@@ -379,6 +404,7 @@ private fun BackgroundEditor(
     startParallax: Boolean,
     saveLabel: String,
     bars: PaddingValues,
+    canDrift: Boolean,
     onSave: (blur: Float, dim: Float, parallax: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -482,9 +508,11 @@ private fun BackgroundEditor(
                         Panel.Blur
                     }
                 }
-                ToolKey(icon = Icons.Rounded.Animation, label = if (parallax) "Drift on" else "Drift off", on = parallax, open = false) {
-                    parallax = !parallax
-                    panel = Panel.None
+                if (canDrift) {
+                    ToolKey(icon = Icons.Rounded.Animation, label = if (parallax) "Drift on" else "Drift off", on = parallax, open = false) {
+                        parallax = !parallax
+                        panel = Panel.None
+                    }
                 }
                 ToolKey(
                     icon = Icons.Rounded.BrightnessMedium,

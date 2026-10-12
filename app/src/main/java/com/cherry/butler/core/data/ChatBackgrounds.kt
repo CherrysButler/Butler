@@ -73,6 +73,19 @@ class ChatBackgrounds @Inject constructor(@ApplicationContext private val contex
     /** The background for every chat, if any. */
     val globalId: StateFlow<String?> = _globalId.asStateFlow()
 
+    private val _acrossWindow = MutableStateFlow(prefs.getBoolean(KEY_ACROSS_WINDOW, false))
+
+    /**
+     * On the PC, where a chat is a column down the middle of a wide window: the background
+     * across the whole window (true) or behind the column only (false). The phone has no say.
+     */
+    val acrossWindow: StateFlow<Boolean> = _acrossWindow.asStateFlow()
+
+    fun setAcrossWindow(on: Boolean) {
+        _acrossWindow.value = on
+        prefs.edit().putBoolean(KEY_ACROSS_WINDOW, on).apply()
+    }
+
     /** Bumped when a chat's choice changes. */
     private val choices = MutableStateFlow(0L)
 
@@ -256,8 +269,10 @@ class ChatBackgrounds @Inject constructor(@ApplicationContext private val contex
             }
         }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: error("couldn't open the picture")
+        // A bounds-only decode answers null by design: only a missing stream is a failure.
+        val stream = context.contentResolver.openInputStream(uri) ?: error("couldn't open the picture")
+        stream.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) error("couldn't read the picture")
         var sample = 1
         while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= longest) sample *= 2
         return context.contentResolver.openInputStream(uri)?.use {
@@ -271,6 +286,7 @@ class ChatBackgrounds @Inject constructor(@ApplicationContext private val contex
         private const val PREVIEW_LONGEST = 1280
         private const val KEY_LIBRARY = "library"
         private const val KEY_GLOBAL = "global_id"
+        private const val KEY_ACROSS_WINDOW = "across_window"
         private const val CHAT_PREFIX = "chat_"
         private const val NONE = "none"
         private const val OWN = "own:"

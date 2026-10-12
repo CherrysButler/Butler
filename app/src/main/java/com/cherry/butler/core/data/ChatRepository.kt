@@ -104,6 +104,13 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    /**
+     * The newest page of `/chats/list` into the mirror, paging keys untouched: chats started
+     * elsewhere (the phone, the website) show up in every list reading the mirror. The list's
+     * own load asks once; a window left open for days asks again through this.
+     */
+    suspend fun syncLatest() = storeChatRows(db, remote.list(1).items)
+
     /** Every chat with one character, from the mirror, newest activity first. */
     fun observeChatsWith(characterId: String): Flow<List<ChatSummary>> =
         chatDao.observeByCharacter(characterId).map { rows -> rows.map(ChatEntity::toSummary) }

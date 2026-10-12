@@ -422,8 +422,18 @@ fun ChatScreen(
     }
 
     LocalTranscriptHost.current?.let { host -> LaunchedEffect(busy) { host.onBusy(busy) } }
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-    background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key) }
+    // On the PC the background may go across the window: handed to the window, none drawn here.
+    val backdropHost = com.cherry.butler.ui.components.LocalBackdropHost.current
+    val acrossWindow by viewModel.backgroundAcrossWindow.collectAsStateWithLifecycle()
+    val spread = backdropHost != null && acrossWindow && background != null
+    if (backdropHost != null) {
+        androidx.compose.runtime.DisposableEffect(backdropHost, background, spread) {
+            backdropHost.shown = background.takeIf { spread }
+            onDispose { backdropHost.shown = null }
+        }
+    }
+    Box(modifier = Modifier.fillMaxSize().then(if (spread) Modifier else Modifier.background(MaterialTheme.colorScheme.background))) {
+    if (!spread) background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key) }
     Scaffold(
         containerColor = if (background != null) Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),

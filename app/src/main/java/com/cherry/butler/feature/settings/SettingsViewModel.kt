@@ -156,6 +156,10 @@ class SettingsViewModel @Inject constructor(
     val appTextScale: StateFlow<Float> = fonts.appScale
     fun setAppTextScale(scale: Float) = fonts.setAppScale(scale)
 
+    /** Each font's letter spacing, by key (see FontPrefs.spacing). */
+    val fontSpacing: StateFlow<Map<String, Int>> = fonts.spacing
+    fun setFontSpacing(key: String, hundredths: Int) = fonts.setSpacing(key, hundredths)
+
     /** Font files picked and read, waiting to hear which family they join, for the chat or the app font. */
     data class FontPick(val picked: com.cherry.butler.core.data.FontPrefs.Picked, val forChat: Boolean)
     private val _fontPick = MutableStateFlow<FontPick?>(null)

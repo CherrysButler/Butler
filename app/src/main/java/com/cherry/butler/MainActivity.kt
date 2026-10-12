@@ -102,6 +102,7 @@ class MainActivity : FragmentActivity() {
             val chatFontKey by fontPrefs.chat.collectAsState()
             val appFontKey by fontPrefs.app.collectAsState()
             val appTextScale by fontPrefs.appScale.collectAsState()
+            val fontSpacing by fontPrefs.spacing.collectAsState()
             // Keyed on the added fonts too: a face added to the family in use joins it at once.
             val addedFonts by fontPrefs.added.collectAsState()
             val chatFont = androidx.compose.runtime.remember(chatFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, chatFontKey) }
@@ -120,7 +121,7 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(lockOn) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
             }
-            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
+            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
                 androidx.compose.foundation.layout.Box {
                     // Kept composed under the lock so the user returns exactly where they were,
                     // but hidden from accessibility while covered.

@@ -1519,7 +1519,8 @@ private fun AddonWarning(
  * One of the two fonts: the built-ins, the fonts added (each with its faces, and a way to
  * remove it), and "Add font files", which opens the system file picker for .ttf and .otf
  * files: up to four faces of one family at once. When there are added fonts already, the
- * picked faces can join one of them or start a family of their own.
+ * picked faces can join one of them or start a family of their own. Under it, the chosen
+ * font's letter spacing, kept with the font: pick another and it has its own.
  */
 @Composable
 private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewModel) {
@@ -1580,6 +1581,17 @@ private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewMode
             trailing = {
                 Icon(Icons.Rounded.Add, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
             },
+        )
+    }
+    val spacing by viewModel.fontSpacing.collectAsStateWithLifecycle()
+    Branch {
+        SliderRow(
+            title = "Letter spacing",
+            value = (spacing[chosen] ?: 0).toFloat(),
+            range = com.cherry.butler.core.data.FontPrefs.MIN_SPACING.toFloat()..com.cherry.butler.core.data.FontPrefs.MAX_SPACING.toFloat(),
+            step = 1f,
+            format = { v -> if (kotlin.math.round(v).toInt() == 0) "Normal" else "%+.2f em".format(java.util.Locale.ROOT, v / 100f) },
+            onCommit = { v -> viewModel.setFontSpacing(chosen, kotlin.math.round(v).toInt()) },
         )
     }
 }
