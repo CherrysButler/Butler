@@ -9,8 +9,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Which model writes the user's own lines ("write for me", "enhance my draft"), apart from
- * the one that plays the character. Kept on the phone; Janitor has no such setting.
+ * Which model writes the user's own lines ("write for me", "enhance my draft"), or the chat's
+ * memory (summaries and compacts), apart from the one that plays the character. Kept on the
+ * phone; Janitor has no such setting.
  */
 sealed interface Writer {
     /** Whatever the chat itself uses. */
@@ -42,6 +43,16 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putString(KEY, encode(writer)).apply()
     }
 
+    private val _memory = MutableStateFlow(decode(prefs.getString(KEY_MEMORY, null)))
+
+    /** Which model writes summaries and compacts; the chat's own until changed. */
+    val memory: StateFlow<Writer> = _memory.asStateFlow()
+
+    fun setMemory(writer: Writer) {
+        _memory.value = writer
+        prefs.edit().putString(KEY_MEMORY, encode(writer)).apply()
+    }
+
     /** Write for me's voice; first person, as it always was, until changed. Enhance keeps the draft's own. */
     private val _perspective = MutableStateFlow(Perspective.entries.firstOrNull { it.name == prefs.getString(KEY_PERSPECTIVE, null) } ?: Perspective.First)
     val perspective: StateFlow<Perspective> = _perspective.asStateFlow()
@@ -68,6 +79,7 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
     private companion object {
         const val KEY = "writer"
         const val KEY_PERSPECTIVE = "writer_perspective"
+        const val KEY_MEMORY = "memory_writer"
         /** Unit Separator: cannot occur in an id or a model name. */
         const val SEP = "\u001F"
     }

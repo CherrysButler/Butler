@@ -666,25 +666,37 @@ private fun ModelSection(
         }
         RowDivider()
         if (settings.provider == Provider.Proxy) ProxyPicker(settings, saving, viewModel, onEditProxy)
-        if (settings.provider == Provider.Janitor) {
-            LinkRow(
-                title = "Janitor Router",
-                icon = Icons.Rounded.AltRoute,
-                subtitle = if (settings.routerEnabled) "On" else "Needs Janitor Plus",
-                onClick = onOpenRouter,
-            )
-            JllmPromptRow(settings, viewModel)
-        }
-        WriterPicker(settings, viewModel)
-        PicturePicker(settings, viewModel)
-        val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
-        SwitchRow(
-            title = "NSFW on mobile",
-            icon = Icons.Rounded.Visibility,
-            subtitle = null,
-            checked = nsfw,
-            onChange = viewModel::setAllowMobileNsfw,
+        if (settings.provider == Provider.Janitor) JllmPromptRow(settings, viewModel)
+        val writer by viewModel.writer.collectAsStateWithLifecycle()
+        WriterPicker(
+            title = "Write for me uses",
+            icon = Icons.Rounded.AutoAwesome,
+            writer = writer,
+            settings = settings,
+            onSet = viewModel::setWriter,
         )
+        val memoryWriter by viewModel.memoryWriter.collectAsStateWithLifecycle()
+        WriterPicker(
+            title = "Summaries use",
+            icon = androidx.compose.material.icons.Icons.Rounded.Psychology,
+            writer = memoryWriter,
+            settings = settings,
+            onSet = viewModel::setMemoryWriter,
+        )
+        PicturePicker(settings, viewModel)
+        // Janitor's own models read it (it keeps JLLM from refusing); a proxy is the user's model and doesn't.
+        // So it shows while anything here is written by JLLM: the chat, Write for me, or summaries.
+        val jllm = com.cherry.butler.core.data.Writer.Jllm
+        if (settings.provider == Provider.Janitor || writer == jllm || memoryWriter == jllm) {
+            val nsfw by viewModel.allowMobileNsfw.collectAsStateWithLifecycle()
+            SwitchRow(
+                title = "NSFW on mobile",
+                icon = Icons.Rounded.Visibility,
+                subtitle = null,
+                checked = nsfw,
+                onChange = viewModel::setAllowMobileNsfw,
+            )
+        }
         if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration, icon = Icons.Rounded.Tune)
         LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts, icon = Icons.Rounded.Description)
     }
@@ -717,13 +729,19 @@ private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
 }
 
 /**
- * Which model writes the user's own lines (write for me, enhance my draft): the chat's own,
- * JLLM, or a proxy set: one of the saved presets, with its own model if wanted. The
+ * Which model writes something other than the character's replies: the user's own lines
+ * (write for me, enhance my draft) or the chat's memory (summaries, compacts). The chat's
+ * own, JLLM, or a proxy set: one of the saved presets, with its own model if wanted. The
  * character keeps answering from the choice above.
  */
 @Composable
-private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
-    val writer by viewModel.writer.collectAsStateWithLifecycle()
+private fun WriterPicker(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    writer: com.cherry.butler.core.data.Writer,
+    settings: AiSettings,
+    onSet: (com.cherry.butler.core.data.Writer) -> Unit,
+) {
     var configuring by remember { mutableStateOf(false) }
     val asProxy = writer as? com.cherry.butler.core.data.Writer.Proxy
     val preset = asProxy?.let { w -> settings.proxies.firstOrNull { w.id in it.ids } }
@@ -733,12 +751,12 @@ private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
         asProxy != null -> "Same as the chat (that proxy is gone)"
         else -> "Same as the chat"
     }
-    DropRow(title = "Write for me uses", value = value, icon = Icons.Rounded.AutoAwesome) { close ->
+    DropRow(title = title, value = value, icon = icon) { close ->
         DropItem(
             title = "Same as the chat",
             subtitle = null,
             selected = writer == com.cherry.butler.core.data.Writer.SameAsChat,
-            onClick = { close(); viewModel.setWriter(com.cherry.butler.core.data.Writer.SameAsChat) },
+            onClick = { close(); onSet(com.cherry.butler.core.data.Writer.SameAsChat) },
         )
         DropItem(
             title = "A proxy set",
@@ -753,14 +771,15 @@ private fun WriterPicker(settings: AiSettings, viewModel: SettingsViewModel) {
             title = "JLLM",
             subtitle = null,
             selected = writer == com.cherry.butler.core.data.Writer.Jllm,
-            onClick = { close(); viewModel.setWriter(com.cherry.butler.core.data.Writer.Jllm) },
+            onClick = { close(); onSet(com.cherry.butler.core.data.Writer.Jllm) },
         )
     }
     if (configuring) {
         WriterProxySheet(
+            title = title,
             presets = settings.proxies,
             current = asProxy,
-            onSave = { configuring = false; viewModel.setWriter(it) },
+            onSave = { configuring = false; onSet(it) },
             onDismiss = { configuring = false },
         )
     }
@@ -845,6 +864,7 @@ private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
     }
     if (configuring) {
         WriterProxySheet(
+            title = "Pictures use",
             presets = settings.proxies,
             current = pick,
             onSave = { configuring = false; viewModel.setPictureDescriber(it) },
@@ -854,12 +874,14 @@ private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
 }
 
 /**
- * The proxy set that writes the user's lines: one of the saved presets (its address and key),
- * and the model, which starts as the preset's own and can be changed for this alone.
+ * The proxy set for one job (the user's lines, summaries, pictures): one of the saved presets
+ * (its address and key), and the model, which starts as the preset's own and can be changed
+ * for this alone.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun WriterProxySheet(
+    title: String,
     presets: List<com.cherry.butler.core.data.ProxyConfig>,
     current: com.cherry.butler.core.data.Writer.Proxy?,
     onSave: (com.cherry.butler.core.data.Writer.Proxy) -> Unit,
@@ -878,7 +900,7 @@ private fun WriterProxySheet(
     ) {
         Column(modifier = Modifier.navigationBarsPadding().imePadding().padding(bottom = 16.dp)) {
             Text(
-                "Write for me uses",
+                title,
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp),

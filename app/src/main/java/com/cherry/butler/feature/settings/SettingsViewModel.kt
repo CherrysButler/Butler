@@ -301,6 +301,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setWriter(writer: com.cherry.butler.core.data.Writer) = writerPrefs.set(writer)
 
+    /** Which model writes summaries and compacts. */
+    val memoryWriter: StateFlow<com.cherry.butler.core.data.Writer> = writerPrefs.memory
+    fun setMemoryWriter(writer: com.cherry.butler.core.data.Writer) = writerPrefs.setMemory(writer)
+
 
     val theme: StateFlow<AppTheme> = themes.theme
 

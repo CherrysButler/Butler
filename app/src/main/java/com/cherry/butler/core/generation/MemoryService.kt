@@ -50,7 +50,9 @@ import javax.inject.Singleton
  * newest messages folded into the summary before it, saved as covering only up to the last
  * message folded, so the newest stay verbatim. One memory run per chat at a time, summary or
  * compact; a run that fails or is stopped saves nothing. What the model thought on the way is
- * kept beside the summary ([MemoryThoughts]).
+ * kept beside the summary ([MemoryThoughts]). Both are written by the model chosen for memory
+ * (Settings › Model, "Summaries use"): the chat's own, or another proxy set or JLLM, so a
+ * cheaper or longer-context model can keep the memory while another plays the character.
  */
 @Singleton
 class MemoryService @Inject constructor(
@@ -61,6 +63,7 @@ class MemoryService @Inject constructor(
     private val prefs: MemoryPrefs,
     private val gauge: ContextGauge,
     private val thoughts: MemoryThoughts,
+    private val writerPrefs: com.cherry.butler.core.data.WriterPrefs,
 ) {
     private val chatDao = db.chatDao()
     private val messageDao = db.messageDao()
@@ -186,6 +189,7 @@ class MemoryService @Inject constructor(
         if (history.isEmpty()) throw ApiError.Api(code = 400, janitorCode = "BUTLER_EMPTY_CHAT", serverMessage = "There is nothing to summarize yet.")
         val profile = profileRepository.profile()
         val played = profileRepository.playedPersona(chat, history)
+        val (userConfig, target) = profileRepository.inputsFor(profile, writerPrefs.memory.value)
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,
             characterId = chat.characterId,
@@ -197,14 +201,14 @@ class MemoryService @Inject constructor(
                 id = profile.id, name = profile.name, userName = profile.userName,
                 userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty(),
             ),
-            userConfig = profileRepository.userConfig(profile),
+            userConfig = userConfig,
             mode = GenerateMode.SummaryFull,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             memoryReplacesHistory = prefs.replacesHistory.value,
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
-        val written = write(chatId, Kind.Summary, envelope, profileRepository.proxyTarget(profile))
+        val written = write(chatId, Kind.Summary, envelope, target)
         val summary = written.text.trim()
         if (summary.isEmpty()) throw ApiError.Server(code = 502, upstreamStatus = null)
         if (!written.done) Log.w(TAG, "summary stream ended without a terminator; keeping ${summary.length} chars")
@@ -230,7 +234,7 @@ class MemoryService @Inject constructor(
 
         val profile = profileRepository.profile()
         val played = profileRepository.playedPersona(chat, plan.fold)
-        val userConfig = profileRepository.userConfig(profile)
+        val (userConfig, target) = profileRepository.inputsFor(profile, writerPrefs.memory.value)
         val jllm = userConfig["api"]?.let { (it as? JsonPrimitive)?.contentOrNull }.let { it == null || it == "janitor" }
         val instruction = Compaction.prompt(chat.summary)
         val envelope = GenerationEnvelope.build(
@@ -252,7 +256,7 @@ class MemoryService @Inject constructor(
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
-        val proxy = if (jllm) null else profileRepository.proxyTarget(profile)?.then { payload -> askToCompact(payload, instruction) }
+        val proxy = if (jllm) null else target?.then { payload -> askToCompact(payload, instruction) }
 
         val written = write(chatId, Kind.Compact, envelope, proxy)
         // A compact stands in for every message it folds: one cut short would lose some of them.
