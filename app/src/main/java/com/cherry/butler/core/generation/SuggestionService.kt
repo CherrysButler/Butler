@@ -1,5 +1,6 @@
 package com.cherry.butler.core.generation
 
+import com.cherry.butler.core.markdown.fillUserAndChar
 import com.cherry.butler.core.data.WriterPrefs
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.MemoryPrefs
@@ -205,7 +206,7 @@ class SuggestionService @Inject constructor(
         val inputs = profileRepository.inputsFor(profile, writerPrefs.writer.value)
         // The line lands in the composer as the user's own words, so the macros are filled in.
         val who = played.persona?.name ?: chat.personaName ?: profile.name.ifBlank { profile.userName }
-        onNames { it.replace("{{user}}", who, ignoreCase = true).replace("{{char}}", chat.shownName, ignoreCase = true) }
+        onNames { it.fillUserAndChar(who, chat.shownName) }
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,

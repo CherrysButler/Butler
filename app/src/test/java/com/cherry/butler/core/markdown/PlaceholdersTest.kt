@@ -15,6 +15,25 @@ class PlaceholdersTest {
     }
 
     @Test
+    fun `single braces fill the same`() {
+        assertEquals(
+            "Rain looked at Eva. Eva smiled at Rain, and they waved.",
+            "{user} looked at {char}. {{char}} smiled at { User }, and {sub} waved.".fillNames("Rain", "Eva"),
+        )
+    }
+
+    @Test
+    fun `other braces are left alone`() {
+        val text = "{\"mood\": 3} {users} {{username}} {charm}"
+        assertEquals(text, text.fillNames("Rain", "Eva"))
+    }
+
+    @Test
+    fun `user and char alone, in either form`() {
+        assertEquals("Rain and Eva, {{sub}}", "{user} and {{char}}, {{sub}}".fillUserAndChar("Rain", "Eva"))
+    }
+
+    @Test
     fun `missing persona reads as You`() {
         assertEquals("You wake up.", "{{user}} wake up.".fillNames(null, "Eva"))
     }

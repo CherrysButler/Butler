@@ -1,5 +1,6 @@
 package com.cherry.butler.core.generation
 
+import com.cherry.butler.core.markdown.fillUserAndChar
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -99,7 +100,7 @@ class PictureDescriber @Inject constructor(
                 append("\nThe last lines:\n")
                 history.forEach { m ->
                     append(if (m.isBot) character else who).append(": ")
-                    append(m.text.replace("{{user}}", who, ignoreCase = true).replace("{{char}}", character, ignoreCase = true).take(600)).append('\n')
+                    append(m.text.fillUserAndChar(who, character).take(600)).append('\n')
                 }
             }
             append("\n").append(who).append("'s draft, where [pic] is the picture:\n").append(draft.ifBlank { "[pic]" })

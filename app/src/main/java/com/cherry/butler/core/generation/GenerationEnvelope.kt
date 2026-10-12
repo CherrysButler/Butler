@@ -96,7 +96,8 @@ object GenerationEnvelope {
             put("summary", summary.orEmpty())
             if (summaryChatId != null) put("summary_chat_id", summaryChatId)
         })
-        // The website fills `{{user}}` in the history itself, with the name being played.
+        // The website fills `{{user}}` in the history itself, with the name being played; Butler
+        // fills the single-brace `{user}` some formats use as well.
         val userName = (persona?.name ?: profile.name).takeIf { it.isNotBlank() }
         fun filled(text: String) = userName?.let { USER_MACRO.replace(text, Regex.escapeReplacement(it)) } ?: text
         put("chatMessages", buildJsonArray {
@@ -193,7 +194,7 @@ object GenerationEnvelope {
      * key and the reader's colours, and that larger body was turned away by Janitor's
      * firewall where the website's was not.
      */
-    private val USER_MACRO = Regex("\\{\\{user\\}\\}", RegexOption.IGNORE_CASE)
+    private val USER_MACRO = com.cherry.butler.core.markdown.USER_PLACEHOLDER
 
     /**
      * The `generation_settings` the website sends when the account has saved none of them
