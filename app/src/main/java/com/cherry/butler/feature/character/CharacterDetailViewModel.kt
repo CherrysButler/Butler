@@ -56,7 +56,12 @@ class CharacterDetailViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val personas: PersonaRepository,
     private val community: CommunityRepository,
+    private val profiles: com.cherry.butler.core.data.ProfileRepository,
 ) : ViewModel() {
+
+    /** Your own id, to know a character of yours: its page offers Edit instead of Block. */
+    val myId: StateFlow<String?> = profiles.profile.map { it?.id }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), profiles.profile.value?.id)
 
     /** Who a chat started here plays as; its name fills `{{user}}` on this page too. */
     val persona: StateFlow<PersonaOption?> = personas.current
@@ -77,6 +82,7 @@ class CharacterDetailViewModel @Inject constructor(
     init {
         load()
         viewModelScope.launch { personas.load() }
+        viewModelScope.launch { runCatching { profiles.profile() } }
         loadCommunity()
         viewModelScope.launch {
             runCatching { community.isFavorite(characterId) }.onSuccess { on -> _state.update { it.copy(favorited = on) } }

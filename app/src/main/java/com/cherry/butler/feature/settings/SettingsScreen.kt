@@ -75,6 +75,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -175,6 +176,24 @@ fun SettingsScreen(
         if (dirty) SaveKey(saving = saving == SettingsViewModel.SAVING_ALL, onClick = { viewModel.save() })
     }
 
+    val signOutCheck by viewModel.signOutCheck.collectAsStateWithLifecycle()
+    signOutCheck?.let { c ->
+        com.cherry.butler.feature.chat.DeleteConfirmDialog(
+            count = 1,
+            title = "Sign out",
+            body = buildString {
+                append("Your chats stay on Janitor. This ${com.cherry.butler.core.platform.Device.NAME} forgets them, and your settings, until you sign in again.")
+                if (c.unsent > 0) {
+                    append("\n\n")
+                    append(if (c.unsent == 1) "1 message you wrote hasn't reached Janitor yet and will be lost." else "${c.unsent} messages you wrote haven't reached Janitor yet and will be lost.")
+                }
+            },
+            confirmLabel = "Sign out",
+            onConfirm = viewModel::signOut,
+            onDismiss = viewModel::cancelSignOut,
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (onBack != null) {
@@ -253,7 +272,10 @@ private fun SettingsBody(
 ) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
         when (page) {
-            SettingsPage.Main -> SettingsHome(onOpenPage)
+            SettingsPage.Main -> {
+                SettingsHome(onOpenPage)
+                AccountSection(viewModel)
+            }
             SettingsPage.Model -> settings?.let { s ->
                 ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
                 AgentSection(viewModel, onProxy = s.provider == Provider.Proxy)
@@ -306,6 +328,30 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
                 Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = ButlerTheme.colors.textLow)
             }
             if (i < pages.lastIndex) RowDivider()
+        }
+    }
+}
+
+/** The account, under the pages: signing out, which asks first and says what it would cost. */
+@Composable
+private fun AccountSection(viewModel: SettingsViewModel) {
+    val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
+    SettingsSection(title = "Account") {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = !signingOut, onClick = viewModel::askSignOut)
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = ButlerTheme.colors.danger, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(14.dp))
+            Text(
+                text = if (signingOut) "Signing out…" else "Sign out",
+                style = MaterialTheme.typography.titleMedium,
+                color = ButlerTheme.colors.danger,
+            )
         }
     }
 }

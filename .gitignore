@@ -36,3 +36,6 @@ keystore.properties
 
 # Claude Code's project folder (local settings, agent worktrees): never part of Butler.
 /.claude/
+
+# Browser captures (HAR) hold session tokens: never commit them.
+*.har

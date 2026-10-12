@@ -30,6 +30,10 @@ object Routes {
     const val PERSONA = "persona/{personaId}"
     const val PUBLISHED_LIST = "published-list/{characterId}?name={name}"
     const val CREATOR = "creator/{$ARG_USER_ID}"
+    /** The characters you made. */
+    const val MY_CHARACTERS = "studio/mine"
+    /** Writing one of them, or "new". */
+    const val CHARACTER_EDITOR = "studio/edit/{characterId}"
 
     fun character(characterId: String) = "character/$characterId"
     fun chat(chatId: Long) = "chat/$chatId"
@@ -40,6 +44,7 @@ object Routes {
     fun publishedList(characterId: String, name: String) = "published-list/$characterId?name=${android.net.Uri.encode(name)}"
     fun published(slug: String) = "published/${android.net.Uri.encode(slug)}"
     fun creator(userId: String) = "creator/$userId"
+    fun characterEditor(id: String) = "studio/edit/$id"
     fun settingsPage(page: String) = "settings/page/$page"
 
     /** Whether the bottom navigation bar belongs on this route. */

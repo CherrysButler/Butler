@@ -28,6 +28,12 @@ data class ProfileDto(
     val config: JsonObject? = null,
     /** The default persona's appearance: the profile *is* the default persona (§26, §29). */
     @SerialName("profile") val appearance: String? = null,
+    /**
+     * The public profile page's look: `custom_style` (CSS), `text_color`, `background_color`,
+     * `background_image`, `background_opacity` (captured 2026-10-12). Kept raw so a save sends
+     * back every key it holds, with only the edited ones changed.
+     */
+    val style: JsonObject? = null,
 )
 
 /** `GET /personas/mine` — a bare array. */

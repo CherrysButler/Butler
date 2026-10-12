@@ -14,6 +14,9 @@ profileinstaller = "1.4.1"
 kotlinxSerialization = "1.7.3"
 kotlinxCoroutines = "1.9.0"
 okhttp = "4.12.0"
+jtokkit = "1.1.0"
+# Built on Compose 1.7.3, as Butler is; later ones pull in Compose 1.8+.
+richeditor = "1.0.0-rc11"
 supabase = "3.0.3"
 ktor = "3.0.2"
 securityCrypto = "1.1.0-alpha06"
@@ -60,6 +63,10 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+# Token counts as the website makes them (OpenAI's cl100k), for a character's definition.
+jtokkit = { group = "com.knuddels", name = "jtokkit", version.ref = "jtokkit" }
+# The bio and description editor: rich text as you type, read from and written to HTML.
+richeditor-compose = { group = "com.mohamedrejeb.richeditor", name = "richeditor-compose", version.ref = "richeditor" }
 supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
 supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
 supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }

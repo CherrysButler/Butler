@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -62,6 +64,8 @@ data class PersonaForm(
     val name: String = "",
     val appearance: String = "",
     val aboutMe: String = "",
+    /** The profile only: its public page's look. */
+    val style: com.cherry.butler.core.data.ProfileStyle = com.cherry.butler.core.data.ProfileStyle(),
     /** Null: a saved set Butler has no button for, kept as it is unless another is picked. */
     val pronouns: PronounSet? = PronounSet.None,
     /** What is saved now. */
@@ -85,7 +89,11 @@ class PersonaEditorViewModel @Inject constructor(
     private val personas: PersonaRepository,
     private val writer: com.cherry.butler.core.generation.DescriptionWriter,
     private val transfer: com.cherry.butler.core.data.PersonaTransfer,
+    private val pictures: com.cherry.butler.core.data.PictureUpload,
 ) : ViewModel() {
+
+    /** A picture for the bio, from the media library once Janitor approves it. */
+    suspend fun uploadBioPicture(uri: Uri, onStage: (com.cherry.butler.core.data.PictureUpload.MediaStage) -> Unit) = pictures.uploadMedia(uri, onStage)
 
     /** The description writer (the ✦): which presets can write, and the run under way. */
     data class Enhance(
@@ -169,6 +177,7 @@ class PersonaEditorViewModel @Inject constructor(
                         name = p.name,
                         appearance = p.appearance.orEmpty(),
                         aboutMe = p.aboutMe.orEmpty(),
+                        style = com.cherry.butler.core.data.ProfileStyle.of(p.style),
                         pictureUrl = personas.options.value.firstOrNull { it.id == null }?.avatarUrl ?: p.avatar,
                         loaded = true,
                     )
@@ -198,6 +207,7 @@ class PersonaEditorViewModel @Inject constructor(
             pronouns = f.pronouns,
             picture = f.newPicture,
             aboutMe = f.aboutMe.takeIf { isDefault },
+            style = f.style.takeIf { isDefault },
         )
         viewModelScope.launch {
             _form.update { it.copy(saving = true, error = null) }
@@ -358,15 +368,98 @@ fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = 
             onUndo = viewModel::undoEnhance,
         )
         if (viewModel.isDefault) {
-            FieldBlock(
+            com.cherry.butler.ui.components.RichHtmlEditor(
                 label = "About me, on your public profile",
-                value = form.aboutMe,
+                html = form.aboutMe,
                 onChange = { v -> viewModel.update { it.copy(aboutMe = v) } },
-                singleLine = false,
-                minLines = 3,
-                textStyle = MaterialTheme.typography.bodyMedium,
+                enabled = !form.saving,
+                minLines = 4,
+                uploadPicture = viewModel::uploadBioPicture,
+            )
+            ProfilePageLook(
+                style = form.style,
+                onChange = { st -> viewModel.update { it.copy(style = st) } },
+                enabled = !form.saving,
             )
         }
+    }
+}
+
+/**
+ * The public profile page's look, as the website keeps it: a page colour, a text colour and a
+ * stylesheet. Janitor shows them to everyone who opens the profile; Butler draws them on
+ * creator pages too.
+ */
+@Composable
+private fun ProfilePageLook(
+    style: com.cherry.butler.core.data.ProfileStyle,
+    onChange: (com.cherry.butler.core.data.ProfileStyle) -> Unit,
+    enabled: Boolean,
+) {
+    var picking by remember { mutableStateOf<String?>(null) }
+    Text(
+        "Your profile page",
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 2.dp),
+    )
+    Text(
+        "How your page looks to everyone who opens it.",
+        style = MaterialTheme.typography.labelMedium,
+        color = ButlerTheme.colors.textLow,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+    ColorChoice("Page colour", style.backgroundColor, enabled, onPick = { picking = "page" }, onClear = { onChange(style.copy(backgroundColor = "")) })
+    ColorChoice("Text colour", style.textColor, enabled, onPick = { picking = "text" }, onClear = { onChange(style.copy(textColor = "")) })
+    FieldBlock(
+        label = "Custom CSS",
+        value = style.css,
+        onChange = { v -> onChange(style.copy(css = v)) },
+        singleLine = false,
+        minLines = 4,
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+    )
+    picking?.let { which ->
+        val now = if (which == "page") style.backgroundColor else style.textColor
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = if (which == "page") "Page colour" else "Text colour",
+            initial = com.cherry.butler.core.markdown.RichHtml.parseColor(now)?.let { androidx.compose.ui.graphics.Color(it) }
+                ?: if (which == "page") MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
+            recent = emptyList(),
+            onPick = { argb ->
+                val hex = "#%06X".format(argb and 0xFFFFFF)
+                picking = null
+                onChange(if (which == "page") style.copy(backgroundColor = hex) else style.copy(textColor = hex))
+            },
+            onDismiss = { picking = null },
+        )
+    }
+}
+
+/** One colour of the page: its swatch and value, a tap to change it, and Clear for none. */
+@Composable
+private fun ColorChoice(label: String, value: String, enabled: Boolean, onPick: () -> Unit, onClear: () -> Unit) {
+    val color = com.cherry.butler.core.markdown.RichHtml.parseColor(value)?.let { androidx.compose.ui.graphics.Color(it) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onPick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(MaterialTheme.shapes.small)
+                .then(if (color != null) Modifier.background(color) else Modifier)
+                .border(1.dp, ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small),
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(if (color == null) "Website default" else value.uppercase(), style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow)
+        }
+        if (color != null) TextKey("Clear", onClick = onClear)
     }
 }
 

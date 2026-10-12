@@ -69,6 +69,14 @@ object JanitorConfig {
     // Cloudflare Turnstile site key for the auth challenge (public site key).
     const val TURNSTILE_SITE_KEY = "0x4AAAAAAAMttfE31t8DPXZ8"
 
+    /**
+     * The check before a character is created or its definition saved: the website's character
+     * form renders Turnstile with this key and action and sends the token as
+     * `x-character-turnstile-token`, a fresh one per save (read 2026-10-12).
+     */
+    const val CHARACTER_TURNSTILE_SITE_KEY = "0x4AAAAAAE0K8d5zr3n9VR9Q"
+    const val CHARACTER_TURNSTILE_ACTION = "character-save"
+
     // OAuth deep-link scheme/host. Must match the intent-filter in AndroidManifest.xml
     // and the Auth plugin config in SupabaseModule — all three read from here.
     const val OAUTH_SCHEME = "janitor"

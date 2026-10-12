@@ -2,6 +2,7 @@ package com.cherry.butler.feature.character
 
 import androidx.compose.material.icons.rounded.PersonOff
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.derivedStateOf
@@ -118,10 +119,14 @@ fun CharacterDetailScreen(
     onOpenCharacter: (String) -> Unit = {},
     onSeeAllPublished: (characterId: String, name: String) -> Unit = { _, _ -> },
     onOpenCreator: (userId: String) -> Unit = {},
+    /** Opens the editor on this character; offered when it's yours. */
+    onEditCharacter: (String) -> Unit = {},
     viewModel: CharacterDetailViewModel = hiltViewModel(),
 ) {
     val mirror by viewModel.mirror.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val myId by viewModel.myId.collectAsStateWithLifecycle()
+    val mine = myId != null && state.detail?.creatorId == myId
     val context = androidx.compose.ui.platform.LocalContext.current
     val persona by viewModel.persona.collectAsStateWithLifecycle()
     val personaOptions by viewModel.personaOptions.collectAsStateWithLifecycle()
@@ -185,7 +190,8 @@ fun CharacterDetailScreen(
                 favoriteCount = state.favoriteCount,
                 onFavorite = viewModel::toggleFavorite,
                 creatorName = header?.creatorName,
-                onBlock = { creator -> blocking = creator },
+                onBlock = if (mine) null else ({ creator -> blocking = creator }),
+                onEdit = if (mine) ({ onEditCharacter(viewModel.characterId) }) else null,
                 onShare = header?.let { h -> { shareCharacter(context, viewModel.characterId, h.name) } },
             )
             state.socialError?.let { msg ->
@@ -257,6 +263,8 @@ private fun TopBar(
     onBlock: ((Boolean) -> Unit)? = null,
     /** Hands the character's page on Janitor to the phone's share sheet. */
     onShare: (() -> Unit)? = null,
+    /** Your own character: the pencil to its editor. */
+    onEdit: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -318,6 +326,11 @@ private fun TopBar(
         if (onShare != null) {
             IconButton(onClick = onShare) {
                 Icon(Icons.Rounded.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
+            }
+        }
+        if (onEdit != null) {
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Rounded.Edit, contentDescription = "Edit character", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
         if (onBlock != null) {

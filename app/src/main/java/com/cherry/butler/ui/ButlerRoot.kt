@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import com.cherry.butler.core.data.LocalLastPlace
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -163,7 +164,11 @@ fun ButlerRoot() {
                                 onOpenPublished = { navController.navigate(Routes.published(it)) },
                                 onOpenCharacter = { navController.navigate(Routes.character(it)) },
                             )
-                            TopLevelDestination.Profile -> ProfileScreen(contentPadding = innerPadding, onEditPersona = { navController.navigate(Routes.persona(it)) })
+                            TopLevelDestination.Profile -> ProfileScreen(
+                                contentPadding = innerPadding,
+                                onEditPersona = { navController.navigate(Routes.persona(it)) },
+                                onOpenMyCharacters = { navController.navigate(Routes.MY_CHARACTERS) },
+                            )
                             TopLevelDestination.Settings -> SettingsScreen(
                                 contentPadding = innerPadding,
                                 onEditProxy = { navController.navigate(Routes.proxy(it)) },
@@ -281,6 +286,29 @@ fun ButlerRoot() {
                         onOpenCharacter = { navController.navigate(Routes.character(it)) },
                         onSeeAllPublished = { id, name -> navController.navigate(Routes.publishedList(id, name)) },
                         onOpenCreator = { navController.navigate(Routes.creator(it)) },
+                        onEditCharacter = { navController.navigate(Routes.characterEditor(it)) },
+                    )
+                }
+                composable(route = Routes.MY_CHARACTERS) { entry ->
+                    // The editor leaves a mark here when it saved, so the list asks again.
+                    val saved by entry.savedStateHandle.getStateFlow(STUDIO_SAVED, 0).collectAsState()
+                    com.cherry.butler.feature.studio.MyCharactersScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenCharacter = { navController.navigate(Routes.character(it)) },
+                        onEdit = { navController.navigate(Routes.characterEditor(it)) },
+                        refreshKey = saved,
+                    )
+                }
+                composable(
+                    route = Routes.CHARACTER_EDITOR,
+                    arguments = listOf(navArgument("characterId") { type = NavType.StringType }),
+                ) {
+                    com.cherry.butler.feature.studio.CharacterEditorScreen(
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            navController.previousBackStackEntry?.savedStateHandle?.let { h -> h[STUDIO_SAVED] = (h.get<Int>(STUDIO_SAVED) ?: 0) + 1 }
+                            navController.popBackStack()
+                        },
                     )
                 }
                 composable(
@@ -395,3 +423,6 @@ private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestinat
         }
     }
 }
+
+/** The mark the character editor leaves on Your characters after a save. */
+private const val STUDIO_SAVED = "studio_saved"

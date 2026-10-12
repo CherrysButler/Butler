@@ -36,7 +36,40 @@ data class PersonaDraft(
     val picture: Uri?,
     /** The profile only: its public bio. */
     val aboutMe: String? = null,
+    /** The profile only: its public page's look; null leaves it alone. */
+    val style: ProfileStyle? = null,
 )
+
+/**
+ * The public profile page's look, as Butler edits it: the stylesheet and two colours (`#RRGGBB`,
+ * or blank for none). The background picture and its opacity are kept as they are.
+ */
+data class ProfileStyle(
+    val css: String = "",
+    val textColor: String = "",
+    val backgroundColor: String = "",
+) {
+    /** [saved] with these three put in, every other key as it was. */
+    fun into(saved: kotlinx.serialization.json.JsonObject?): kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(
+            saved.orEmpty() + mapOf(
+                KEY_CSS to JsonPrimitive(css),
+                KEY_TEXT to JsonPrimitive(textColor.trim()),
+                KEY_BACKGROUND to JsonPrimitive(backgroundColor.trim()),
+            ),
+        )
+
+    companion object {
+        const val KEY_CSS = "custom_style"
+        const val KEY_TEXT = "text_color"
+        const val KEY_BACKGROUND = "background_color"
+
+        fun of(saved: kotlinx.serialization.json.JsonObject?): ProfileStyle {
+            fun text(key: String) = (saved?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
+            return ProfileStyle(css = text(KEY_CSS), textColor = text(KEY_TEXT), backgroundColor = text(KEY_BACKGROUND))
+        }
+    }
+}
 
 /**
  * Creating, editing and deleting personas, and editing the profile, which is the default
@@ -100,6 +133,9 @@ class PersonaEditing @Inject constructor(
         if (name.isNotEmpty() && name != now.name) remote.patchMine(buildJsonObject { put("name", JsonPrimitive(name)) })
         if (draft.appearance != now.appearance.orEmpty()) remote.patchMine(buildJsonObject { put("profile", JsonPrimitive(draft.appearance)) })
         if (draft.aboutMe != null && draft.aboutMe != now.aboutMe.orEmpty()) remote.patchMine(buildJsonObject { put("about_me", JsonPrimitive(draft.aboutMe)) })
+        // The whole style object goes back, so keys Butler doesn't edit (the background
+        // picture, its opacity) survive whether Janitor merges a partial style or replaces it.
+        if (draft.style != null && draft.style != ProfileStyle.of(now.style)) remote.patchMine(buildJsonObject { put("style", draft.style.into(now.style)) })
         try {
             draft.picture?.let { uri ->
                 val file = pictures.upload(uri, "profile-avatar")

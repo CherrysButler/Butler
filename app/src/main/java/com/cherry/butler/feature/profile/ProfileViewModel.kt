@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.cherry.butler.core.auth.AccountService
 import com.cherry.butler.core.data.PersonaOption
 import com.cherry.butler.core.data.PersonaRepository
 import com.cherry.butler.core.data.PersonaSwap
@@ -40,14 +39,10 @@ internal fun personaFile(personas: List<TransferPersona>, format: PersonaExportF
     return "$stem.${format.extension}" to text
 }
 
-/** What signing out would cost, asked before it happens. */
-data class SignOutCheck(val unsent: Int)
-
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val profile: ProfileRepository,
     private val personas: PersonaRepository,
-    private val account: AccountService,
     private val swap: PersonaSwap,
     private val transfer: PersonaTransfer,
 ) : ViewModel() {
@@ -227,12 +222,6 @@ class ProfileViewModel @Inject constructor(
     private val _error = MutableStateFlow<ApiError?>(null)
     val error: StateFlow<ApiError?> = _error.asStateFlow()
 
-    private val _signOutCheck = MutableStateFlow<SignOutCheck?>(null)
-    val signOutCheck: StateFlow<SignOutCheck?> = _signOutCheck.asStateFlow()
-
-    private val _signingOut = MutableStateFlow(false)
-    val signingOut: StateFlow<Boolean> = _signingOut.asStateFlow()
-
     init {
         refresh(force = false)
         // A persona made or deleted in the editor changes the figure over the list.
@@ -257,24 +246,4 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun choose(option: PersonaOption) = personas.select(option.id)
-
-    /** Step one: find out what would be lost, so the dialog can say it. */
-    fun askSignOut() {
-        viewModelScope.launch { _signOutCheck.value = SignOutCheck(runCatching { account.unsentCount() }.getOrDefault(0)) }
-    }
-
-    fun cancelSignOut() {
-        _signOutCheck.value = null
-    }
-
-    fun signOut() {
-        if (_signingOut.value) return
-        viewModelScope.launch {
-            _signingOut.value = true
-            _signOutCheck.value = null
-            runCatching { account.signOut() }
-                .onFailure { _error.value = it as? ApiError ?: ApiError.Unknown(it) }
-            _signingOut.value = false
-        }
-    }
 }

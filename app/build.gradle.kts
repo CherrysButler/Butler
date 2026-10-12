@@ -122,6 +122,8 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // JTokkit's other token tables (5 MB): only cl100k is read (CharacterDraft.TokenCounts).
+            excludes += "/com/knuddels/jtokkit/{o200k_base,p50k_base,r50k_base}.tiktoken"
         }
     }
 }
@@ -154,6 +156,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
+    implementation(libs.jtokkit)
+    implementation(libs.richeditor.compose)
     implementation(libs.okhttp.logging)
 
     // Supabase (auth today; postgrest/realtime land with browse + chat)

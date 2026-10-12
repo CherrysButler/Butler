@@ -283,6 +283,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.okhttp)
+    implementation(libs.jtokkit)
+    implementation(libs.richeditor.compose)
     implementation(libs.okhttp.logging)
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.auth)

@@ -137,3 +137,7 @@ private object SkiaImages {
         }
     }
 }
+
+/** Coil 2's painter for a picture inside other drawing (the rich editor's), by Coil 3. */
+@Composable
+fun rememberAsyncImagePainter(model: Any?): Painter = coil3.compose.rememberAsyncImagePainter(coil.request.ImageRequest.unwrap(model))

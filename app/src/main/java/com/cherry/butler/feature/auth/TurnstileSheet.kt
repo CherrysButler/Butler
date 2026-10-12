@@ -43,7 +43,7 @@ import com.cherry.butler.ui.components.SheetScrim
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
+fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: TurnstileCheck = TurnstileCheck.SignIn) {
     val dark = !MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue > 1.5f }
     var failure by remember { mutableStateOf<String?>(null) }
     val deliver by rememberUpdatedState(onToken)
@@ -57,13 +57,13 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
         Column(modifier = Modifier.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             Text("One moment", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                text = "Janitor asks Cloudflare to check that you're a person before an e-mail sign-in. This usually passes on its own.",
+                text = check.body,
                 style = MaterialTheme.typography.bodySmall,
                 color = ButlerTheme.colors.textMed,
                 modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
             )
             Box(modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp), contentAlignment = Alignment.Center) {
-                TurnstileView(dark = dark, onToken = { deliver(it) }, onError = { failure = it })
+                TurnstileView(dark = dark, check = check, onToken = { deliver(it) }, onError = { failure = it })
             }
             failure?.let {
                 Text(
@@ -79,7 +79,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (String) -> Unit) {
+private fun TurnstileView(dark: Boolean, check: TurnstileCheck, onToken: (String) -> Unit, onError: (String) -> Unit) {
     AndroidView(
         modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp),
         factory = { context ->
@@ -101,7 +101,7 @@ private fun TurnstileView(dark: Boolean, onToken: (String) -> Unit, onError: (St
                     @JavascriptInterface fun onError(code: String) = post { onError(code) }
                 }, "Butler")
                 // The origin is what the site key is bound to; the page itself is Butler's.
-                loadDataWithBaseURL("https://janitorai.com/", turnstilePage(dark), "text/html", "utf-8", null)
+                loadDataWithBaseURL("https://janitorai.com/", turnstilePage(dark, check), "text/html", "utf-8", null)
             }
         },
         // The clearance can land a moment after the token; take whatever arrived by the time

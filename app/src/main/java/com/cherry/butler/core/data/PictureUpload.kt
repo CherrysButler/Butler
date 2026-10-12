@@ -30,14 +30,21 @@ import kotlin.math.max
 class PictureUpload @Inject constructor(
     @ApplicationContext private val context: Context,
     private val remote: ProfileRemoteSource,
+    private val media: com.cherry.butler.core.data.remote.MediaRemoteSource,
     client: OkHttpClient,
 ) {
+    /** A picture in the media library, approved: its address and size, for an `<img>`. */
+    data class MediaPicture(val url: String, val width: Int, val height: Int)
+
+    /** Where a media upload is: on its way to Janitor, being checked by it, or in. */
+    enum class MediaStage { Uploading, Moderating, Done }
+
     /** The presigned URL breaks if Janitor's headers are added to it. */
     private val plain: OkHttpClient = client.newBuilder().apply { interceptors().clear() }.addInterceptor(com.cherry.butler.core.network.ButlerUserAgent).build()
 
     /** [type] is `avatar` for a persona, `profile-avatar` for the profile (§29). */
     suspend fun upload(uri: Uri, type: String): String = withContext(Dispatchers.IO) {
-        val bytes = encode(uri)
+        val bytes = encode(uri).bytes
         val slot = remote.uploadSlot(type, "webp")
         val put = Request.Builder().url(slot.url).put(bytes.toRequestBody("image/webp".toMediaType())).build()
         plain.newCall(put).execute().use {
@@ -46,7 +53,52 @@ class PictureUpload @Inject constructor(
         slot.filename
     }
 
-    private fun encode(uri: Uri): ByteArray {
+    /**
+     * A picture for a bio or a description: into the media library (see MediaRemoteSource),
+     * then waited on while Janitor's moderation looks at it, as the website's editor waits.
+     * Throws when it's turned down or still unchecked after [MODERATION_WAIT_MS].
+     */
+    suspend fun uploadMedia(uri: Uri, onStage: (MediaStage) -> Unit = {}): MediaPicture = withContext(Dispatchers.IO) {
+        var stage = MediaStage.Uploading
+        try {
+            onStage(stage)
+            mediaSteps(uri) { stage = it; onStage(it) }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            com.cherry.butler.core.diagnostics.Diagnostics.record("media", "${stage.name}: ${e.javaClass.simpleName} ${e.message}")
+            throw e
+        }
+    }
+
+    private suspend fun mediaSteps(uri: Uri, onStage: (MediaStage) -> Unit): MediaPicture {
+        val picture = encode(uri)
+        val file = media.newFile("image/webp", "picture-${System.currentTimeMillis()}.webp")
+        val put = Request.Builder().url(file.url).put(picture.bytes.toRequestBody("image/webp".toMediaType())).build()
+        plain.newCall(put).execute().use {
+            if (!it.isSuccessful) throw ApiError.Api(code = it.code, janitorCode = "BUTLER_UPLOAD", serverMessage = "Janitor's picture storage turned it away (${it.code}).")
+        }
+        media.uploaded(file.id)
+        onStage(MediaStage.Moderating)
+        val until = System.currentTimeMillis() + MODERATION_WAIT_MS
+        while (true) {
+            kotlinx.coroutines.delay(MODERATION_POLL_MS)
+            val m = media.moderation(file.id)
+            when {
+                m.status == "approved" && m.url != null -> {
+                    onStage(MediaStage.Done)
+                    return MediaPicture(m.url, picture.width, picture.height)
+                }
+                m.status != "pending" && m.status.isNotBlank() ->
+                    throw ApiError.Api(code = 0, janitorCode = "BUTLER_MODERATION", serverMessage = "Janitor didn't approve that picture.")
+                System.currentTimeMillis() > until ->
+                    throw ApiError.Api(code = 0, janitorCode = "BUTLER_MODERATION", serverMessage = "Janitor is still checking the picture. Try adding it again in a minute.")
+            }
+        }
+    }
+
+    private class Encoded(val bytes: ByteArray, val width: Int, val height: Int)
+
+    private fun encode(uri: Uri): Encoded {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         val longSide = max(bounds.outWidth, bounds.outHeight)
@@ -69,8 +121,9 @@ class PictureUpload @Inject constructor(
         @Suppress("DEPRECATION")
         val format = if (Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else Bitmap.CompressFormat.WEBP
         bitmap.compress(format, 90, out)
+        val (w, h) = bitmap.width to bitmap.height
         bitmap.recycle()
-        return out.toByteArray()
+        return Encoded(out.toByteArray(), w, h)
     }
 
     /** The rotation and mirroring the file's EXIF tag asks for; identity when it has none. */
@@ -93,5 +146,7 @@ class PictureUpload @Inject constructor(
 
     private companion object {
         const val MAX_SIDE = 1024
+        const val MODERATION_POLL_MS = 2_500L
+        const val MODERATION_WAIT_MS = 60_000L
     }
 }

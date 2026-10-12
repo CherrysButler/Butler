@@ -33,8 +33,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -386,7 +389,11 @@ private fun PaneNav(
                         onOpenPublished = { navController.navigate(Routes.published(it)) },
                         onOpenCharacter = onCharacter,
                     )
-                    TopLevelDestination.Profile -> ProfileScreen(contentPadding = none, onEditPersona = { navController.navigate(Routes.persona(it)) })
+                    TopLevelDestination.Profile -> ProfileScreen(
+                        contentPadding = none,
+                        onEditPersona = { navController.navigate(Routes.persona(it)) },
+                        onOpenMyCharacters = { navController.navigate(Routes.MY_CHARACTERS) },
+                    )
                     TopLevelDestination.Settings -> SettingsSection(navController, paneWidth)
                 }
             }
@@ -426,7 +433,50 @@ private fun PaneNav(
                 onOpenCharacter = onCharacter,
                 onSeeAllPublished = { id, name -> navController.navigate(Routes.publishedList(id, name)) },
                 onOpenCreator = { navController.navigate(Routes.creator(it)) },
+                onEditCharacter = { navController.navigate(Routes.characterEditor(it)) },
             )
+        }
+        composable(Routes.MY_CHARACTERS) { entry ->
+            // The editor leaves a mark here when it saved, so the list asks again.
+            val saved by entry.savedStateHandle.getStateFlow(STUDIO_SAVED, 0).collectAsState()
+            com.cherry.butler.feature.studio.MyCharactersScreen(
+                onBack = { navController.popBackStack() },
+                onOpenCharacter = onCharacter,
+                onEdit = { navController.navigate(Routes.characterEditor(it)) },
+                refreshKey = saved,
+            )
+        }
+        composable(Routes.CHARACTER_EDITOR, arguments = listOf(navArgument("characterId") { type = NavType.StringType })) {
+            // The chat's light, here as well, warm and breathing the whole time a character is
+            // being written: the chapter being written is the column, the rail and the card
+            // side are the room either side where its pools drift.
+            val light = LocalChatLight.current
+            DisposableEffect(light) {
+                light?.on = true
+                light?.warm = true
+                onDispose { light?.on = false; light?.warm = false }
+            }
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            Box(
+                Modifier.fillMaxSize().onGloballyPositioned { c ->
+                    val l = light ?: return@onGloballyPositioned
+                    val x = c.positionInRoot().x
+                    val w = c.size.width.toFloat()
+                    // The editor's own measures (CharacterEditorScreen): a 220 dp rail and a 276 dp
+                    // card column beside the chapter from 840 dp; narrower, the chapter is everything.
+                    val wide = with(density) { w.toDp() } >= 840.dp
+                    l.left = x + if (wide) with(density) { 221.dp.toPx() } else 0f
+                    l.right = x + w - if (wide) with(density) { 277.dp.toPx() } else 0f
+                },
+            ) {
+                com.cherry.butler.feature.studio.CharacterEditorScreen(
+                    onBack = { navController.popBackStack() },
+                    onSaved = {
+                        navController.previousBackStackEntry?.savedStateHandle?.let { h -> h[STUDIO_SAVED] = (h.get<Int>(STUDIO_SAVED) ?: 0) + 1 }
+                        navController.popBackStack()
+                    },
+                )
+            }
         }
         composable(Routes.CREATOR, arguments = listOf(navArgument(Routes.ARG_USER_ID) { type = NavType.StringType })) {
             com.cherry.butler.feature.creator.CreatorScreen(onBack = { navController.popBackStack() }, onOpenCharacter = onCharacter)
@@ -544,6 +594,7 @@ private fun CharacterPanel(
                     onOpenCharacter = onCharacter,
                     onSeeAllPublished = { id, name -> onNavigate(Routes.publishedList(id, name)) },
                     onOpenCreator = { onNavigate(Routes.creator(it)) },
+                    onEditCharacter = { onNavigate(Routes.characterEditor(it)) },
                 )
             }
         }
@@ -581,3 +632,6 @@ private fun RememberPlace(
         lastPlace.record(tab.route, detail)
     }
 }
+
+/** The mark the character editor leaves on Your characters after a save. */
+private const val STUDIO_SAVED = "studio_saved"

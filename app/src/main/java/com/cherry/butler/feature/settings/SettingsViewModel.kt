@@ -33,6 +33,9 @@ import javax.inject.Inject
  * re-renders from what the server sends back, so what is shown is what generations use.
  * A refused write leaves the old value on screen and says why.
  */
+/** What signing out would cost, asked before it happens. */
+data class SignOutCheck(val unsent: Int)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
@@ -50,7 +53,36 @@ class SettingsViewModel @Inject constructor(
     private val agent: com.cherry.butler.core.data.AgentPrefs,
     private val textLook: com.cherry.butler.core.data.TextLookPrefs,
     private val profiles: com.cherry.butler.core.data.LookProfiles,
+    private val account: com.cherry.butler.core.auth.AccountService,
 ) : ViewModel() {
+
+    // ---- signing out -------------------------------------------------------------------
+
+    /** What signing out would cost (messages not yet on Janitor), asked before it happens. */
+    private val _signOutCheck = MutableStateFlow<SignOutCheck?>(null)
+    val signOutCheck: StateFlow<SignOutCheck?> = _signOutCheck.asStateFlow()
+
+    private val _signingOut = MutableStateFlow(false)
+    val signingOut: StateFlow<Boolean> = _signingOut.asStateFlow()
+
+    /** Step one: find out what would be lost, so the dialog can say it. */
+    fun askSignOut() {
+        viewModelScope.launch { _signOutCheck.value = SignOutCheck(runCatching { account.unsentCount() }.getOrDefault(0)) }
+    }
+
+    fun cancelSignOut() {
+        _signOutCheck.value = null
+    }
+
+    fun signOut() {
+        if (_signingOut.value) return
+        viewModelScope.launch {
+            _signingOut.value = true
+            _signOutCheck.value = null
+            runCatching { account.signOut() }.onFailure { _notices.trySend("Couldn’t sign out. ${it.userMessage()}") }
+            _signingOut.value = false
+        }
+    }
 
     /** Agent mode (beta): a reply drafted, checked against goals, fixed, then delivered. */
     val agentOn: StateFlow<Boolean> = agent.enabled

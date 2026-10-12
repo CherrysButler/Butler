@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
@@ -75,6 +74,8 @@ fun ProfileScreen(
     contentPadding: PaddingValues,
     /** A persona's id, "default" for the profile, or "new". */
     onEditPersona: (String) -> Unit = {},
+    /** The characters you made, private ones too. */
+    onOpenMyCharacters: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val me by viewModel.me.collectAsStateWithLifecycle()
@@ -83,8 +84,6 @@ fun ProfileScreen(
     val current by viewModel.current.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    val check by viewModel.signOutCheck.collectAsStateWithLifecycle()
-    val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
     val swap by viewModel.swapFlow.collectAsStateWithLifecycle()
 
     swap?.let { flow ->
@@ -94,23 +93,6 @@ fun ProfileScreen(
             onRevert = viewModel::revertSwap,
             onContinueWithoutPicture = viewModel::continueWithoutPicture,
             onClose = viewModel::closeSwap,
-        )
-    }
-
-    check?.let { c ->
-        DeleteConfirmDialog(
-            count = 1,
-            title = "Sign out",
-            body = buildString {
-                append("Your chats stay on Janitor. This ${com.cherry.butler.core.platform.Device.NAME} forgets them, and your settings, until you sign in again.")
-                if (c.unsent > 0) {
-                    append("\n\n")
-                    append(if (c.unsent == 1) "1 message you wrote hasn't reached Janitor yet and will be lost." else "${c.unsent} messages you wrote haven't reached Janitor yet and will be lost.")
-                }
-            },
-            confirmLabel = "Sign out",
-            onConfirm = viewModel::signOut,
-            onDismiss = viewModel::cancelSignOut,
         )
     }
 
@@ -206,6 +188,22 @@ fun ProfileScreen(
                     }
                 } else {
                     Header(p, counts, avatarUrl = options.firstOrNull { it.id == null }?.avatarUrl ?: p.avatar)
+                    // Your own page and your own characters, each a tap from the top.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        com.cherry.butler.feature.chats.KeyButton(
+                            "Edit profile",
+                            onClick = { onEditPersona("default") },
+                            modifier = Modifier.weight(1f),
+                        )
+                        com.cherry.butler.feature.chats.KeyButton(
+                            counts?.characterCount?.takeIf { it > 0 }?.let { "Your characters · $it" } ?: "Your characters",
+                            onClick = onOpenMyCharacters,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     p.aboutMe?.takeIf { it.isNotBlank() }?.let { about ->
                         SettingsSection(title = "About") {
                             DescriptionText(
@@ -294,9 +292,6 @@ fun ProfileScreen(
                     Text(it, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.danger, modifier = Modifier.padding(start = 28.dp, end = 16.dp, top = 10.dp))
                 }
 
-                SettingsSection(title = "Account") {
-                    ChoiceRowSignOut(signingOut = signingOut, onClick = viewModel::askSignOut)
-                }
             }
         }
     }
@@ -631,26 +626,6 @@ private fun GroupDialog(start: GroupEdit, onSave: (name: String, color: String) 
             recent = emptyList(),
             onPick = { argb -> wheel = false; color = "#%06X".format(argb and 0xFFFFFF) },
             onDismiss = { wheel = false },
-        )
-    }
-}
-
-@Composable
-private fun ChoiceRowSignOut(signingOut: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = !signingOut, onClick = onClick)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null, tint = ButlerTheme.colors.danger, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(14.dp))
-        Text(
-            text = if (signingOut) "Signing out…" else "Sign out",
-            style = MaterialTheme.typography.titleMedium,
-            color = ButlerTheme.colors.danger,
         )
     }
 }

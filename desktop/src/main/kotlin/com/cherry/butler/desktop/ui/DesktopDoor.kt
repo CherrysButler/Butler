@@ -91,13 +91,14 @@ private val LocalDoorOverlay = androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * Shows [content] over the whole door (a panel the form asks for, like the human check),
- * rather than inside the form's column. Outside the door it draws in place.
+ * rather than inside the form's column. Outside the door (the character editor's check) it
+ * goes on a layer over the whole window, above every field: drawn in place, it sat among them.
  */
 @Composable
 fun DoorOverlay(content: @Composable () -> Unit) {
     val host = LocalDoorOverlay.current
     if (host == null) {
-        content()
+        androidx.compose.ui.window.Popup(properties = androidx.compose.ui.window.PopupProperties(focusable = true)) { content() }
         return
     }
     val latest = androidx.compose.runtime.rememberUpdatedState(content)

@@ -2459,3 +2459,40 @@ the account across phones and sign-outs; the phone's `group_marks` rows are rebu
 none of these writes (their writes: messages, chats, generateAlpha, reviews, api-settings,
 prompt library, profile, uploads, notification preferences).
 
+
+## 32. Creating and managing characters, the profile page — ✅ captured from the website 2026-10-12
+
+Since 2026-10-12 `/mb` answers only clients passing Play Integrity, so Butler uses the website's
+`/hampter` base for everything. Captured in a browser on the website's own forms:
+
+| Call | Body | Answer / notes |
+|---|---|---|
+| `GET /characters/v2/mine?page&privacyFilter=all&search&sort=latest\|popular&user_id[]={me}` | — | The browse envelope plus `top_custom_tags`; private ones included. `is_public=true\|false` narrows it; `tag_id[]` filters. |
+| `POST /upload/uploadFile` | `{extension: "webp", type: "bot"}` | `{url, filename}`: PUT the picture to `url`, then send `filename` as `avatar`. |
+| `POST /characters` | the definition (below) | 201 and the new row (`id`, `is_public: false` …). **Needs `x-character-turnstile-token`.** |
+| `PATCH /characters/{id}` | the whole definition | `{id, name}`. **Needs `x-character-turnstile-token`**, fresh per save. |
+| `PATCH /characters/{id}` | one switch: `allow_proxy`, `showdefinition`, `allow_published_chats` | `{id, name}`. No token. |
+| `POST /characters/{id}/publish` | `{desired_new_public_state: true\|false}` | 201, no body. |
+| `GET` / `PUT /reviews/settings/{id}` | `{comment_mode: "open"\|"followed_only"\|"disabled"}` | `{character_id, comment_mode, updated_at}`. |
+| `DELETE /characters/{id}` | — | `{success: true}`; the page is a 404 after. |
+| `PATCH /profiles/mine` | `{about_me, style: {custom_style}}` | `true`. `style` also holds `text_color`, `background_color`, `background_image`, `background_opacity`; Butler sends the whole object back. |
+
+The definition, for both create and edit:
+
+```json
+{ "name", "chat_name", "description", "personality", "scenario", "example_dialogs",
+  "first_message": "",  "first_messages": ["…"], "tag_ids": [6], "custom_tags": [],
+  "is_nsfw": true, "avatar": "uuid.webp", "scheduled_publish_at": null, "silent_publish": null,
+  "token_counts": { "personality_tokens", "scenario_tokens", "example_dialog_tokens",
+                    "first_message_tokens", "first_messages_tokens": [..], "total_tokens" } }
+```
+
+- `first_message` is empty on create; an edit sends the first of `first_messages` in it.
+- The website counts the tokens itself with OpenAI's cl100k (o200k gives the same on every
+  sample): `first_message_tokens` is the longest intro, and `total_tokens` = personality +
+  scenario + example dialogs + that longest intro.
+- The token comes from a Turnstile widget the character form shows in a "save verification"
+  dialog: site key `0x4AAAAAAE0K8d5zr3n9VR9Q` (not the sign-in one), `action: "character-save"`,
+  `retry: "never"`. One token per save; a person passes it.
+- `description` is the public text on the character's page (the website's creator notes).
+  The creation page offers no lorebooks.

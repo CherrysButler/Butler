@@ -45,7 +45,7 @@ import java.io.File
  * User-Agent, and the clearance it earns comes over through [JanitorCookies].
  */
 @Composable
-fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
+fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: TurnstileCheck = TurnstileCheck.SignIn) {
     val dark = !MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue > 1.5f }
     val panel = ButlerTheme.colors.surfaceElevated
     var failure by remember { mutableStateOf<String?>(null) }
@@ -55,7 +55,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
 
     LaunchedEffect(slot != null) {
         val bounds = slot ?: return@LaunchedEffect
-        val result = withContext(Dispatchers.IO) { runCheck(dark, panel, bounds) { process = it } }
+        val result = withContext(Dispatchers.IO) { runCheck(dark, panel, bounds, check) { process = it } }
         when {
             result.startsWith("token ") -> deliver(result.removePrefix("token "))
             else -> failure = result.removePrefix("error ")
@@ -75,7 +75,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
         Column(Modifier.width(360.dp).card().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)) {
             Text("One moment", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(
-                text = "Janitor asks Cloudflare to check that you're a person before an e-mail sign-in. This usually passes on its own.",
+                text = check.body,
                 style = MaterialTheme.typography.bodySmall,
                 color = ButlerTheme.colors.textMed,
                 modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
@@ -103,10 +103,10 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit) {
 }
 
 /** Runs the helper over [slot]; returns "token …" or "error …". Cookies and the agent are taken on the way. */
-private fun runCheck(dark: Boolean, panel: Color, slot: Rect, started: (Process) -> Unit): String {
+private fun runCheck(dark: Boolean, panel: Color, slot: Rect, check: TurnstileCheck, started: (Process) -> Unit): String {
     val exe = helper() ?: return "error helper-missing"
     val page = File.createTempFile("butler-turnstile", ".html").apply {
-        writeText(turnstilePage(dark))
+        writeText(turnstilePage(dark, check))
         deleteOnExit()
     }
     val placement = placement(slot)
