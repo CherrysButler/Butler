@@ -94,6 +94,8 @@ fun NotificationsScreen(
     onOpenCharacter: (String) -> Unit,
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.refresh() }
     val items by viewModel.items.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()

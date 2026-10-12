@@ -82,6 +82,8 @@ fun MyCharactersScreen(
     refreshKey: Int = 0,
     viewModel: MyCharactersViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.reload() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val drafts by viewModel.drafts.collectAsStateWithLifecycle()

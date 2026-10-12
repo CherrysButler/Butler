@@ -284,6 +284,8 @@ class PublishedChatViewModel @Inject constructor(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PublishedChatScreen(onBack: () -> Unit, viewModel: PublishedChatViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val t by viewModel.transcript.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val social by viewModel.social.collectAsStateWithLifecycle()

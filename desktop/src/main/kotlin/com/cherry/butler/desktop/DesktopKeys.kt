@@ -4,8 +4,8 @@ import com.cherry.butler.ui.components.RefreshHandle
 
 /** Window-wide shortcuts that reach into whichever screen is showing. */
 object DesktopKeys {
-    /** The Chats list's refresh, registered by the list itself. */
-    val chats = RefreshHandle()
+    /** The refresh of whatever screen is on show, offered by the screens themselves. */
+    val screen = RefreshHandle()
 
     /** The Chats archive's toggle, registered by the list itself. */
     val chatsArchive = RefreshHandle()

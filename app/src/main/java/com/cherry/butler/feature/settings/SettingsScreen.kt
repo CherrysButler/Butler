@@ -142,6 +142,8 @@ fun SettingsScreen(
     onBack: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.refresh() }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val loadError by viewModel.loadError.collectAsStateWithLifecycle()

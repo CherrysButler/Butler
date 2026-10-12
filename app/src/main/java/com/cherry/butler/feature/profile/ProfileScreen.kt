@@ -78,6 +78,8 @@ fun ProfileScreen(
     onOpenMyCharacters: () -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.refresh() }
     val me by viewModel.me.collectAsStateWithLifecycle()
     val counts by viewModel.counts.collectAsStateWithLifecycle()
     val options by viewModel.options.collectAsStateWithLifecycle()

@@ -123,6 +123,8 @@ fun CharacterDetailScreen(
     onEditCharacter: (String) -> Unit = {},
     viewModel: CharacterDetailViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val mirror by viewModel.mirror.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val myId by viewModel.myId.collectAsStateWithLifecycle()

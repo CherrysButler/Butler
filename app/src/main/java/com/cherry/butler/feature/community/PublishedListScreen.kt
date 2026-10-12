@@ -74,6 +74,8 @@ class PublishedListViewModel @Inject constructor(
 
 @Composable
 fun PublishedListScreen(onBack: () -> Unit, onOpen: (String) -> Unit, viewModel: PublishedListViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {

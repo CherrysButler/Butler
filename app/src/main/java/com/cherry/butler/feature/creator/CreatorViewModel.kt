@@ -73,6 +73,14 @@ class CreatorViewModel @Inject constructor(
         }
     }
 
+    /** Everything again from the top: the profile, the characters, the lorebooks. */
+    fun refresh() {
+        _state.update { it.copy(characters = Shelf(), lorebooks = Shelf()) }
+        loadProfile()
+        moreCharacters()
+        moreLorebooks()
+    }
+
     fun moreCharacters() {
         val shelf = _state.value.characters
         if (shelf.loading || shelf.end) return

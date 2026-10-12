@@ -79,6 +79,8 @@ fun CreatorScreen(
     onOpenCharacter: (String) -> Unit,
     viewModel: CreatorViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.refresh() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val profile = state.profile
     val looks = state.looks

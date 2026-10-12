@@ -68,6 +68,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun DesktopBrowse(onCharacterClick: (String) -> Unit, viewModel: BrowseViewModel = hiltViewModel()) {
     val characters = viewModel.characters.collectAsLazyPagingItems()
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { if (viewModel.paged.value) viewModel.retryPage() else characters.refresh() }
     // The first page has landed: the window's splash can hand over (StartupSplash).
     val landed = characters.itemCount > 0
     LaunchedEffect(landed) { if (landed) DesktopStartup.contentReady() }

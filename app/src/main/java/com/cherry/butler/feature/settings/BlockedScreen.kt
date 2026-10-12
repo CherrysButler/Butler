@@ -117,6 +117,8 @@ class BlockedViewModel @Inject constructor(private val repository: BlockReposito
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BlockedScreen(onBack: () -> Unit, viewModel: BlockedViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val blocks by viewModel.blocks.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()

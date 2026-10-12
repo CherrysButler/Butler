@@ -8,22 +8,38 @@ import androidx.compose.runtime.staticCompositionLocalOf
 /**
  * A screen's refresh, held where a keyboard shortcut can reach it (Ctrl+R or F5 on the
  * desktop). On the phone nothing provides one, and a pull still refreshes as before.
+ *
+ * Screens offer theirs as they come into view and take it back as they go; the newest one on
+ * offer is the screen on top (a page pushed over another, the character panel beside a list),
+ * and when it goes, the one under it answers again.
  */
 class RefreshHandle {
-    var action: (() -> Unit)? = null
+    private val offered = mutableListOf<() -> Unit>()
+
+    /** What the shortcut runs now: the screen most recently come into view. */
+    val action: (() -> Unit)? get() = synchronized(offered) { offered.lastOrNull() }
+
+    fun offer(action: () -> Unit) = synchronized(offered) { offered += action }
+
+    fun withdraw(action: () -> Unit) = synchronized(offered) { offered.remove(action); Unit }
 }
 
 val LocalRefreshHandle = staticCompositionLocalOf<RefreshHandle?> { null }
 
-/** Offers [action] as this screen's refresh while it is composed. */
+/**
+ * Offers [action] as this screen's refresh while it is on show: while it is composed, and, for
+ * a tab (the tabs stay composed behind each other), while it is the tab selected.
+ */
 @Composable
 fun RegisterRefresh(action: () -> Unit) {
     val handle = LocalRefreshHandle.current ?: return
+    val active = com.cherry.butler.ui.navigation.LocalTabActive.current
     val latest = rememberUpdatedState(action)
-    DisposableEffect(handle) {
+    DisposableEffect(handle, active) {
+        if (!active) return@DisposableEffect onDispose { }
         val registered: () -> Unit = { latest.value() }
-        handle.action = registered
-        onDispose { if (handle.action === registered) handle.action = null }
+        handle.offer(registered)
+        onDispose { handle.withdraw(registered) }
     }
 }
 
@@ -37,7 +53,7 @@ fun RegisterArchive(action: () -> Unit) {
     val latest = rememberUpdatedState(action)
     DisposableEffect(handle) {
         val registered: () -> Unit = { latest.value() }
-        handle.action = registered
-        onDispose { if (handle.action === registered) handle.action = null }
+        handle.offer(registered)
+        onDispose { handle.withdraw(registered) }
     }
 }

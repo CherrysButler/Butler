@@ -70,6 +70,7 @@ class CharacterEditorViewModel @Inject constructor(
     private val pictures: PictureUpload,
     private val profiles: com.cherry.butler.core.data.ProfileRepository,
     private val drafts: com.cherry.butler.core.data.CharacterDrafts,
+    private val notes: com.cherry.butler.core.data.StudioNotes,
 ) : ViewModel() {
 
     /** Your name, for the card's `@creator` line as Browse will show it. */
@@ -228,7 +229,22 @@ class CharacterEditorViewModel @Inject constructor(
     fun removeCustomTag(tag: String) = edit { d -> d.copy(customTags = d.customTags - tag) }
 
     /** Public or private, at once; put back if Janitor says no. */
-    fun setPublic(on: Boolean) = changeLive({ it.copy(isPublic = on) }, { it.copy(isPublic = !on) }) { id -> studio.setPublic(id, on) }
+    fun setPublic(on: Boolean) = changeLive({ it.copy(isPublic = on) }, { it.copy(isPublic = !on) }) { id ->
+        studio.setPublic(id, on)
+        notes.publicSet(id, on)
+    }
+
+    /** The card Your characters shows for [d] until Janitor's list has it. */
+    private suspend fun noteCard(d: CharacterDraft) = com.cherry.butler.core.data.NoteCard(
+        name = d.name.trim(),
+        avatar = d.avatar,
+        blurb = com.cherry.butler.core.markdown.RichHtml.toPlainText(d.description).take(280),
+        isNsfw = d.nsfw,
+        tagNames = d.tagIds.mapNotNull { id -> _tags.value.firstOrNull { it.id == id }?.name },
+        customTags = d.customTags,
+        totalTokens = withContext(Dispatchers.Default) { TokenCounts.of(d).total },
+        creatorName = creatorName.value,
+    )
 
     /** One of the switches (`allow_proxy`, `showdefinition`, `allow_published_chats`), at once. */
     fun setSwitch(key: String, on: Boolean) = changeLive(
@@ -282,8 +298,11 @@ class CharacterEditorViewModel @Inject constructor(
                     id
                 }
             }.onSuccess { id ->
-                // On Janitor now: the device's copy has done its job.
+                // On Janitor now: the device's copy has done its job. Your characters shows it at
+                // once from a note, until Janitor's list (an index that lags) catches up.
                 drafts.delete(draftId)
+                val card = noteCard(f.draft)
+                if (characterId == null) notes.created(id, card) else notes.changed(id, card)
                 _form.update { it.copy(saving = false, dirty = false) }
                 onDone(id)
             }.onFailure { e ->

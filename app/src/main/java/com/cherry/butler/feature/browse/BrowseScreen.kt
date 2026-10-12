@@ -95,6 +95,8 @@ fun BrowseScreen(
     viewModel: BrowseViewModel = hiltViewModel(),
 ) {
     val characters = viewModel.characters.collectAsLazyPagingItems()
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { if (viewModel.paged.value) viewModel.retryPage() else characters.refresh() }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val searchInput by viewModel.searchInput.collectAsStateWithLifecycle()
     val topCustomTags by viewModel.topCustomTags.collectAsStateWithLifecycle()

@@ -127,7 +127,7 @@ class CommentsViewModel @Inject constructor(
     }
 
     /** Starts the list over, so a comment just posted shows where Janitor puts it. */
-    private fun reload() {
+    fun reload() {
         _state.update { it.copy(comments = emptyList(), nextPage = 1, end = false, loading = false) }
         loadMore()
     }
@@ -232,6 +232,8 @@ class CommentsViewModel @Inject constructor(
 
 @Composable
 fun CommentsScreen(onBack: () -> Unit, viewModel: CommentsViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.reload() }
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding()) {
         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {

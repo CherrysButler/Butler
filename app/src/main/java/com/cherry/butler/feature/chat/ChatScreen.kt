@@ -145,6 +145,8 @@ fun ChatScreen(
     onEditPersona: (String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.refresh() }
     val providerLabel by viewModel.providerLabel.collectAsStateWithLifecycle()
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val suggestion by viewModel.suggestion.collectAsStateWithLifecycle()

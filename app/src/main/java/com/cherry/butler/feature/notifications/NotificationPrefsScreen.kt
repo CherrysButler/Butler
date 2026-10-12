@@ -113,6 +113,8 @@ class NotificationPrefsViewModel @Inject constructor(private val repository: Com
 
 @Composable
 fun NotificationPrefsScreen(onBack: () -> Unit, viewModel: NotificationPrefsViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val prefs by viewModel.prefs.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding().navigationBarsPadding()) {

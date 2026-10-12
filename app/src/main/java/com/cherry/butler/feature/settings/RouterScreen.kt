@@ -127,6 +127,8 @@ class RouterViewModel @Inject constructor(private val repository: RouterReposito
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.load() }
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val config by viewModel.config.collectAsStateWithLifecycle()
     val wallet by viewModel.wallet.collectAsStateWithLifecycle()

@@ -83,6 +83,8 @@ class PromptsViewModel @Inject constructor(private val repository: SettingsRepos
 
 @Composable
 fun PromptsScreen(onBack: () -> Unit, onOpen: (String?) -> Unit, viewModel: PromptsViewModel = hiltViewModel()) {
+    // Ctrl+R / F5 on the desktop.
+    com.cherry.butler.ui.components.RegisterRefresh { viewModel.reload() }
     val loaded by viewModel.prompts.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val prompts = loaded.orEmpty()

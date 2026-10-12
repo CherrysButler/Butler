@@ -193,14 +193,13 @@ fun DesktopShell() {
         onDispose { DesktopBack.fallback = null }
     }
 
-    // Ctrl+R / F5 refresh the Chats list while it is the screen on show (the tabs stay
-    // composed behind an open chat or another tab, so the list alone can't tell).
+    // Ctrl+R / F5 refresh whatever is on show: each screen offers its own refresh while it is
+    // (RegisterRefresh), the newest on top, so a page or the character panel over a list wins.
     val showing = androidx.compose.runtime.rememberUpdatedState(route to tab)
     DisposableEffect(Unit) {
         com.cherry.butler.desktop.DesktopKeys.refresh = {
-            val (r, t) = showing.value
-            val action = com.cherry.butler.desktop.DesktopKeys.chats.action
-            if (r == Routes.TABS && t == TopLevelDestination.Chats && action != null) { action(); true } else false
+            val action = com.cherry.butler.desktop.DesktopKeys.screen.action
+            if (action != null) { action(); true } else false
         }
         onDispose { com.cherry.butler.desktop.DesktopKeys.refresh = null }
     }
@@ -229,6 +228,7 @@ fun DesktopShell() {
             hoverColor = ButlerTheme.colors.textMed,
         ),
         LocalChatLight provides chatLight,
+        com.cherry.butler.ui.components.LocalRefreshHandle provides com.cherry.butler.desktop.DesktopKeys.screen,
     ) {
         Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().background(ButlerTheme.colors.chrome)) {
@@ -374,7 +374,6 @@ private fun PaneNav(
                 when (dest) {
                     TopLevelDestination.Browse -> DesktopBrowse(onCharacterClick = onCharacter)
                     TopLevelDestination.Chats -> CompositionLocalProvider(
-                        com.cherry.butler.ui.components.LocalRefreshHandle provides com.cherry.butler.desktop.DesktopKeys.chats,
                         com.cherry.butler.ui.components.LocalArchiveHandle provides com.cherry.butler.desktop.DesktopKeys.chatsArchive,
                     ) {
                         ChatsScreen(
