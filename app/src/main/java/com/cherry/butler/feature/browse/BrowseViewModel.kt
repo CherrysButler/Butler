@@ -117,20 +117,17 @@ class BrowseViewModel @Inject constructor(
      * refresh. `cachedIn` keeps the paged data alive across configuration changes.
      */
     private val pages: Flow<PagingData<Character>> = _query
-        .map { it.server() }
-        .debounce { if (it.search.isNullOrBlank()) 0L else SEARCH_DEBOUNCE_MS }
+        .map { it.server() to it }
+        .debounce { (server, _) -> if (server.search.isNullOrBlank()) 0L else SEARCH_DEBOUNCE_MS }
+        // The server's side and the phone-side minimums; a change to the minimums alone reads
+        // the mirror again (the cache is fresh, so nothing is fetched).
+        .map { (server, all) -> server.copy(minMessages = all.minMessages, minTokens = all.minTokens, proxyOnly = all.proxyOnly) }
         .distinctUntilChanged()
         .flatMapLatest { repository.browse(it) }
         .cachedIn(viewModelScope)
 
-    /** The server's pages, with the phone-side minimums applied as Janitor's app does. */
-    val characters: Flow<PagingData<Character>> = combine(
-        pages,
-        _query.map { Triple(it.minMessages, it.minTokens, it.proxyOnly) }.distinctUntilChanged(),
-    ) { paging, (minMessages, minTokens, proxyOnly) ->
-        if (minMessages <= 0 && minTokens <= 0 && !proxyOnly) paging
-        else paging.filter { it.messageCount >= minMessages && it.totalTokens >= minTokens && (!proxyOnly || it.isProxyEnabled) }
-    }
+    /** The server's pages, with the phone-side minimums applied (in the mirror's query) as Janitor's app does. */
+    val characters: Flow<PagingData<Character>> = pages
 
     fun onSearchChanged(value: String) {
         _searchInput.value = value

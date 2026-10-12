@@ -52,6 +52,10 @@ class CharacterRepository @Inject constructor(
         const val KEY_TOP_TAGS = "browse_top_custom_tags"
     }
 
+    /**
+     * [query]'s characters, paged from the mirror. The server is asked with [query]'s server
+     * side only; its phone-side minimums narrow the mirror's reading (CharacterDao.pagingSource).
+     */
     @OptIn(ExperimentalPagingApi::class)
     fun browse(query: BrowseQuery): Flow<PagingData<Character>> = Pager(
         config = PagingConfig(
@@ -70,8 +74,10 @@ class CharacterRepository @Inject constructor(
             // card along the grid's rows whenever that start isn't a multiple of the row.
             enablePlaceholders = true,
         ),
-        remoteMediator = CharacterRemoteMediator(query, remote, db, ::keepTopCustomTags),
-        pagingSourceFactory = { db.characterDao().pagingSource(query.cacheKey) },
+        remoteMediator = CharacterRemoteMediator(query.server(), remote, db, ::keepTopCustomTags),
+        pagingSourceFactory = {
+            db.characterDao().pagingSource(query.server().cacheKey, query.minMessages, query.minTokens, query.proxyOnly)
+        },
     ).flow.map { paging -> paging.map(CharacterEntity::toDomain) }
 
     /**

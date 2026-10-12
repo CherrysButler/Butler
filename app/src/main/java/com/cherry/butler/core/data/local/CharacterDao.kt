@@ -14,9 +14,26 @@ interface CharacterDao {
     /**
      * Ordered by [CharacterEntity.position] so the mirror replays the server's sort
      * rather than an arbitrary disk order — "popular" has to still look popular offline.
+     *
+     * The phone-side minimums (Janitor's app applies them on the phone; the server ignores
+     * them) are applied here, in the query, so the list's length is what it holds. Filtering
+     * the pages after they were read left the count changing as the read window moved, and
+     * every card after the change moved with it: the list jumped while it loaded.
      */
-    @Query("SELECT * FROM characters WHERE queryKey = :queryKey ORDER BY position ASC")
-    fun pagingSource(queryKey: String): PagingSource<Int, CharacterEntity>
+    @Query(
+        """SELECT * FROM characters WHERE queryKey = :queryKey
+           AND messageCount >= :minMessages AND totalTokens >= :minTokens AND (:proxyOnly = 0 OR isProxyEnabled = 1)
+           ORDER BY position ASC""",
+    )
+    fun pagingSource(queryKey: String, minMessages: Long, minTokens: Int, proxyOnly: Boolean): PagingSource<Int, CharacterEntity>
+
+    /** Which of [ids] this query already holds. */
+    @Query("SELECT id FROM characters WHERE queryKey = :queryKey AND id IN (:ids)")
+    suspend fun heldIds(queryKey: String, ids: List<String>): List<String>
+
+    /** The last place taken in this query's order, null when it holds nothing. */
+    @Query("SELECT MAX(position) FROM characters WHERE queryKey = :queryKey")
+    suspend fun lastPosition(queryKey: String): Int?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(characters: List<CharacterEntity>)
