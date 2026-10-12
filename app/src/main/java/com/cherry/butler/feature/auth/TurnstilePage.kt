@@ -10,6 +10,12 @@ data class TurnstileCheck(val siteKey: String, val action: String?, val body: St
             null,
             "Janitor asks Cloudflare to check that you're a person before an e-mail sign-in. This usually passes on its own.",
         )
+        /** When Janitor's firewall stops Butler's calls: the sign-in box, for the clearance it hands over. */
+        val Firewall = TurnstileCheck(
+            JanitorConfig.TURNSTILE_SITE_KEY,
+            null,
+            "Janitor's firewall wants to check that you're a person before Butler carries on. This usually passes on its own.",
+        )
         val CharacterSave = TurnstileCheck(
             JanitorConfig.CHARACTER_TURNSTILE_SITE_KEY,
             JanitorConfig.CHARACTER_TURNSTILE_ACTION,

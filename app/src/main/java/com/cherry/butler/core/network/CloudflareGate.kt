@@ -12,7 +12,8 @@ import java.io.File
  * told what actually happened and the answer is kept for building the response to it.
  *
  * - A **challenge**: Cloudflare wants a browser to prove itself (`cf-mitigated: challenge`,
- *   the header Cloudflare puts on challenge pages). Not seen on an API call yet.
+ *   the header Cloudflare puts on challenge pages). Seen on the website's API since 2026-10-13;
+ *   the app passes it in a WebView and the call goes again (CloudflareCheck).
  * - The **waiting room**: Janitor's queue for busy times (the website carries a
  *   `__cfwaitingroom_…` cookie). It can arrive as a 200 page, so successes are checked too.
  * - A **block**: a firewall rule's 403 page ("Access Restricted"), with nothing to solve.
@@ -45,7 +46,7 @@ object CloudflareGate {
             Kind.Challenge -> ApiError.Api(
                 code = r.code,
                 janitorCode = "CF_CHALLENGE",
-                serverMessage = "Cloudflare (Janitor's firewall) asked for a human check Butler can't answer yet. Try again in a few minutes.",
+                serverMessage = "Cloudflare (Janitor's firewall) asked for a quick check that wasn't finished. Try again.",
                 retryable = false,
             )
             Kind.WaitingRoom -> ApiError.Api(

@@ -2010,6 +2010,17 @@ private fun DebugSection() {
         if (issuer != null) {
             LinkRow(title = "Forget certificate", subtitle = null, onClick = { proxy.forgetCertificate(); issuer = null })
         }
+        // Cloudflare's check, on demand: forget the pass so the next call meets the check the way
+        // a device without one does (calls under a browser name of their own, no clearance).
+        LinkRow(
+            title = "Forget Cloudflare's pass",
+            subtitle = "Butler's and the WebView's, and the browser name with them. The next call should meet the check",
+            onClick = {
+                com.cherry.butler.core.network.JanitorCookies.clear()
+                com.cherry.butler.core.network.ButlerUserAgent.forgetWebView()
+                android.widget.Toast.makeText(context, "Forgotten. Go to a list and pull to refresh", android.widget.Toast.LENGTH_LONG).show()
+            },
+        )
         var previewUpdate by remember { mutableStateOf(false) }
         LinkRow(title = "Preview update pop-up", subtitle = null, onClick = { previewUpdate = true })
         if (previewUpdate) {

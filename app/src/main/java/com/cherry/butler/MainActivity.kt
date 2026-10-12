@@ -135,6 +135,8 @@ class MainActivity : FragmentActivity() {
                         CompositionLocalProvider(LocalLastPlace provides lastPlace) {
                             AuthGate()
                         }
+                        // Cloudflare's browser check, when a call meets one.
+                        com.cherry.butler.feature.auth.CloudflareCheckHost()
                     }
                     if (locked) LockScreen(appLock)
                     // The automatic update check (off unless switched on); never over the lock.

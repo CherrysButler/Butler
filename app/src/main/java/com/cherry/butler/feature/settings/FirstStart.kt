@@ -236,6 +236,7 @@ private fun NewsStep() {
         "Create bots" to "Make your own characters right here, with drafts so you don't lose your progress.",
         "Your profile bio" to "Edit it right from Butler.",
         "Summaries" to "Pick a different model to summarize your chats, in Settings › Model.",
+        "Cloudflare check" to "Added cloudflare check.",
         "Many bug fixes" to "Things just work better.",
     )
 

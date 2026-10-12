@@ -31,6 +31,8 @@ object ButlerUserAgent : Interceptor {
 
     private const val PREFS = "butler_prefs"
     private const val KEY = "user_agent"
+    /** Set when the name is the device's WebView's own, taken with a clearance it earned. */
+    private const val KEY_WEBVIEW = "user_agent_webview"
 
     private var prefs: SharedPreferences? = null
 
@@ -44,7 +46,8 @@ object ButlerUserAgent : Interceptor {
         val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs = p
         val saved = p.getString(KEY, null)
-        if (saved != null && BrowserUserAgent.familyOf(saved) != null) {
+        val webView = saved != null && saved == p.getString(KEY_WEBVIEW, null)
+        if (saved != null && (webView || BrowserUserAgent.familyOf(saved) != null)) {
             chosen = saved
         } else {
             keep(BrowserUserAgent.pick())
@@ -54,6 +57,24 @@ object ButlerUserAgent : Interceptor {
     private fun keep(userAgent: String) {
         chosen = userAgent
         prefs?.edit()?.putString(KEY, userAgent)?.apply()
+    }
+
+    /**
+     * Calls go out as the device's WebView from now on: the name a Cloudflare clearance was just
+     * earned under (sign-in's Turnstile, or the check), which Cloudflare honours under that name
+     * alone. Before, the calls kept a browser of their own and the clearance was held back.
+     */
+    fun adopt(webViewAgent: String) {
+        if (webViewAgent.isBlank() || webViewAgent == chosen) return
+        chosen = webViewAgent
+        prefs?.edit()?.putString(KEY, webViewAgent)?.putString(KEY_WEBVIEW, webViewAgent)?.apply()
+        Diagnostics.record("ua", "calls go out as this device's WebView now (its clearance fits)")
+    }
+
+    /** Debug: back to a browser of the calls' own, as before any clearance was taken. */
+    fun forgetWebView() {
+        keep(BrowserUserAgent.pick())
+        prefs?.edit()?.remove(KEY_WEBVIEW)?.apply()
     }
 
     /** For tests: a known browser, nothing saved. */

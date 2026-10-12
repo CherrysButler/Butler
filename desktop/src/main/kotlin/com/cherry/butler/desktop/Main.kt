@@ -264,6 +264,8 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                             com.cherry.butler.ui.LocalDoorFrame provides { form -> com.cherry.butler.desktop.ui.DesktopDoor(form) },
                         ) {
                             AuthGate()
+                            // Cloudflare's check, when a call meets one.
+                            com.cherry.butler.feature.auth.CloudflareCheckHost()
                         }
                     }
                     if (locked) LockScreen(appLock)

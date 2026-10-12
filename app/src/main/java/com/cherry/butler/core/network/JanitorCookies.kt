@@ -92,6 +92,8 @@ object JanitorCookies : CookieJar {
         if (agent != null) {
             clearanceAgent = agent
             prefs?.edit()?.putString(KEY_AGENT, agent)?.apply()
+            // The calls take the same name, so the clearance goes with them.
+            ButlerUserAgent.adopt(agent)
         }
         val now = System.currentTimeMillis()
         val brought = mutableListOf<String>()

@@ -49,6 +49,7 @@ class ApiCall(
         decode: (String) -> T,
     ): T {
         var attempt = 0
+        var checked = false
         while (true) {
             try {
                 val body = executeOnce(request)
@@ -62,6 +63,12 @@ class ApiCall(
                     throw ApiError.Serialization(e)
                 }
             } catch (e: ApiError) {
+                // Cloudflare asked for its browser check: once it's passed (CloudflareCheck), the
+                // same call goes again, once, without counting as a failed try.
+                if (!checked && e is ApiError.Api && e.janitorCode == "CF_CHALLENGE") {
+                    checked = true
+                    if (CloudflareCheck.pass(request.url.toString())) continue
+                }
                 attempt++
                 if (!e.retryable || attempt >= maxAttempts) throw e
                 delay(backoffMillis(attempt, (e as? ApiError.RateLimited)?.retryAfterMillis))
