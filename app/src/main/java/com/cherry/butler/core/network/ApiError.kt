@@ -35,6 +35,15 @@ sealed class ApiError(
         val retryAfterMillis: Long? = null,
     ) : ApiError(retryable = true, message = "Rate limited (429)")
 
+    /**
+     * Janitor's waiting room: Cloudflare's queue for busy times, which answers every call with
+     * a "you're in line" page (a 200) until the caller's turn. Retried at the pace the queue
+     * asks ([retryAfterMillis], its refresh), the queue's cookie kept so the place in line is too.
+     */
+    data class Queued(
+        val retryAfterMillis: Long? = null,
+    ) : ApiError(retryable = true, message = "In Janitor's queue")
+
     /** 5xx. Upstream is unhappy; retry with backoff. */
     data class Server(
         val code: Int,

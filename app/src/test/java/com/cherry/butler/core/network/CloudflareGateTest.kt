@@ -9,9 +9,9 @@ import org.junit.Test
 
 class CloudflareGateTest {
 
-    private fun response(code: Int, type: String, vararg headers: Pair<String, String>): Response =
+    private fun response(code: Int, type: String, vararg headers: Pair<String, String>, cookie: String? = null): Response =
         Response.Builder()
-            .request(Request.Builder().url("https://janitorai.com/mb/chats/list").build())
+            .request(Request.Builder().url("https://janitorai.com/hampter/chats/list").apply { cookie?.let { header("Cookie", it) } }.build())
             .protocol(Protocol.HTTP_2)
             .code(code)
             .message("")
@@ -57,5 +57,33 @@ class CloudflareGateTest {
             "Set-Cookie" to "__cfwaitingroom_catdogxxx=y; Path=/",
         )
         assertNull(CloudflareGate.classify(r, """{"items":[]}"""))
+    }
+
+    @Test
+    fun `a queued call's page is the waiting room even without its cookie set again`() {
+        // 2026-11-03: the second answer to a queued send came with no Set-Cookie, and was read as a broken reply.
+        val r = response(200, "text/html; charset=UTF-8", cookie = "__cfwaitingroom_catdogxxx=abc; __cf_bm=x")
+        assertEquals(CloudflareGate.Kind.WaitingRoom, CloudflareGate.classify(r, "<!doctype html><html lang=\"en\"><title>Janitor</title></html>"))
+    }
+
+    @Test
+    fun `the waiting room's own words give it away`() {
+        val r = response(200, "text/html")
+        assertEquals(CloudflareGate.Kind.WaitingRoom, CloudflareGate.classify(r, "<html><div id=\"cf-waiting-room\">You are in line</div></html>"))
+    }
+
+    @Test
+    fun `any other page where janitor's data belongs is never taken for it`() {
+        val r = response(200, "text/html")
+        assertEquals(CloudflareGate.Kind.Page, CloudflareGate.classify(r, "<!doctype html><html><body>Hi</body></html>"))
+    }
+
+    @Test
+    fun `the queue is waited at its own pace`() {
+        val page = response(200, "text/html")
+        assertEquals(30_000L, CloudflareGate.refreshMillis(page, "<meta http-equiv=\"refresh\" content=\"30\">"))
+        assertEquals(20_000L, CloudflareGate.refreshMillis(page, "<html>no refresh here</html>"))
+        assertEquals(15_000L, CloudflareGate.refreshMillis(response(200, "application/json"), """{"cfWaitingRoom":{"refreshIntervalSeconds":15}}"""))
+        assertEquals(60_000L, CloudflareGate.refreshMillis(response(200, "text/html", "Refresh" to "600"), ""))
     }
 }

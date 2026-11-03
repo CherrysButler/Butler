@@ -18,13 +18,16 @@ import java.io.File
  *   `__cfwaitingroom_…` cookie). It can arrive as a 200 page, so successes are checked too.
  * - A **block**: a firewall rule's 403 page ("Access Restricted"), with nothing to solve.
  *   Seen 2026-10-06/07 for OkHttp's default User-Agent on the website's `/generateAlpha`.
+ * - A **page**: any other web page where Janitor's data belongs. The waiting room doesn't
+ *   always set its cookie again (2026-11-03: a queued send's second answer came without it
+ *   and was read as a broken reply), so a page is never taken for Janitor's answer.
  *
  * Every one goes into the diagnostics report (status, path, Ray ID, the cookie *names*).
  * Debug builds also keep the whole answer, cookie values left out, in
  * `files/cloudflare/` (pull with `adb exec-out run-as com.cherry.butler.debug ...`).
  */
 object CloudflareGate {
-    enum class Kind { Challenge, WaitingRoom, Block }
+    enum class Kind { Challenge, WaitingRoom, Block, Page }
 
     private const val TAG = "CloudflareGate"
     private const val KEEP = 20
@@ -49,10 +52,11 @@ object CloudflareGate {
                 serverMessage = "Cloudflare (Janitor's firewall) asked for a quick check that wasn't finished. Try again.",
                 retryable = false,
             )
-            Kind.WaitingRoom -> ApiError.Api(
+            Kind.WaitingRoom -> ApiError.Queued(retryAfterMillis = refreshMillis(r, body))
+            Kind.Page -> ApiError.Api(
                 code = r.code,
-                janitorCode = "CF_WAITING_ROOM",
-                serverMessage = "Janitor is busy and has a queue right now. Try again in a minute.",
+                janitorCode = "CF_PAGE",
+                serverMessage = "Janitor answered with a web page instead of its data. Try again in a moment.",
                 retryable = true,
             )
             Kind.Block -> ApiError.Api(
@@ -69,14 +73,41 @@ object CloudflareGate {
         val start = body.trimStart()
         val json = start.startsWith("{") || start.startsWith("[")
         val html = r.header("Content-Type").orEmpty().startsWith("text/html") || start.startsWith("<")
+        // The queue's cookie went out with the call: an answer that isn't Janitor's is the queue's.
+        val queued = r.request.header("Cookie").orEmpty().contains("__cfwaitingroom")
+        val queueWords = html && QUEUE_WORDS.any { body.contains(it, ignoreCase = true) }
         return when {
             r.header("cf-mitigated").equals("challenge", ignoreCase = true) -> Kind.Challenge
             body.contains("\"cfWaitingRoom\"") -> Kind.WaitingRoom
             cookies.any { it.startsWith("__cfwaitingroom") } && !json -> Kind.WaitingRoom
+            (queued || queueWords) && !json && (html || r.isSuccessful) -> Kind.WaitingRoom
             r.code == 403 && !json && (html || r.header("Server").equals("cloudflare", ignoreCase = true)) -> Kind.Block
+            r.isSuccessful && html && !json -> Kind.Page
             else -> null
         }
     }
+
+    /** What the waiting room's own page says on it. */
+    private val QUEUE_WORDS = listOf("waiting room", "waitingroom", "cf-waiting-room", "cf_waiting_room")
+
+    /**
+     * How long the waiting room asks a browser to wait before checking back: its refresh (the
+     * `Refresh` header, a `<meta http-equiv="refresh">`, or its JSON's `refreshIntervalSeconds`),
+     * else 20 seconds, Cloudflare's default.
+     */
+    internal fun refreshMillis(r: Response, body: String): Long {
+        val seconds = r.header("Refresh")?.substringBefore(';')?.trim()?.toIntOrNull()
+            ?: META_REFRESH.find(body)?.groupValues?.get(1)?.toIntOrNull()
+            ?: JSON_REFRESH.find(body)?.groupValues?.get(1)?.toIntOrNull()
+            ?: DEFAULT_REFRESH_S
+        return seconds.coerceIn(MIN_REFRESH_S, MAX_REFRESH_S) * 1_000L
+    }
+
+    private val META_REFRESH = Regex("""http-equiv=["']?refresh["']?[^>]*content=["']?(\d+)""", RegexOption.IGNORE_CASE)
+    private val JSON_REFRESH = Regex(""""refreshIntervalSeconds"\s*:\s*(\d+)""")
+    private const val DEFAULT_REFRESH_S = 20
+    private const val MIN_REFRESH_S = 5
+    private const val MAX_REFRESH_S = 60
 
     /** Notes [kind] in Diagnostics and, in debug builds, keeps the whole answer under files/cloudflare. */
     internal fun record(kind: Kind, r: Response, body: String) {

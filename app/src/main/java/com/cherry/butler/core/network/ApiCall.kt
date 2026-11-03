@@ -71,7 +71,7 @@ class ApiCall(
                 }
                 attempt++
                 if (!e.retryable || attempt >= maxAttempts) throw e
-                delay(backoffMillis(attempt, (e as? ApiError.RateLimited)?.retryAfterMillis))
+                delay(backoffMillis(attempt, (e as? ApiError.RateLimited)?.retryAfterMillis ?: (e as? ApiError.Queued)?.retryAfterMillis))
             }
         }
     }
@@ -162,7 +162,8 @@ class ApiCall(
         this as? JsonObject
 
     private fun backoffMillis(attempt: Int, serverHint: Long?): Long {
-        if (serverHint != null) return serverHint.coerceAtMost(MAX_BACKOFF_MS)
+        // The server's own pace (Retry-After, the waiting room's refresh) is kept, up to a minute.
+        if (serverHint != null) return serverHint.coerceAtMost(MAX_HINT_MS)
         return Backoff.millis(attempt, BASE_BACKOFF_MS, MAX_BACKOFF_MS, jitterFloor = 0.5)
     }
 
@@ -177,6 +178,7 @@ class ApiCall(
         const val DEFAULT_MAX_ATTEMPTS = 3
         const val BASE_BACKOFF_MS = 500L
         const val MAX_BACKOFF_MS = 15_000L
+        const val MAX_HINT_MS = 60_000L
     }
 }
 

@@ -340,7 +340,9 @@ class SendPipeline @Inject constructor(
             return
         }
         if (job.state == SendJobState.GENERATING) job.botMessageLocalId?.let { unpublish(it) }
-        val retryable = error.retryable && job.attempt + 1 < MAX_ATTEMPTS
+        // In Janitor's queue a message waits its turn, up to about ten minutes, not five quick tries.
+        val limit = if (error is ApiError.Queued) MAX_QUEUED_ATTEMPTS else MAX_ATTEMPTS
+        val retryable = error.retryable && job.attempt + 1 < limit
         if (retryable) {
             if (error is ApiError.Network) runCatching { background.interrupted(job, error.userSummary()) }
             val attempt = job.attempt + 1
@@ -349,7 +351,7 @@ class SendPipeline @Inject constructor(
                     state = SendJobState.WAITING_RETRY,
                     resumeState = job.state,
                     attempt = attempt,
-                    nextAttemptAt = System.currentTimeMillis() + backoffMillis(attempt, (error as? ApiError.RateLimited)?.retryAfterMillis),
+                    nextAttemptAt = System.currentTimeMillis() + backoffMillis(attempt, (error as? ApiError.RateLimited)?.retryAfterMillis ?: (error as? ApiError.Queued)?.retryAfterMillis),
                     lastError = error.userSummary(),
                     lastErrorRetryable = true,
                 ),
@@ -690,7 +692,7 @@ class SendPipeline @Inject constructor(
     }
 
     private fun backoffMillis(attempt: Int, serverHint: Long?): Long {
-        if (serverHint != null) return serverHint.coerceIn(1_000L, MAX_BACKOFF_MS)
+        if (serverHint != null) return serverHint.coerceIn(1_000L, MAX_HINT_MS)
         return com.cherry.butler.core.network.Backoff.millis(attempt, BASE_BACKOFF_MS, MAX_BACKOFF_MS, jitterFloor = 0.7)
     }
 
@@ -701,6 +703,10 @@ class SendPipeline @Inject constructor(
         private const val FINISHED_KEEP_MS = 24 * 60 * 60 * 1000L
         const val TAG = "SendPipeline"
         const val MAX_ATTEMPTS = 5
+        /** Tries while in Janitor's queue: at its ~20 s pace, about ten minutes. */
+        const val MAX_QUEUED_ATTEMPTS = 30
+        /** The longest a server's own pace is waited between tries. */
+        const val MAX_HINT_MS = 60_000L
         const val BASE_BACKOFF_MS = 2_000L
         const val MAX_BACKOFF_MS = 30_000L
         const val PERSIST_INTERVAL_MS = 250L
@@ -714,6 +720,7 @@ class SendPipeline @Inject constructor(
 fun ApiError.userSummary(): String = when (this) {
     is ApiError.Network -> "No connection"
     is ApiError.RateLimited -> "Rate limited"
+    is ApiError.Queued -> "Janitor is busy, you're in its queue"
     is ApiError.Server -> "Janitor error ($code)"
     is ApiError.Unauthorized -> "Signed out"
     is ApiError.Forbidden -> "Not allowed"
