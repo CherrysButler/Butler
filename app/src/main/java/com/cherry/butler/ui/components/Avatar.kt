@@ -59,7 +59,7 @@ fun Avatar(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(size * 0.2f))
+            .clip(com.cherry.butler.core.design.liftedShape(size * 0.2f))
             .background(ButlerTheme.colors.surfaceHigh),
         contentAlignment = Alignment.Center,
     ) {

@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.frostSource
 import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.core.data.remote.dto.PronounsDto
 import com.cherry.butler.core.generation.SuggestionService
@@ -433,8 +435,13 @@ fun ChatScreen(
             onDispose { backdropHost.shown = null }
         }
     }
+    // Frosted: over a background picture the top bar and composer frost it (the PC's window
+    // frosts its own when the picture spreads across it). Without a picture they stay as they were.
+    val frost = com.cherry.butler.ui.components.glassOn() && background != null
+    val ownHaze = remember { dev.chrisbanes.haze.HazeState() }
+    val chromeHaze = if (!frost) null else if (spread) com.cherry.butler.ui.components.LocalBackdropHaze.current else ownHaze
     Box(modifier = Modifier.fillMaxSize().then(if (spread) Modifier else Modifier.background(MaterialTheme.colorScheme.background))) {
-    if (!spread) background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key) }
+    if (!spread) background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key, modifier = Modifier.frostSource(ownHaze.takeIf { frost })) }
     Scaffold(
         containerColor = if (background != null) Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -454,7 +461,7 @@ fun ChatScreen(
             }
         },
         topBar = {
-            Column(modifier = Modifier.statusBarsPadding()) {
+            Column(modifier = Modifier.frosted(chromeHaze).statusBarsPadding()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -533,7 +540,7 @@ fun ChatScreen(
                 onUndoPicture = viewModel::undoPicture,
                 onDescribeAgain = viewModel::describeAgain,
                 onRemovePicture = viewModel::removePicture,
-                modifier = Modifier.onSizeChanged { composerHeight = it.height },
+                modifier = Modifier.frosted(chromeHaze).onSizeChanged { composerHeight = it.height },
             )
         },
     ) { innerPadding ->
@@ -887,7 +894,9 @@ private fun Scene(url: String?, name: String, onClick: () -> Unit = {}) {
 private val SCENE_HEIGHT = 220.dp
 
 /** A reply's bubble (Bubbles): the mirror of yours, sharp at the top left under the name. */
-private val BotBubble = RoundedCornerShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+private val BotBubble: androidx.compose.ui.graphics.Shape
+    @Composable @androidx.compose.runtime.ReadOnlyComposable
+    get() = com.cherry.butler.core.design.liftedShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
 
 /**
  * One reply, with its variants. The last reply follows a horizontal drag a third of the
@@ -1294,7 +1303,7 @@ private fun UserTurn(
                         Modifier
                     } else if (bubbles) {
                         Modifier.card(
-                            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 6.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+                            shape = com.cherry.butler.core.design.liftedShape(topStart = 18.dp, topEnd = 6.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
                             color = if (job?.state == SendJobState.FAILED) ButlerTheme.colors.surfaceElevated.copy(alpha = 0.6f) else ButlerTheme.colors.surfaceHigh,
                         )
                     } else {

@@ -131,9 +131,10 @@ fun CharacterTile(
     footer: @Composable () -> Unit,
 ) {
     val height = portraitHeight(width)
-    val shape = corner?.let { RoundedCornerShape(it) }
+    val shape = corner?.let { com.cherry.butler.core.design.liftedShape(it) }
     val motion = LocalPointerMotion.current
     val hoverSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hovered by hoverSource.collectIsHoveredAsState()
     // On a pointer: the hovered card raises its edge one tone and its picture leans in.
     val edge by animateColorAsState(
@@ -157,10 +158,11 @@ fun CharacterTile(
                 alpha = arrival.value
                 translationY = (1f - arrival.value) * 10.dp.toPx()
             }
+            .pressSpring(pressSource)
             .card(shape = shape, color = containerColor, clip = false)
             .then(if (edgeColor != null) Modifier.border(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
             .then(if (motion) Modifier.border(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = pressSource, indication = androidx.compose.foundation.LocalIndication.current, onClick = onClick),
     ) {
         Text(
             text = name,

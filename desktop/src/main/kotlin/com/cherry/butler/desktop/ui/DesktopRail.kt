@@ -152,7 +152,7 @@ private fun SectionKey(dest: TopLevelDestination, lit: Boolean, dot: Boolean, on
         Box(
             modifier = Modifier
                 .size(KeySize)
-                .background(if (hovered && !lit) ButlerTheme.colors.surfaceElevated else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(12.dp))
+                .background(if (hovered && !lit) ButlerTheme.colors.surfaceElevated else androidx.compose.ui.graphics.Color.Transparent, com.cherry.butler.core.design.liftedShape(12.dp))
                 .hoverable(hover)
                 .pointerHoverIcon(PointerIcon.Hand)
                 .selectable(selected = lit, onClick = onClick, role = Role.Tab, interactionSource = hover, indication = null)
@@ -193,7 +193,7 @@ private fun RecentFace(group: ChatGroup, open: Boolean, replying: Boolean, onCli
                         RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp),
                     ),
             )
-            val ringShape = RoundedCornerShape((FaceSize + 6.dp) * 0.2f)
+            val ringShape = com.cherry.butler.core.design.liftedShape((FaceSize + 6.dp) * 0.2f)
             Box(
                 modifier = Modifier
                     .size(FaceSize + 6.dp)

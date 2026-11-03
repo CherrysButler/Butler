@@ -79,6 +79,16 @@ class CloudflareGateTest {
     }
 
     @Test
+    fun `janitor's own queue page is the queue, with its estimate`() {
+        // 2026-11-03: "Please wait \u2014 janitor", Refresh: 20, no queue cookie, no "waiting room" words.
+        val r = response(200, "text/html; charset=utf-8", "Refresh" to "20")
+        val page = "<title>Please wait \u2014 janitor</title><h1>You\u2019re in line</h1><p class=\"wait\">\n  Estimated wait: 1 minute\n\n</p>"
+        assertEquals(CloudflareGate.Kind.WaitingRoom, CloudflareGate.classify(r, page))
+        assertEquals("1 minute", CloudflareGate.estimate(page))
+        assertEquals(20_000L, CloudflareGate.refreshMillis(r, page))
+    }
+
+    @Test
     fun `the queue is waited at its own pace`() {
         val page = response(200, "text/html")
         assertEquals(30_000L, CloudflareGate.refreshMillis(page, "<meta http-equiv=\"refresh\" content=\"30\">"))

@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.settings
 
+import androidx.compose.material.icons.rounded.Layers
+import com.cherry.butler.core.design.orDefaultFor
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.TextButton
@@ -272,7 +274,7 @@ private fun SettingsBody(
     onOpenPage: (SettingsPage) -> Unit,
     page: SettingsPage,
 ) {
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp + com.cherry.butler.ui.components.bottomChrome())) {
         when (page) {
             SettingsPage.Main -> {
                 SettingsHome(onOpenPage)
@@ -1033,6 +1035,13 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
                 DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
             }
         }
+        val depthPick by viewModel.depth.collectAsStateWithLifecycle()
+        val depth = depthPick.orDefaultFor(current)
+        DropRow(title = "Depth", value = depth.label, icon = Icons.Rounded.Layers) { close ->
+            com.cherry.butler.core.design.Depth.entries.forEach { d ->
+                DropItem(title = d.label, subtitle = d.blurb, selected = d == depth, onClick = { close(); viewModel.setDepth(d) })
+            }
+        }
         val thinkingLook by viewModel.thinkingLook.collectAsStateWithLifecycle()
         val thoughtLook by viewModel.thoughtLook.collectAsStateWithLifecycle()
         LinkRow(title = "Thinking line", subtitle = "${thinkingLook.label} · ${thoughtLook.label}", onClick = onOpenThinking, icon = Icons.Rounded.Lightbulb)
@@ -1694,16 +1703,16 @@ internal fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, 
         label = "theme-frame",
     )
     Column(
-        modifier = modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick),
+        modifier = modifier.clip(com.cherry.butler.core.design.liftedShape(12.dp)).clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(com.cherry.butler.core.design.liftedShape(12.dp))
                 .background(t.ground)
-                .border(if (selected) 2.dp else 1.dp, frame, RoundedCornerShape(12.dp))
+                .border(if (selected) 2.dp else 1.dp, frame, com.cherry.butler.core.design.liftedShape(12.dp))
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

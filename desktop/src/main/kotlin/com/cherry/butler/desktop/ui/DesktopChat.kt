@@ -1,5 +1,6 @@
 package com.cherry.butler.desktop.ui
 
+import com.cherry.butler.ui.components.frostSource
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -65,12 +66,15 @@ internal fun DesktopChat(content: @Composable () -> Unit) {
     }
     LaunchedEffect(busy) { light?.warm = busy }
     val spread = LocalBackdropHost.current?.shown
+    // Spread across the window, the picture is drawn here: the chat's frame frosts it from here.
+    val windowHaze = remember { dev.chrisbanes.haze.HazeState() }
     BoxWithConstraints(Modifier.fillMaxSize().wheelScrolls(list, reverse = true)) {
-        spread?.let { Backdrop(dim = it.dim, parallax = false, file = it.file, fileKey = it.key) }
+        spread?.let { Backdrop(dim = it.dim, parallax = false, file = it.file, fileKey = it.key, modifier = Modifier.frostSource(windowHaze)) }
         val column = (maxWidth * ColumnShare).coerceAtLeast(ColumnAtLeast).coerceAtMost(maxWidth)
         PaneSize(column, maxHeight, Modifier.align(Alignment.TopCenter).width(column).castsChatLight(light)) {
             CompositionLocalProvider(
                 LocalTranscriptHost provides host,
+                com.cherry.butler.ui.components.LocalBackdropHaze provides windowHaze.takeIf { spread != null },
                 LocalSecondaryClick provides RightClick,
                 // The text window is the column's: it stays with the story.
                 LocalComposerMaxWidth provides Dp.Unspecified,

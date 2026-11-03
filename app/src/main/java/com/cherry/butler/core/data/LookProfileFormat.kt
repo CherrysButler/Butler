@@ -37,6 +37,8 @@ data class LookProfile(
     val text: RpLook = RpLook(),
     val appFont: String? = null,
     val chatFont: String? = null,
+    /** Null: the look's own default (Depth.orDefaultFor). */
+    val depth: com.cherry.butler.core.design.Depth? = null,
 ) {
     /** Whether [now] wears this look; a font the profile doesn't set counts as worn. */
     fun sameLookAs(now: LookProfile): Boolean =
@@ -112,6 +114,7 @@ object LookProfileFormat {
             put("show_quotes", p.text.showQuotes)
             put("size", p.text.textSize)
         })
+        p.depth?.let { put("depth", it.key) }
         put("fonts", buildJsonObject {
             p.appFont?.let { put("app", it) }
             p.chatFont?.let { put("chat", it) }
@@ -152,6 +155,7 @@ object LookProfileFormat {
             ),
             appFont = fonts?.string("app")?.takeIf { it.isNotBlank() },
             chatFont = fonts?.string("chat")?.takeIf { it.isNotBlank() },
+            depth = com.cherry.butler.core.design.Depth.entries.firstOrNull { it.key == o.string("depth") },
         )
     }
 

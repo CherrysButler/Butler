@@ -180,7 +180,7 @@ fun ProfileScreen(
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         ScreenHead(title = "Profile")
         PullToRefreshBox(isRefreshing = refreshing && me != null, onRefresh = { viewModel.refresh() }, modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp + com.cherry.butler.ui.components.bottomChrome())) {
                 val p = me
                 if (p == null) {
                     if (error != null) {

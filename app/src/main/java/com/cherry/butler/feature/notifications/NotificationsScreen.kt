@@ -112,7 +112,7 @@ fun NotificationsScreen(
                     title = "Nothing new",
                     body = "Likes, replies and follows show up here.",
                 )
-                else -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+                else -> LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp + com.cherry.butler.ui.components.bottomChrome())) {
                     items(list, key = { it.id }, contentType = { "notice" }) { n ->
                         NoticeRow(n) {
                             when (val t = n.target) {

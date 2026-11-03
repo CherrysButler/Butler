@@ -16,6 +16,11 @@ import com.cherry.butler.core.design.Pill
 /** Every bottom sheet's grip: a short pill. */
 @Composable
 fun SheetHandle() {
+    // Counts this sheet in while it is up, so the page under it can step back (sheetPushBack).
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        SheetStack.open++
+        onDispose { SheetStack.open = (SheetStack.open - 1).coerceAtLeast(0) }
+    }
     Box(modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.size(width = 40.dp, height = 4.dp).background(ButlerTheme.colors.textLow.copy(alpha = 0.6f), Pill))
     }

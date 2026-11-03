@@ -1,5 +1,6 @@
 package com.cherry.butler.desktop
 
+import com.cherry.butler.core.design.orDefaultFor
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -210,12 +211,13 @@ private fun ButlerThemed(graph: DesktopComponent, content: @androidx.compose.run
     val fontPrefs = graph.fontPrefs()
     val theme by themePrefs.theme.collectAsState()
     val custom by themePrefs.custom.collectAsState()
+    val depthPick by themePrefs.depth.collectAsState()
     val appFontKey by fontPrefs.app.collectAsState()
     val addedFonts by fontPrefs.added.collectAsState()
     val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
     val scale by fontPrefs.appScale.collectAsState()
     val fontSpacing by fontPrefs.spacing.collectAsState()
-    ButlerTheme(theme = theme, custom = custom, appFont = appFont, appTextScale = scale, appLetterSpacing = fontSpacing[appFontKey] ?: 0) {
+    ButlerTheme(theme = theme, custom = custom, appFont = appFont, appTextScale = scale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, depth = depthPick.orDefaultFor(theme)) {
         CompositionLocalProvider(
             androidx.compose.foundation.LocalIndication provides com.cherry.butler.desktop.ui.HoverWash(MaterialTheme.colorScheme.onSurface),
         ) { content() }
@@ -234,6 +236,7 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
     val thoughtLook by themePrefs.thoughtLook.collectAsState()
     val look by textLook.look.collectAsState()
     val custom by themePrefs.custom.collectAsState()
+    val depthPick by themePrefs.depth.collectAsState()
     val chatFontKey by fontPrefs.chat.collectAsState()
     val appFontKey by fontPrefs.app.collectAsState()
     val appTextScale by fontPrefs.appScale.collectAsState()
@@ -244,7 +247,7 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
     val appFont = remember(appFontKey, addedFonts) { com.cherry.butler.core.design.fontFamilyOf(fontPrefs, appFontKey) }
     val locked by appLock.locked.collectAsState()
     @Suppress("UNUSED_VARIABLE") val light = theme.isLight(custom)
-    ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
+    ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook, depth = depthPick.orDefaultFor(theme)) {
         val ground = MaterialTheme.colorScheme.background
         androidx.compose.runtime.LaunchedEffect(ground) { onGround(ground.toArgb()) }
         Box(Modifier.fillMaxSize()) {
@@ -266,6 +269,8 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                             AuthGate()
                             // Cloudflare's check, when a call meets one.
                             com.cherry.butler.feature.auth.CloudflareCheckHost()
+                            // Janitor's queue, while Butler stands in it.
+                            com.cherry.butler.ui.components.QueueBanner(Modifier.align(androidx.compose.ui.Alignment.TopCenter))
                         }
                     }
                     if (locked) LockScreen(appLock)

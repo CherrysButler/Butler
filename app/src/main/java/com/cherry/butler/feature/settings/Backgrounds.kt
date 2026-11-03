@@ -593,9 +593,9 @@ private fun EdgeSlider(
             modifier = Modifier
                 .width(44.dp)
                 .height(260.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(com.cherry.butler.core.design.liftedShape(22.dp))
                 .background(Color.Black.copy(alpha = 0.45f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(22.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.18f), com.cherry.butler.core.design.liftedShape(22.dp))
                 .pointerInput(max) {
                     detectTapGestures { pos -> onChange(at(pos.y, size.height)) }
                 }

@@ -247,7 +247,7 @@ private fun BrightnessBar(hue: Float, sat: Float, value: Float, onChange: (Float
         modifier = modifier
             .fillMaxWidth()
             .height(32.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(com.cherry.butler.core.design.liftedShape(16.dp))
             .pointerInput(Unit) { detectTapGestures { onChange((it.x / size.width).coerceIn(0f, 1f)) } }
             .pointerInput(Unit) {
                 detectDragGestures(onDragStart = { onChange((it.x / size.width).coerceIn(0f, 1f)) }) { change, _ ->

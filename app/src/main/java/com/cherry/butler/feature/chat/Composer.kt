@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.pressSpring
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -195,7 +196,7 @@ fun Composer(
                 .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 10.dp)
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
+                .card(shape = MaterialTheme.shapes.large, color = ButlerTheme.colors.surfaceHigh, lift = com.cherry.butler.core.design.Lift.Float)
                 .padding(start = 6.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -447,12 +448,14 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
     val live = busy || enabled
     // At rest the key is a quiet glyph on the field; it fills red the moment there is a draft.
     val fill by animateColorAsState(if (live) red else androidx.compose.ui.graphics.Color.Transparent, animationSpec = Motion.enter(Motion.SHORT), label = "key-fill")
+    val press = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Box(
         modifier = Modifier
             .size(KEY_HEIGHT)
+            .pressSpring(press)
             .clip(MaterialTheme.shapes.small)
             .background(fill)
-            .clickable(enabled = live, onClick = if (busy) onStop else onSend)
+            .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, enabled = live, onClick = if (busy) onStop else onSend)
             .semantics { contentDescription = if (busy) "Stop" else "Send" },
         contentAlignment = Alignment.Center,
     ) {

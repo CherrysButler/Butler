@@ -146,7 +146,7 @@ fun SkeletonBlock(
             .width(width)
             .height(height)
             .graphicsLayer { this.alpha = alpha }
-            .clip(RoundedCornerShape(radius))
+            .clip(com.cherry.butler.core.design.liftedShape(radius))
             .background(ButlerTheme.colors.surfaceHigh),
     )
 }
@@ -170,7 +170,7 @@ fun Throwable.userTitle(): String = when (this) {
 fun Throwable.userMessage(): String = when (this) {
     is ApiError.Network -> "Check your connection. Anything already synced stays readable."
     is ApiError.RateLimited -> "Too many requests in a row. Give it a few seconds."
-    is ApiError.Queued -> "Janitor has a queue right now, and you're in it. Butler keeps your place; try again in a moment."
+    is ApiError.Queued -> "Janitor has a queue right now, and you're in it" + (estimate?.let { " (estimated wait: $it)" } ?: "") + ". Butler kept your place for ten minutes; try again for another go."
     is ApiError.Server -> "Janitor's servers returned an error. This usually clears on its own."
     is ApiError.Unauthorized -> "Sign in again to keep going."
     is ApiError.Forbidden -> "This isn't available on your account."

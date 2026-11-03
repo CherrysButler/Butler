@@ -8,6 +8,8 @@ object SystemClock {
 
 class PowerManager {
     fun isIgnoringBatteryOptimizations(packageName: String): Boolean = true
+    /** A PC has no battery saver Butler follows: the frosted frame stays on. */
+    val isPowerSaveMode: Boolean get() = false
 }
 
 class Bundle

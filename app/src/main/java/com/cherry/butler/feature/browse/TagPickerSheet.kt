@@ -95,7 +95,7 @@ fun TagPickerSheet(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Find a tag, or type a creator's tag") },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = com.cherry.butler.core.design.liftedShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = ButlerTheme.colors.surfaceHigh,
                     focusedContainerColor = ButlerTheme.colors.surfaceHigh,
@@ -111,7 +111,7 @@ fun TagPickerSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(com.cherry.butler.core.design.liftedShape(12.dp))
                         .clickable { onAddCustom(custom); filter = "" }
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,

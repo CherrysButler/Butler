@@ -246,7 +246,7 @@ fun DesktopShell() {
             Surface(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 color = MaterialTheme.colorScheme.background,
-                shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp),
+                shape = com.cherry.butler.core.design.liftedShape(topStart = 24.dp, bottomStart = 24.dp),
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val sideBySide = maxWidth >= SideBySideFrom

@@ -485,7 +485,7 @@ internal fun CharacterRoster(
                 columns = GridCells.Fixed(TileGrid.columns()),
                 state = gridState,
                 modifier = Modifier.fillMaxSize().then(if (letGo != null) Modifier.nestedScroll(letGo) else Modifier),
-                contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter),
+                contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter + com.cherry.butler.ui.components.bottomChrome()),
                 horizontalArrangement = Arrangement.spacedBy(TileGrid.gap),
                 verticalArrangement = Arrangement.spacedBy(TileGrid.gap),
             ) {
@@ -562,7 +562,7 @@ internal fun PagedRoster(
                 columns = GridCells.Fixed(TileGrid.columns()),
                 state = gridState,
                 modifier = Modifier.fillMaxSize().then(if (letGo != null) Modifier.nestedScroll(letGo) else Modifier),
-                contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter),
+                contentPadding = PaddingValues(start = TileGrid.gutter, end = TileGrid.gutter, top = 6.dp, bottom = TileGrid.gutter + com.cherry.butler.ui.components.bottomChrome()),
                 horizontalArrangement = Arrangement.spacedBy(TileGrid.gap),
                 verticalArrangement = Arrangement.spacedBy(TileGrid.gap),
             ) {

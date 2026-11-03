@@ -1,5 +1,7 @@
 package com.cherry.butler
 
+import com.cherry.butler.ui.components.sheetPushBack
+import com.cherry.butler.core.design.orDefaultFor
 import android.content.Intent
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
@@ -103,6 +105,7 @@ class MainActivity : FragmentActivity() {
             val thoughtLook by themePrefs.thoughtLook.collectAsState()
             val look by textLook.look.collectAsState()
             val custom by themePrefs.custom.collectAsState()
+            val depthPick by themePrefs.depth.collectAsState()
             val chatFontKey by fontPrefs.chat.collectAsState()
             val appFontKey by fontPrefs.app.collectAsState()
             val appTextScale by fontPrefs.appScale.collectAsState()
@@ -125,18 +128,21 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(lockOn) {
                 if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
             }
-            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook) {
+            ButlerTheme(theme = theme, chatStyle = chatStyle, look = look, custom = custom, appFont = appFont, chatFont = chatFont, appTextScale = appTextScale, appLetterSpacing = fontSpacing[appFontKey] ?: 0, chatLetterSpacing = fontSpacing[chatFontKey] ?: 0, thinkingLook = thinkingLook, thoughtLook = thoughtLook, depth = depthPick.orDefaultFor(theme)) {
                 androidx.compose.foundation.layout.Box {
                     // Kept composed under the lock so the user returns exactly where they were,
                     // but hidden from accessibility while covered.
                     androidx.compose.foundation.layout.Box(
-                        modifier = if (locked) androidx.compose.ui.Modifier.clearAndSetSemantics { } else androidx.compose.ui.Modifier,
+                        modifier = (if (locked) androidx.compose.ui.Modifier.clearAndSetSemantics { } else androidx.compose.ui.Modifier)
+                            .sheetPushBack(),
                     ) {
                         CompositionLocalProvider(LocalLastPlace provides lastPlace) {
                             AuthGate()
                         }
                         // Cloudflare's browser check, when a call meets one.
                         com.cherry.butler.feature.auth.CloudflareCheckHost()
+                        // Janitor's queue, while Butler stands in it.
+                        com.cherry.butler.ui.components.QueueBanner(androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopCenter))
                     }
                     if (locked) LockScreen(appLock)
                     // The automatic update check (off unless switched on); never over the lock.

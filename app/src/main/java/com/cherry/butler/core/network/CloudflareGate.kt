@@ -52,7 +52,10 @@ object CloudflareGate {
                 serverMessage = "Cloudflare (Janitor's firewall) asked for a quick check that wasn't finished. Try again.",
                 retryable = false,
             )
-            Kind.WaitingRoom -> ApiError.Queued(retryAfterMillis = refreshMillis(r, body))
+            Kind.WaitingRoom -> estimate(body).let { wait ->
+                JanitorQueue.inLine(wait)
+                ApiError.Queued(retryAfterMillis = refreshMillis(r, body), estimate = wait)
+            }
             Kind.Page -> ApiError.Api(
                 code = r.code,
                 janitorCode = "CF_PAGE",
@@ -76,19 +79,31 @@ object CloudflareGate {
         // The queue's cookie went out with the call: an answer that isn't Janitor's is the queue's.
         val queued = r.request.header("Cookie").orEmpty().contains("__cfwaitingroom")
         val queueWords = html && QUEUE_WORDS.any { body.contains(it, ignoreCase = true) }
+        // A page that asks to be loaded again in a moment is a line to wait in, not an answer:
+        // Janitor's own queue page carries no queue cookie, only `Refresh: 20` (2026-11-03).
+        val refreshes = html && (r.header("Refresh") != null || META_REFRESH.containsMatchIn(body))
         return when {
             r.header("cf-mitigated").equals("challenge", ignoreCase = true) -> Kind.Challenge
             body.contains("\"cfWaitingRoom\"") -> Kind.WaitingRoom
             cookies.any { it.startsWith("__cfwaitingroom") } && !json -> Kind.WaitingRoom
-            (queued || queueWords) && !json && (html || r.isSuccessful) -> Kind.WaitingRoom
+            (queued || queueWords || refreshes) && !json && (html || r.isSuccessful) -> Kind.WaitingRoom
             r.code == 403 && !json && (html || r.header("Server").equals("cloudflare", ignoreCase = true)) -> Kind.Block
             r.isSuccessful && html && !json -> Kind.Page
             else -> null
         }
     }
 
-    /** What the waiting room's own page says on it. */
-    private val QUEUE_WORDS = listOf("waiting room", "waitingroom", "cf-waiting-room", "cf_waiting_room")
+    /** What a queue page says on it: Cloudflare's waiting room, and Janitor's own "You're in line". */
+    private val QUEUE_WORDS = listOf(
+        "waiting room", "waitingroom", "cf-waiting-room", "cf_waiting_room",
+        "you\u2019re in line", "you're in line", "managing traffic", "estimated wait",
+    )
+
+    /** The wait a queue page names ("Estimated wait: 1 minute" gives "1 minute"), or null. */
+    internal fun estimate(body: String): String? =
+        ESTIMATE.find(body)?.groupValues?.get(1)?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() && it.length <= 40 }
+
+    private val ESTIMATE = Regex("""Estimated wait:\s*([^<\n]+)""", RegexOption.IGNORE_CASE)
 
     /**
      * How long the waiting room asks a browser to wait before checking back: its refresh (the

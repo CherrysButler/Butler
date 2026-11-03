@@ -566,7 +566,7 @@ private fun Portrait(header: Header) {
         if (!revealed) {
             Surface(
                 onClick = { revealed = true },
-                shape = RoundedCornerShape(12.dp),
+                shape = com.cherry.butler.core.design.liftedShape(12.dp),
                 color = ButlerTheme.colors.surfaceElevated.copy(alpha = 0.92f),
                 modifier = Modifier.align(Alignment.Center),
             ) {

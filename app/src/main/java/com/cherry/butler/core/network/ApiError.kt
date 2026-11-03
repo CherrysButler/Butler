@@ -42,6 +42,8 @@ sealed class ApiError(
      */
     data class Queued(
         val retryAfterMillis: Long? = null,
+        /** Janitor's own words for the wait ("1 minute"), when its page gave them. */
+        val estimate: String? = null,
     ) : ApiError(retryable = true, message = "In Janitor's queue")
 
     /** 5xx. Upstream is unhappy; retry with backoff. */

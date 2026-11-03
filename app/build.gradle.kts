@@ -158,6 +158,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.jtokkit)
     implementation(libs.richeditor.compose)
+    implementation(libs.haze)
     implementation(libs.okhttp.logging)
 
     // Supabase (auth today; postgrest/realtime land with browse + chat)

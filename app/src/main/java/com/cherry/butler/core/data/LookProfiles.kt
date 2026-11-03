@@ -38,6 +38,7 @@ class LookProfiles @Inject constructor(
         text = textLook.look.value,
         appFont = fonts.app.value.takeIf { fonts.present(it) != null },
         chatFont = fonts.chat.value.takeIf { fonts.present(it) != null },
+        depth = themes.depth.value,
     )
 
     fun saveCurrent(name: String): LookProfile =
@@ -52,6 +53,7 @@ class LookProfiles @Inject constructor(
         themes.setThinkingLook(p.thinkingLook)
         themes.setThoughtLook(p.thoughtLook)
         themes.setCustom(p.custom)
+        themes.setDepth(p.depth)
         textLook.update { p.text }
         val missing = mutableListOf<String>()
         p.appFont?.let { key -> fonts.present(key)?.let(fonts::setApp) ?: missing.add(FontPrefs.nameOf(key)) }

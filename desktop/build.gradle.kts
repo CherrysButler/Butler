@@ -285,6 +285,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.jtokkit)
     implementation(libs.richeditor.compose)
+    implementation(libs.haze)
     implementation(libs.okhttp.logging)
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.auth)
@@ -446,3 +447,10 @@ val useSegmentHeap by tasks.registering {
 }
 tasks.matching { it.name == "createDistributable" }.configureEach { finalizedBy(useSegmentHeap) }
 generateCdsArchive { mustRunAfter(useSegmentHeap) }
+
+// TEMPORARY: renders the depth system offscreen (DepthSnap.kt). Remove before release.
+tasks.register<JavaExec>("depthSnap") {
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cherry.butler.desktop.DepthSnapKt")
+    args(layout.buildDirectory.dir("depth-snaps").get().asFile.absolutePath)
+}

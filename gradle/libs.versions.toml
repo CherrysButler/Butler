@@ -17,6 +17,8 @@ okhttp = "4.12.0"
 jtokkit = "1.1.0"
 # Built on Compose 1.7.3, as Butler is; later ones pull in Compose 1.8+.
 richeditor = "1.0.0-rc11"
+# Backdrop blur for the frosted chrome (Depth Lifted); 1.5.x is the last built on Compose 1.7.3.
+haze = "1.5.4"
 supabase = "3.0.3"
 ktor = "3.0.2"
 securityCrypto = "1.1.0-alpha06"
@@ -67,6 +69,7 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 jtokkit = { group = "com.knuddels", name = "jtokkit", version.ref = "jtokkit" }
 # The bio and description editor: rich text as you type, read from and written to HTML.
 richeditor-compose = { group = "com.mohamedrejeb.richeditor", name = "richeditor-compose", version.ref = "richeditor" }
+haze = { group = "dev.chrisbanes.haze", name = "haze", version.ref = "haze" }
 supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
 supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt" }
 supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt" }

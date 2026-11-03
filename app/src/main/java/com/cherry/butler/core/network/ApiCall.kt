@@ -50,9 +50,12 @@ class ApiCall(
     ): T {
         var attempt = 0
         var checked = false
+        var queuedSince = 0L
         while (true) {
             try {
                 val body = executeOnce(request)
+                // Janitor's own answer: whoever was in its queue is through.
+                JanitorQueue.through()
                 return try {
                     decode(body)
                 } catch (e: CancellationException) {
@@ -68,6 +71,17 @@ class ApiCall(
                 if (!checked && e is ApiError.Api && e.janitorCode == "CF_CHALLENGE") {
                     checked = true
                     if (CloudflareCheck.pass(request.url.toString())) continue
+                }
+                // In Janitor's queue: wait at its pace, as its page asks, up to ten minutes, not a
+                // few quick tries. The banner (QueueBanner) says so meanwhile.
+                if (e is ApiError.Queued) {
+                    val now = System.currentTimeMillis()
+                    if (queuedSince == 0L) queuedSince = now
+                    if (now - queuedSince < MAX_QUEUE_MS) {
+                        delay(e.retryAfterMillis ?: QUEUE_PACE_MS)
+                        continue
+                    }
+                    throw e
                 }
                 attempt++
                 if (!e.retryable || attempt >= maxAttempts) throw e
@@ -179,6 +193,9 @@ class ApiCall(
         const val BASE_BACKOFF_MS = 500L
         const val MAX_BACKOFF_MS = 15_000L
         const val MAX_HINT_MS = 60_000L
+        /** The longest a call stands in Janitor's queue before it says so instead. */
+        const val MAX_QUEUE_MS = 10 * 60 * 1000L
+        const val QUEUE_PACE_MS = 20_000L
     }
 }
 

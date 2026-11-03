@@ -12,10 +12,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import com.cherry.butler.core.design.ButlerTheme
+import com.cherry.butler.core.design.Depth
+import com.cherry.butler.core.design.DepthLook
+import com.cherry.butler.core.design.Lift
+import com.cherry.butler.core.design.LocalDepth
+import com.cherry.butler.core.design.LocalDepthLook
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -53,18 +59,61 @@ fun Modifier.hairlineFrame(color: Color, shape: Shape? = null): Modifier = compo
 }
 
 /**
- * A card: the lifted surface with a hairline edge. In Lights out the lift is gone and the
- * hairline does all the work.
+ * A card: the lifted surface with a hairline edge. With Depth Flat the tone step and hairline do
+ * all the work. With Depth Lifted ([LocalDepth]) light comes from above, drawn in what the look
+ * can show ([LocalDepthLook]): the hairline brightens along the card's top edge (its rim), the
+ * fill is a touch lighter at its top, and a soft contact shadow sits under it, as deep as its
+ * [lift]. The shadow is drawn once by the platform, not every frame.
  */
-fun Modifier.card(shape: Shape? = null, color: Color? = null, clip: Boolean = true): Modifier = composed {
+fun Modifier.card(shape: Shape? = null, color: Color? = null, clip: Boolean = true, lift: Lift = Lift.Rest): Modifier = composed {
     val s = shape ?: MaterialTheme.shapes.medium
     val outline = ButlerTheme.colors.cardOutline
     val fill = color ?: MaterialTheme.colorScheme.surfaceContainer
+    val lifted = LocalDepth.current == Depth.Lifted
+    val look = LocalDepthLook.current
+    val raise = if (lifted) liftShadow(s, look, lift) else Modifier
     // A clip costs a rounded mask on every frame; content that never reaches the corners
     // (the Browse card's picture sits between its name and footer) can skip it.
-    val base = if (clip) clip(s).background(fill) else background(fill, s)
+    val paint = if (lifted) litFill(fill, look, lift) else null
+    val base = raise.then(
+        when {
+            paint != null && clip -> Modifier.clip(s).background(paint)
+            paint != null -> Modifier.background(paint, s)
+            clip -> Modifier.clip(s).background(fill)
+            else -> Modifier.background(fill, s)
+        },
+    )
     // 1 dp, not one device pixel: a single pixel anti-aliases to nothing on a rounded corner.
-    if (outline.isSpecified) base.border(1.dp, outline, s) else base
+    when {
+        !outline.isSpecified -> base
+        lifted -> base.border(1.dp, rimBrush(outline, look, lift), s)
+        else -> base.border(1.dp, outline, s)
+    }
+}
+
+/**
+ * A soft, wide contact shadow under a raised surface (Depth Lifted), as deep as its [lift]:
+ * deep under the slate looks, faint and cool on Daylight.
+ */
+fun Modifier.liftShadow(shape: Shape, look: DepthLook, lift: Lift = Lift.Rest): Modifier = shadow(
+    elevation = lift.elevation,
+    // A continuous corner casts its shadow from the rounded rectangle under it (see SmoothCornerShape.rounded).
+    shape = (shape as? com.cherry.butler.core.design.SmoothCornerShape)?.rounded() ?: shape,
+    clip = false,
+    ambientColor = look.shadow.copy(alpha = look.ambient),
+    spotColor = look.shadow.copy(alpha = look.spot),
+)
+
+/** The surface lit from above: a touch brighter at its top, its own tone by the middle. */
+fun litFill(fill: Color, look: DepthLook, lift: Lift = Lift.Rest): Brush {
+    val top = androidx.compose.ui.graphics.lerp(fill, Color.White, (look.lit * lift.rimBoost).coerceAtMost(0.9f))
+    return Brush.verticalGradient(0f to top, 0.6f to fill, 1f to fill)
+}
+
+/** The hairline with light along its top edge: brighter at the rim, the card's own edge below. */
+fun rimBrush(outline: Color, look: DepthLook, lift: Lift = Lift.Rest): Brush {
+    val rim = androidx.compose.ui.graphics.lerp(outline, Color.White, (look.rim * lift.rimBoost).coerceAtMost(0.95f))
+    return Brush.verticalGradient(0f to rim, 0.35f to outline, 1f to outline)
 }
 
 /**

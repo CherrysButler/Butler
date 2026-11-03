@@ -1,5 +1,12 @@
 package com.cherry.butler.ui
 
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.frostSource
+import com.cherry.butler.ui.components.card
+import com.cherry.butler.ui.components.liftShadow
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -123,19 +130,30 @@ fun ButlerRoot() {
     // A tab with unsaved changes (Settings) gets to ask before the bar takes the user away.
     val leaveGuard = androidx.compose.runtime.remember { com.cherry.butler.ui.navigation.LeaveGuard() }
     androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.ui.navigation.LocalLeaveGuard provides leaveGuard) {
+    // Lifted: the bar floats as an island over the ground, so the ground runs to the bottom.
+    val lifted = com.cherry.butler.core.design.LocalDepth.current == com.cherry.butler.core.design.Depth.Lifted
+    // Frosted: the island frosts the lists scrolling under it (Glass.kt).
+    val frost = com.cherry.butler.ui.components.glassOn()
+    val islandHaze = androidx.compose.runtime.remember { dev.chrisbanes.haze.HazeState() }
     Scaffold(
-        containerColor = if (showBar) ButlerTheme.colors.chrome else MaterialTheme.colorScheme.background,
-        bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { dest -> if (dest != tab) leaveGuard.leave { tab = dest } }) },
+        containerColor = if (showBar && !lifted) ButlerTheme.colors.chrome else MaterialTheme.colorScheme.background,
+        bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { dest -> if (dest != tab) leaveGuard.leave { tab = dest } }, haze = islandHaze.takeIf { frost }) },
     ) { scaffoldPadding ->
         // On a tab, the ground is a sheet with rounded lower corners resting on the dark
         // nav bar, as in Janitor. Screens get only the top inset; the sheet ends above the bar.
         val barPadding = if (showBar) scaffoldPadding.calculateBottomPadding() else 0.dp
         val innerPadding = PaddingValues(top = scaffoldPadding.calculateTopPadding())
+        // Frosted, the ground runs on under the island and each tab's list leaves the island's room at its foot.
+        val under = showBar && frost
         Surface(
-            modifier = Modifier.fillMaxSize().padding(bottom = barPadding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = if (under) 0.dp else barPadding)
+                .then(if (under) Modifier.frostSource(islandHaze) else Modifier),
             color = MaterialTheme.colorScheme.background,
-            shape = if (showBar) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) else RectangleShape,
+            shape = if (showBar && !lifted) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) else RectangleShape,
         ) {
+            androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.ui.components.LocalBottomChrome provides if (under) barPadding else 0.dp) {
             NavHost(
                 navController = navController,
                 startDestination = Routes.TABS,
@@ -360,6 +378,7 @@ fun ButlerRoot() {
                     )
                 }
             }
+            }
         }
     }
     }
@@ -367,18 +386,43 @@ fun ButlerRoot() {
 
 /** Five icons on the dark bar, as in Janitor; the current tab is lit red. */
 @Composable
-private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestination) -> Unit) {
+private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestination) -> Unit, haze: dev.chrisbanes.haze.HazeState? = null) {
     val shell: ShellViewModel = hiltViewModel()
     val unread by shell.unread.collectAsStateWithLifecycle()
     LaunchedEffect(selected) { shell.refreshUnread() }
     val outline = ButlerTheme.colors.cardOutline
+    val lifted = com.cherry.butler.core.design.LocalDepth.current == com.cherry.butler.core.design.Depth.Lifted
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ButlerTheme.colors.chrome)
-            .then(if (outline.isSpecified) Modifier.drawBehind { drawRect(outline, size = Size(size.width, 1.dp.toPx())) } else Modifier)
-            .navigationBarsPadding()
-            .height(64.dp),
+        modifier = if (lifted && haze != null) {
+            // Frosted: the island over the lists, frosting what passes under it, lit along its top edge.
+            val island = MaterialTheme.shapes.extraLarge
+            val look = com.cherry.butler.core.design.LocalDepthLook.current
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+                .liftShadow(island, look, com.cherry.butler.core.design.Lift.Float)
+                .clip(island)
+                .frosted(haze)
+                .border(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), island)
+                .height(56.dp)
+        } else if (lifted) {
+            // An island on the ground: chrome, rounded, lit along its top edge, a shadow under it.
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .navigationBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+                .card(shape = MaterialTheme.shapes.extraLarge, color = ButlerTheme.colors.chrome, lift = com.cherry.butler.core.design.Lift.Float)
+                .height(56.dp)
+        } else {
+            Modifier
+                .fillMaxWidth()
+                .background(ButlerTheme.colors.chrome)
+                .then(if (outline.isSpecified) Modifier.drawBehind { drawRect(outline, size = Size(size.width, 1.dp.toPx())) } else Modifier)
+                .navigationBarsPadding()
+                .height(64.dp)
+        },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TopLevelDestination.entries.forEach { dest ->

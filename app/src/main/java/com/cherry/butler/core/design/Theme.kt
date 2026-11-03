@@ -105,6 +105,7 @@ fun ButlerTheme(
     chatLetterSpacing: Int = 0,
     thinkingLook: ThinkingLook = ThinkingLook.Butler,
     thoughtLook: ThoughtLook = ThoughtLook.Stripe,
+    depth: Depth = Depth.Flat,
     content: @Composable () -> Unit,
 ) {
     val typography = androidx.compose.runtime.remember(appFont, chatFont, appTextScale, appLetterSpacing, chatLetterSpacing) {
@@ -115,9 +116,13 @@ fun ButlerTheme(
     val colorScheme = if (theme == AppTheme.Custom) androidx.compose.runtime.remember(customTones) { scheme(customTones) } else Schemes.getValue(theme)
     val extended = if (theme == AppTheme.Custom) androidx.compose.runtime.remember(customTones) { extendedColors(customTones) } else Extended.getValue(theme)
     val shapes = when (theme) {
-        AppTheme.LightsOut -> LightsOutShapes
-        AppTheme.Custom -> androidx.compose.runtime.remember(custom.corners) { scaledShapes(custom.corners) }
-        else -> ButlerShapes
+        AppTheme.LightsOut -> if (depth == Depth.Lifted) LightsOutLiftedShapes else LightsOutShapes
+        // Lifted rounds a step softer and continuous; the Custom look's own corner scale applies on top.
+        AppTheme.Custom -> androidx.compose.runtime.remember(custom.corners, depth) {
+            val lifted = depth == Depth.Lifted
+            scaledShapes(custom.corners * if (lifted) LIFTED_CORNERS else 1f, smooth = lifted)
+        }
+        else -> if (depth == Depth.Lifted) LiftedShapes else ButlerShapes
     }
 
     CompositionLocalProvider(
@@ -131,13 +136,23 @@ fun ButlerTheme(
         LocalChatLetterSpacing provides chatLetterSpacing,
         LocalThinkingLook provides thinkingLook,
         LocalThoughtLook provides thoughtLook,
+        LocalDepth provides depth,
+        // How light falls on this look's ground: shadow on slate, luminous edges on black, a cool rim on Daylight.
+        LocalDepthLook provides androidx.compose.runtime.remember(colorScheme.background) { DepthLook.forGround(colorScheme.background) },
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
             shapes = shapes,
-            content = content,
-        )
+        ) {
+            // Lifted: a press is a soft wash, not Android's ripple (the PC sets its own hover wash).
+            if (depth == Depth.Lifted) {
+                val wash = com.cherry.butler.ui.components.PressWash(MaterialTheme.colorScheme.onSurface)
+                CompositionLocalProvider(androidx.compose.foundation.LocalIndication provides wash, content = content)
+            } else {
+                content()
+            }
+        }
     }
 }
 

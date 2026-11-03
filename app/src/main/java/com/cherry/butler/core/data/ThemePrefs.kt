@@ -38,6 +38,17 @@ class ThemePrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putString(KEY_CHAT_STYLE, style.key).remove(KEY_BUBBLES).apply()
     }
 
+    /** How surfaces show depth; null until picked, which is each look's own default (Depth.orDefaultFor). */
+    private val _depth = MutableStateFlow(
+        com.cherry.butler.core.design.Depth.entries.firstOrNull { it.key == prefs.getString(KEY_DEPTH, null) },
+    )
+    val depth: StateFlow<com.cherry.butler.core.design.Depth?> = _depth.asStateFlow()
+
+    fun setDepth(depth: com.cherry.butler.core.design.Depth?) {
+        _depth.value = depth
+        prefs.edit().apply { if (depth == null) remove(KEY_DEPTH) else putString(KEY_DEPTH, depth.key) }.apply()
+    }
+
     /** What the thinking line shows while a thought is written, and what it folds to after. */
     private val _thinkingLook = MutableStateFlow(
         com.cherry.butler.core.design.ThinkingLook.entries.firstOrNull { it.key == prefs.getString(KEY_THINKING_LOOK, null) }
@@ -110,5 +121,6 @@ class ThemePrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_CHAT_STYLE = "chat_style"
         const val KEY_THINKING_LOOK = "thinking_look"
         const val KEY_THOUGHT_LOOK = "thought_look"
+        const val KEY_DEPTH = "depth"
     }
 }

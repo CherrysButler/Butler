@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chats
 
+import com.cherry.butler.ui.components.pressSpring
 import com.cherry.butler.ui.components.SearchBox
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.rounded.Refresh
@@ -345,11 +346,13 @@ fun KeyButton(
     enabled: Boolean = true,
     primary: Boolean = false,
 ) {
+    val press = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = MaterialTheme.shapes.medium,
-        modifier = modifier,
+        modifier = modifier.pressSpring(press),
+        interactionSource = press,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (primary) MaterialTheme.colorScheme.primary else ButlerTheme.colors.surfaceHigh,
             contentColor = if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
@@ -389,7 +392,7 @@ private fun SlotList(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = 16.dp + com.cherry.butler.ui.components.bottomChrome()),
     ) {
         items(
             count = groups.itemCount,
