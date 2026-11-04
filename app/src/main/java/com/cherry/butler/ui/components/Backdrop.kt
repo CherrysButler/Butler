@@ -92,6 +92,9 @@ val LocalBackdropHost = androidx.compose.runtime.staticCompositionLocalOf<Backdr
 /** How much larger the picture is drawn, which is also how far it can drift: 2% each way. */
 private const val PARALLAX_SCALE = 1.04f
 
+/** A change in tilt (of -1..1) under this is less than half a pixel of drift, and isn't drawn. */
+private const val STILL = 0.02f
+
 /** Radians of tilt that take the picture all the way to its edge. */
 private const val MAX_TILT = 0.5f
 
@@ -134,7 +137,10 @@ private fun rememberTilt(enabled: Boolean): State<Offset> {
                 val tx = ((roll - baseX) / MAX_TILT).coerceIn(-1f, 1f)
                 val ty = ((pitch - baseY) / MAX_TILT).coerceIn(-1f, 1f)
                 val now = tilt.value
-                tilt.value = Offset(now.x + (tx - now.x) * 0.1f, now.y + (ty - now.y) * 0.1f)
+                val next = Offset(now.x + (tx - now.x) * 0.1f, now.y + (ty - now.y) * 0.1f)
+                // A move too small to see draws nothing: a phone at rest used to redraw the
+                // picture with every reading, some fifty times a second, for as long as the chat was open.
+                if (kotlin.math.abs(next.x - now.x) > STILL || kotlin.math.abs(next.y - now.y) > STILL) tilt.value = next
             }
 
             override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) = Unit

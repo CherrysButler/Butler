@@ -67,6 +67,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateContentSize
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.flow.first
 import com.cherry.butler.core.design.proseStyle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.runtime.snapshotFlow
@@ -1416,6 +1417,10 @@ private suspend fun followFrames(listState: androidx.compose.foundation.lazy.Laz
             if (first == null || listState.firstVisibleItemIndex != 0) {
                 absorber.reset()
                 following = false
+                // Scrolled away from the live edge: nothing to follow until it's back in sight.
+                androidx.compose.runtime.snapshotFlow {
+                    listState.firstVisibleItemIndex == 0 && listState.layoutInfo.visibleItemsInfo.any { it.index == 0 }
+                }.first { it }
                 continue
             }
             val offset = listState.firstVisibleItemScrollOffset
@@ -1431,7 +1436,17 @@ private suspend fun followFrames(listState: androidx.compose.foundation.lazy.Laz
             absorber.key = first.key
             absorber.size = first.size
             if (following && !scrolling && target > 0) target -= glideStep(target)
-            if (target != offset) listState.requestScrollToItem(0, target)
+            if (target != offset) {
+                listState.requestScrollToItem(0, target)
+            } else if (!scrolling) {
+                // Nothing to do this frame: no frames are asked for until the reply grows, the
+                // list moves, or a finger does. Waiting on a model asked for every frame before.
+                val still = Triple(first.size, offset, listState.firstVisibleItemIndex)
+                androidx.compose.runtime.snapshotFlow {
+                    val f = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == 0 }
+                    Triple(f?.size ?: -1, listState.firstVisibleItemScrollOffset, listState.firstVisibleItemIndex) != still || listState.isScrollInProgress
+                }.first { it }
+            }
         }
     } finally {
         absorber.reset()

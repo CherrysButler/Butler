@@ -29,16 +29,25 @@ internal fun Modifier.onScreen(state: MutableState<Boolean>): Modifier = onGloba
 
 /**
  * Nanoseconds of animation so far, ticking only while [running]: frames are asked for only
- * then, and it picks up where it stopped.
+ * then, and it picks up where it stopped. Every frame, as smooth as the screen goes; on battery
+ * saver, thirty a second, as the phone asks of apps then.
  */
 @Composable
 internal fun rememberThinkingClock(running: Boolean): State<Long> {
     val clock = remember { mutableLongStateOf(0L) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(running) {
         if (!running) return@LaunchedEffect
+        val saving = (context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager)?.isPowerSaveMode == true
         val resumeAt = clock.longValue
         val start = withFrameNanos { it }
-        while (true) withFrameNanos { clock.longValue = resumeAt + (it - start) }
+        while (true) {
+            withFrameNanos { clock.longValue = resumeAt + (it - start) }
+            if (saving) kotlinx.coroutines.delay(SAVER_FRAME_GAP_MS)
+        }
     }
     return clock
 }
+
+/** On battery saver, the least time between the thinking animation's frames: about thirty a second. */
+private const val SAVER_FRAME_GAP_MS = 30L
