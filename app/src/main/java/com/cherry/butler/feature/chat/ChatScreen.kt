@@ -926,7 +926,10 @@ private fun BotTurn(
     // Butter mode: a reply with butter in it can fold to just those beats, per reply.
     val hasButter = remember(shown.markup, shown.text) { SceneTags.has(shown.markup ?: shown.text, SceneTag.Butter) }
     var skim by androidx.compose.runtime.saveable.rememberSaveable(shown.localId) { mutableStateOf(false) }
-    val canSwipe = isLast && turn.answersUser && shown.serverId != null || (isLast && turn.answersUser && turn.variants.size > 1)
+    // A reply cut short is never saved to Janitor, but it still gets the bar: Try again
+    // (a new reply beside it) as well as the strip's Continue.
+    val cutShort = !writing && shown.streamState == MessageStreamState.PARTIAL && shown.text.isNotEmpty()
+    val canSwipe = isLast && turn.answersUser && (shown.serverId != null || turn.variants.size > 1 || cutShort)
     val haptics = LocalHapticFeedback.current
     val byId = turn.variants.associateBy { it.localId }
     val indexOf = { id: Long -> turn.variants.indexOfFirst { it.localId == id } }
@@ -1046,7 +1049,7 @@ private fun BotTurn(
             // The opening, before anyone has answered it, steps through the character's intros
             // instead: -1 when the line was edited into none of them.
             val introIndex = if (intros.size > 1) intros.indexOfFirst { it.trim() == shown.text.trim() } else null
-            val barReady = !writing && (canSwipe || introIndex != null || shown.serverId != null)
+            val barReady = !writing && (canSwipe || introIndex != null || shown.serverId != null || cutShort)
             VariantBar(
                 index = introIndex ?: turn.index.coerceAtLeast(0),
                 count = if (introIndex != null) intros.size else turn.variants.size,
