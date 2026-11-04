@@ -41,4 +41,27 @@ class OpenRouterThinkingTest {
         assertNull(r["max_tokens"])
         assertNull(r["enabled"])
     }
+
+    @Test
+    fun `another proxy gets the openai standard reasoning_effort, and nothing of openrouter's`() {
+        val out = OpenRouterOptions(preset = "@preset/x", providers = listOf("deepinfra"), thinking = OpenRouterOptions.Thinking.Low).applyTo(payload, openRouter = false)
+        assertEquals("low", out["reasoning_effort"]!!.jsonPrimitive.content)
+        assertNull(out["reasoning"])
+        assertNull(out["provider"])
+        assertEquals("moonshotai/kimi-k2.6", out["model"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `past the standard's levels another proxy is sent high, and the default sends nothing`() {
+        assertEquals("high", OpenRouterOptions(thinking = OpenRouterOptions.Thinking.Max).applyTo(payload, openRouter = false)["reasoning_effort"]!!.jsonPrimitive.content)
+        assertEquals("none", OpenRouterOptions(thinking = OpenRouterOptions.Thinking.Off).applyTo(payload, openRouter = false)["reasoning_effort"]!!.jsonPrimitive.content)
+        assertNull(OpenRouterOptions().applyTo(payload, openRouter = false)["reasoning_effort"])
+    }
+
+    @Test
+    fun `another host keeps only the thinking level`() {
+        val all = OpenRouterOptions(preset = "@preset/x", providers = listOf("a"), allowFallbacks = false, thinking = OpenRouterOptions.Thinking.Medium)
+        assertEquals(OpenRouterOptions(thinking = OpenRouterOptions.Thinking.Medium), all.forHost("https://api.deepseek.com/v1/chat/completions"))
+        assertEquals(all, all.forHost("https://openrouter.ai/api/v1/chat/completions"))
+    }
 }

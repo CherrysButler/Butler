@@ -18,9 +18,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * What OpenRouter understands and Janitor doesn't carry: a preset in place of the model
- * (`@preset/roleplay`), provider routing (`provider: {order, allow_fallbacks, sort}`), and
- * how hard a thinking model thinks (`reasoning: {effort}`).
+ * What a proxy understands and Janitor doesn't carry. How hard a thinking model thinks goes to
+ * every proxy: OpenRouter's `reasoning: {effort}`, and the OpenAI standard `reasoning_effort`
+ * for the rest (OpenAI-compatible routers, DeepSeek, LiteLLM, vLLM and the like). OpenRouter
+ * alone also takes a preset in place of the model (`@preset/roleplay`) and provider routing
+ * (`provider: {order, allow_fallbacks, sort}`).
  * Butler adds them to the payload Janitor assembled, just before sending it to OpenRouter
  * (docs/JANITOR_API.md §30), so they exist only on this phone, per proxy configuration.
  */
@@ -43,22 +45,39 @@ data class OpenRouterOptions(
      * A model that doesn't think ignores it; [Default] sends nothing and leaves it to the model.
      */
     @Serializable
-    enum class Thinking(val wire: String?, val label: String) {
+    enum class Thinking(val wire: String?, val label: String, val standard: Boolean = true) {
         Default(null, "Model's default"),
         Off("none", "Off"),
         Minimal("minimal", "Minimal"),
         Low("low", "Low"),
         Medium("medium", "Medium"),
         High("high", "High"),
-        XHigh("xhigh", "Extra high"),
-        Max("max", "Max"),
+        // OpenRouter's own; the OpenAI standard stops at high.
+        XHigh("xhigh", "Extra high", standard = false),
+        Max("max", "Max", standard = false),
+        ;
+
+        /** The level a proxy that isn't OpenRouter is sent: the standard's, high at most. */
+        val standardWire: String? get() = if (standard) wire else High.wire
+
+        companion object {
+            /** What a proxy that isn't OpenRouter is offered. */
+            val standardLevels: List<Thinking> get() = entries.filter { it.standard }
+        }
     }
 
     val isEmpty: Boolean get() = preset.isBlank() && providers.isEmpty() && allowFallbacks && prefer == Prefer.Default && thinking == Thinking.Default
 
-    /** The payload as OpenRouter should receive it. */
-    fun applyTo(payload: JsonObject): JsonObject {
+    /**
+     * The payload as the proxy should receive it: OpenRouter's options for OpenRouter
+     * ([openRouter]), only the thinking level, in the OpenAI standard's field, for any other.
+     */
+    fun applyTo(payload: JsonObject, openRouter: Boolean = true): JsonObject {
         if (isEmpty) return payload
+        if (!openRouter) {
+            val effort = thinking.standardWire ?: return payload
+            return JsonObject(payload + ("reasoning_effort" to JsonPrimitive(effort)))
+        }
         val out = payload.toMutableMap()
         preset.trim().takeIf { it.isNotEmpty() }?.let { out["model"] = JsonPrimitive(it) }
         if (providers.isNotEmpty() || !allowFallbacks || prefer.wire != null) {
@@ -76,6 +95,9 @@ data class OpenRouterOptions(
         }
         return JsonObject(out)
     }
+
+    /** What of these a proxy at [url] uses: all of it for OpenRouter, the thinking level for any other. */
+    fun forHost(url: String): OpenRouterOptions = if (isOpenRouter(url)) this else OpenRouterOptions(thinking = thinking)
 
     companion object {
         fun isOpenRouter(url: String): Boolean =

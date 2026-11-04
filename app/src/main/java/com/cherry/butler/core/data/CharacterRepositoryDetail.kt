@@ -35,7 +35,10 @@ class CharacterDetailRepository @Inject constructor(
 
     suspend fun detail(characterId: String, refresh: Boolean = false): CharacterDetail {
         if (!refresh) cache[characterId]?.let { return it }
-        return remote.detail(characterId).toDomain().also { cache[characterId] = it }
+        return remote.detail(characterId).toDomain().also {
+            cache[characterId] = it
+            ProxyPolicy.note(it.id, it.allowProxy)
+        }
     }
 
     suspend fun chatsWith(characterId: String): List<CharacterChat> =

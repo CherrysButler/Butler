@@ -426,6 +426,16 @@ class SendPipeline @Inject constructor(
         val addon = addons.instruction(mode)
         val userConfigNow = profileRepository.userConfig(profileRepository.profile())
         val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
+        // A character whose creator switched proxies off: Janitor would turn the message away,
+        // again and again behind Cloudflare's check. Said once, plainly, and not sent.
+        if (!jllm && com.cherry.butler.core.data.ProxyPolicy.allows(chat.characterId) == false) {
+            throw ApiError.Api(
+                code = 403,
+                janitorCode = "BUTLER_NO_PROXY_CHARACTER",
+                serverMessage = "This character doesn't allow proxies. Switch to JLLM to chat with it.",
+                retryable = false,
+            )
+        }
         val history = if (addon != null && jllm) PromptAddons.intoHistory(baseHistory, addon) else baseHistory
         val profile = profileRepository.profile()
         val played = profileRepository.playedPersona(chat, history)

@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,10 +67,11 @@ class NotificationsViewModel @Inject constructor(private val repository: Communi
     private val _error = MutableStateFlow<ApiError?>(null)
     val error: StateFlow<ApiError?> = _error.asStateFlow()
 
-    init {
-        refresh()
-    }
-
+    /**
+     * Read when the tab is opened, not when the app starts: the five tabs are built at once,
+     * and a list read at start was stale by the time the bell lit (and had already marked
+     * everything read, so the new ones never showed).
+     */
     fun refresh() {
         viewModelScope.launch {
             _refreshing.value = true
@@ -99,6 +101,8 @@ fun NotificationsScreen(
     val items by viewModel.items.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val active = com.cherry.butler.ui.navigation.LocalTabActive.current
+    LaunchedEffect(active) { if (active) viewModel.refresh() }
 
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         ScreenHead(title = "Notifications")

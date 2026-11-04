@@ -58,7 +58,24 @@ class CharacterDetailViewModel @Inject constructor(
     private val community: CommunityRepository,
     private val profiles: com.cherry.butler.core.data.ProfileRepository,
     private val cards: com.cherry.butler.core.data.CardExport,
+    private val aiSettings: com.cherry.butler.core.data.SettingsRepository,
 ) : ViewModel() {
+
+    /** How you chat now (JLLM or a proxy), to warn before a chat on a proxy this character refuses. */
+    val ai: StateFlow<com.cherry.butler.core.data.AiSettings?> = aiSettings.settings.also { if (it.value == null) viewModelScope.launch { runCatching { aiSettings.load() } } }
+    private val _switching = MutableStateFlow(false)
+    val switchingToJllm: StateFlow<Boolean> = _switching.asStateFlow()
+
+    /** Chats move to JLLM (Janitor's setting, for every chat), as the warning offers. */
+    fun switchToJllm() {
+        if (_switching.value) return
+        viewModelScope.launch {
+            _switching.value = true
+            runCatching { aiSettings.setProvider(com.cherry.butler.core.data.Provider.Janitor) }
+                .onFailure { e -> _state.update { it.copy(socialError = "Not switched. ${e.userMessage()}") } }
+            _switching.value = false
+        }
+    }
 
     private val _cardExport = kotlinx.coroutines.flow.MutableStateFlow<CardExportState?>(null)
     /** Export card's dialog; null while it's closed. */

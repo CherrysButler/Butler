@@ -178,9 +178,10 @@ class ProfileRepository @Inject constructor(
                         p.model?.let { put("openAiModel", JsonPrimitive(it)) }
                     },
                 )
-                val options = openRouter.get(p.id).takeIf { OpenRouterOptions.isOpenRouter(p.url) }
+                val options = openRouter.get(p.id)
+                val viaOpenRouter = OpenRouterOptions.isOpenRouter(p.url)
                 val target = ProxyTarget(url = p.url, key = p.key, shape = { payload ->
-                    val shaped = options?.applyTo(payload) ?: payload
+                    val shaped = options.applyTo(payload, viaOpenRouter)
                     p.model?.let { JsonObject(shaped + ("model" to JsonPrimitive(it))) } ?: shaped
                 })
                 GenerationEnvelope.userConfig(
@@ -194,8 +195,9 @@ class ProfileRepository @Inject constructor(
     /** Where the payload goes, and what OpenRouter options it picks up on the way. */
     fun proxyTarget(profile: ProfileDto): ProxyTarget? =
         selectedProxy(profile)?.let { proxy ->
-            val options = openRouter.get(proxy.id).takeIf { OpenRouterOptions.isOpenRouter(proxy.url) }
-            ProxyTarget(url = proxy.url, key = proxy.key, shape = { payload -> options?.applyTo(payload) ?: payload })
+            val options = openRouter.get(proxy.id)
+            val viaOpenRouter = OpenRouterOptions.isOpenRouter(proxy.url)
+            ProxyTarget(url = proxy.url, key = proxy.key, shape = { payload -> options.applyTo(payload, viaOpenRouter) })
         }
 
     /**

@@ -125,7 +125,7 @@ class PictureDescriber @Inject constructor(
                 })
             })
         }
-        if (OpenRouterOptions.isOpenRouter(target.url)) payload = openRouter.get(target.presetId).applyTo(payload)
+        payload = openRouter.get(target.presetId).applyTo(payload, OpenRouterOptions.isOpenRouter(target.url))
         // The options may carry the preset's own model; the picked one wins.
         payload = kotlinx.serialization.json.JsonObject(payload + ("model" to kotlinx.serialization.json.JsonPrimitive(target.model)))
 

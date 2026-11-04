@@ -3,6 +3,9 @@ package com.cherry.butler.feature.character
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PersonOff
 import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.ui.graphics.graphicsLayer
@@ -154,7 +157,7 @@ fun CharacterDetailScreen(
             name = d.name, chatName = d.chatName, avatarUrl = d.avatarUrl, creatorName = d.creatorName,
             creatorVerified = d.creatorVerified, chatCount = d.chatCount, messageCount = d.messageCount,
             tokens = d.totalTokens, tagNames = d.tagNames, description = d.description,
-            isNsfw = d.isNsfw, isImageNsfw = d.isImageNsfw,
+            isNsfw = d.isNsfw, isImageNsfw = d.isImageNsfw, allowProxy = d.allowProxy,
         )
     } ?: mirror?.let { m ->
         Header(
@@ -280,7 +283,15 @@ fun CharacterDetailScreen(
         }
 
         if (header != null) {
+            val ai by viewModel.ai.collectAsStateWithLifecycle()
+            val switching by viewModel.switchingToJllm.collectAsStateWithLifecycle()
+            // On a proxy, and the creator switched proxies off: said before the chat, not after.
+            val refusedProxy = ai?.takeIf { it.provider == com.cherry.butler.core.data.Provider.Proxy && header.allowProxy == false }
+                ?.let { it.selectedProxy?.name ?: "your proxy" }
             StartChatBar(
+                refusedProxy = refusedProxy,
+                switching = switching,
+                onUseJllm = viewModel::switchToJllm,
                 starting = state.startingChat,
                 error = state.startError?.userMessage(),
                 persona = persona,
@@ -429,6 +440,8 @@ private data class Header(
     val description: String,
     val isNsfw: Boolean,
     val isImageNsfw: Boolean,
+    /** Whether the creator lets people chat on a proxy; null until the page has it. */
+    val allowProxy: Boolean? = null,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -472,6 +485,10 @@ private fun Content(
                     if (header.isNsfw) {
                         Spacer(Modifier.width(10.dp))
                         NsfwBadge(modifier = Modifier.padding(top = 4.dp))
+                    }
+                    header.allowProxy?.let { allowed ->
+                        Spacer(Modifier.width(6.dp))
+                        ProxyBadge(allowed, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
                 Portrait(header)
@@ -705,6 +722,10 @@ private fun DefinitionSection(sections: List<Pair<String, String>>) {
 
 @Composable
 private fun StartChatBar(
+    /** The proxy you chat on, when this character turns proxies away; null otherwise. */
+    refusedProxy: String?,
+    switching: Boolean,
+    onUseJllm: () -> Unit,
     starting: Boolean,
     error: String?,
     persona: PersonaOption?,
@@ -720,6 +741,14 @@ private fun StartChatBar(
         Column {
         HairlineRule(color = ButlerTheme.colors.cardOutline)
         Column(modifier = Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)) {
+            androidx.compose.animation.AnimatedVisibility(visible = refusedProxy != null) {
+                NoProxyNotice(
+                    body = "Janitor won't take ${refusedProxy ?: "a proxy"} for this one. Chat on JLLM instead.",
+                    switching = switching,
+                    onUseJllm = onUseJllm,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+            }
             if (error != null) {
                 Text(
                     text = error,
@@ -747,6 +776,60 @@ private fun StartChatBar(
             }
         }
         }
+    }
+}
+
+/**
+ * Whether the creator lets people chat on a proxy, as Janitor's page says: a quiet mark when
+ * they do, a warning-toned one when they don't, beside the 18+ mark.
+ */
+@Composable
+internal fun ProxyBadge(allowed: Boolean, modifier: Modifier = Modifier) {
+    val tone = if (allowed) ButlerTheme.colors.textMed else ButlerTheme.colors.warn
+    Row(
+        modifier = modifier
+            .background(if (allowed) ButlerTheme.colors.surfaceHigh else ButlerTheme.colors.warn.copy(alpha = 0.16f), MaterialTheme.shapes.extraSmall)
+            .padding(start = 5.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)
+            .semantics(mergeDescendants = true) { contentDescription = if (allowed) "Proxies allowed" else "No proxies: JLLM only" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = if (allowed) Icons.Rounded.Check else Icons.Rounded.Block,
+            contentDescription = null,
+            tint = tone,
+            modifier = Modifier.size(12.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = if (allowed) "Proxy" else "No proxy",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = tone,
+        )
+    }
+}
+
+/**
+ * The warning for a character that turns proxies away while you chat on one: what's wrong in a
+ * line, and the way out (JLLM) as a key. Shared by the character page and the chat.
+ */
+@Composable
+internal fun NoProxyNotice(body: String, switching: Boolean, onUseJllm: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(ButlerTheme.colors.warn.copy(alpha = 0.14f), MaterialTheme.shapes.medium)
+            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Block, contentDescription = null, tint = ButlerTheme.colors.warn, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("No proxies on this character", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textMed)
+        }
+        Spacer(Modifier.width(8.dp))
+        com.cherry.butler.feature.chats.KeyButton(if (switching) "Switching…" else "Use JLLM", onClick = onUseJllm, enabled = !switching)
     }
 }
 

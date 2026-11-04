@@ -179,6 +179,7 @@ class ChatRepository @Inject constructor(
      */
     suspend fun refreshChat(chatId: Long): ChatEntity {
         val detail = remote.detail(chatId)
+        ProxyPolicy.note(detail.character.id, detail.character.allowProxy)
         val now = System.currentTimeMillis()
         val entity = detail.toEntity(existing = chatDao.get(chatId), now = now)
         db.withTransaction {

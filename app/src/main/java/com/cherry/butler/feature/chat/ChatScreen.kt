@@ -431,8 +431,11 @@ fun ChatScreen(
     val spread = backdropHost != null && acrossWindow && background != null
     if (backdropHost != null) {
         androidx.compose.runtime.DisposableEffect(backdropHost, background, spread) {
-            backdropHost.shown = background.takeIf { spread }
-            onDispose { backdropHost.shown = null }
+            val mine = background.takeIf { spread }
+            backdropHost.shown = mine
+            // Only what this chat put there: switching chats, the next one hands over its
+            // background before this one leaves, and clearing it then left the window bare.
+            onDispose { if (backdropHost.shown === mine) backdropHost.shown = null }
         }
     }
     // Frosted: over a background picture the top bar and composer frost it (the PC's window
@@ -514,6 +517,21 @@ fun ChatScreen(
                 }
                 // No progress bar: the caption says what is happening, the reply shows it.
                 HairlineRule(color = ButlerTheme.colors.outlineFaint)
+                // On a proxy, with a character whose creator switched proxies off: said here,
+                // with the way out, before a message is turned away.
+                val aiNow by viewModel.aiSettingsState.collectAsStateWithLifecycle()
+                val proxyRules by com.cherry.butler.core.data.ProxyPolicy.allowed.collectAsStateWithLifecycle()
+                val refused = aiNow?.provider == com.cherry.butler.core.data.Provider.Proxy &&
+                    chat?.characterId?.let { proxyRules[it] } == false
+                androidx.compose.animation.AnimatedVisibility(visible = refused) {
+                    val switching by viewModel.modelBusy.collectAsStateWithLifecycle()
+                    com.cherry.butler.feature.character.NoProxyNotice(
+                        body = "Janitor won't take ${aiNow?.selectedProxy?.name ?: "a proxy"} for this one. Chat on JLLM instead.",
+                        switching = switching,
+                        onUseJllm = viewModel::useJllm,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                }
             }
         },
         bottomBar = {

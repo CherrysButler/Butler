@@ -91,7 +91,7 @@ class DescriptionWriter @Inject constructor(
                 })
             })
         }
-        if (OpenRouterOptions.isOpenRouter(proxy.url)) payload = openRouter.get(preset.id).applyTo(payload)
+        payload = openRouter.get(preset.id).applyTo(payload, OpenRouterOptions.isOpenRouter(proxy.url))
 
         val request = Request.Builder()
             .url(proxy.url)

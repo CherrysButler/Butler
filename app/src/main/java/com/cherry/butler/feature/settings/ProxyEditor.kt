@@ -154,8 +154,8 @@ class ProxyEditorViewModel @Inject constructor(
                 val before = repository.settings.value?.proxies.orEmpty().map { it.id }.toSet()
                 val after = repository.saveProxy(ProxyDraft(proxyId, f.name, f.apiUrl, f.model, f.newKey.takeIf { it.isNotBlank() }, f.promptId))
                 val saved = after.proxies.firstOrNull { it.id == proxyId } ?: after.proxies.firstOrNull { it.id !in before }
-                // Options only mean something to OpenRouter; another host drops them.
-                if (saved != null) openRouter.set(saved.ids, if (f.isOpenRouter) f.openRouterOptions() else OpenRouterOptions())
+                // Every host keeps the thinking level; OpenRouter alone its preset and routing.
+                if (saved != null) openRouter.set(saved.ids, f.openRouterOptions().forHost(f.apiUrl))
             }.onSuccess {
                 _form.update { it.copy(saving = false, newKey = "") }
                 onDone()
@@ -174,7 +174,7 @@ class ProxyEditorViewModel @Inject constructor(
         val id = proxyId ?: return
         val f = _form.value
         val draft = if (f.loaded) ProxyDraft(null, f.name, f.apiUrl, f.model, f.newKey.trim().takeIf { it.isNotEmpty() }, f.promptId) else null
-        val options = if (!f.loaded) null else if (f.isOpenRouter) f.openRouterOptions() else OpenRouterOptions()
+        val options = if (!f.loaded) null else f.openRouterOptions().forHost(f.apiUrl)
         viewModelScope.launch {
             _form.update { it.copy(saving = true, error = null) }
             runCatching { repository.cloneProxy(id, draft, options) }
@@ -269,10 +269,8 @@ fun ProxyEditorScreen(onBack: () -> Unit, viewModel: ProxyEditorViewModel = hilt
                 Icon(Icons.Rounded.UnfoldMore, contentDescription = "Choose prompt", tint = ButlerTheme.colors.textLow)
             }
         }
-        if (form.isOpenRouter) {
-            ThinkingRow(form) { change -> viewModel.update(change) }
-            OpenRouterSection(form) { change -> viewModel.update(change) }
-        }
+        ThinkingRow(form) { change -> viewModel.update(change) }
+        if (form.isOpenRouter) OpenRouterSection(form) { change -> viewModel.update(change) }
     }
 }
 
@@ -365,8 +363,11 @@ fun PromptPickerSheet(
  */
 @Composable
 private fun ThinkingRow(form: ProxyForm, update: ((ProxyForm) -> ProxyForm) -> Unit) {
-    DropRow(title = "Thinking", value = form.thinking.label) { close ->
-        OpenRouterOptions.Thinking.entries.forEach { level ->
+    // OpenRouter's levels go past the OpenAI standard's; another proxy is offered the standard's.
+    val levels = if (form.isOpenRouter) OpenRouterOptions.Thinking.entries else OpenRouterOptions.Thinking.standardLevels
+    val shown = if (form.thinking in levels) form.thinking else OpenRouterOptions.Thinking.High
+    DropRow(title = "Thinking", value = shown.label) { close ->
+        levels.forEach { level ->
             DropItem(
                 title = level.label,
                 subtitle = when (level) {
@@ -375,7 +376,7 @@ private fun ThinkingRow(form: ProxyForm, update: ((ProxyForm) -> ProxyForm) -> U
                     OpenRouterOptions.Thinking.Max -> "Longest thinking, slowest and dearest"
                     else -> null
                 },
-                selected = level == form.thinking,
+                selected = level == shown,
                 onClick = { close(); update { it.copy(thinking = level) } },
             )
         }
