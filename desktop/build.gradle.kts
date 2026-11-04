@@ -354,7 +354,7 @@ compose.desktop {
             )
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Butler"
-            packageVersion = "0.4.5"
+            packageVersion = "0.5.0"
             vendor = "Cherry"
             windows {
                 // The bow tie on Butler's slate, for the Start menu, the shortcut and Butler.exe.
@@ -447,10 +447,3 @@ val useSegmentHeap by tasks.registering {
 }
 tasks.matching { it.name == "createDistributable" }.configureEach { finalizedBy(useSegmentHeap) }
 generateCdsArchive { mustRunAfter(useSegmentHeap) }
-
-// TEMPORARY: renders the depth system offscreen (DepthSnap.kt). Remove before release.
-tasks.register<JavaExec>("depthSnap") {
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set("com.cherry.butler.desktop.DepthSnapKt")
-    args(layout.buildDirectory.dir("depth-snaps").get().asFile.absolutePath)
-}

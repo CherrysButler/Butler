@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.cherry.butler.core.design.orDefaultFor
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -227,18 +228,16 @@ private fun WelcomeStep() {
     }
 }
 
-/** What 0.4.3 brought, for someone who had Butler before it. */
+/** What 0.5.0 brought, for someone who had Butler before it. */
 @Composable
-private fun NewsStep() {
+internal fun NewsStep() {
     StepHead("What's new in ${BuildConfig.VERSION_NAME}", "A look at what changed. The next steps set up the new choices.")
     val news = listOf(
-        "Butler has been revived!" to "Again! Don't kill Butler!!",
-        "Create bots" to "Make your own characters right here, with drafts so you don't lose your progress.",
-        "Your profile bio" to "Edit it right from Butler.",
-        "Summaries" to "Pick a different model to summarize your chats, in Settings › Model.",
-        "Cloudflare check" to "Added cloudflare check.",
-        "Busy times" to "Fixed \"Unexpected response\" when Janitor is busy.",
-        "Many bug fixes" to "Things just work better.",
+        "A new look with depth" to "Softer corners, light and shadow, a floating bar. You can switch back in Settings › Look › Depth.",
+        "Character cards" to "Import and export the PNG and JSON cards SillyTavern and Chub use.",
+        "Lessons (beta)" to "Butler learns from your OOC notes so the AI stops repeating mistakes. Turn it on in Settings › Chat, then type /learn.",
+        "Commands" to "Type / in a chat: /note, /retry, /thinking, /length, /agent.",
+        "Bug fixes" to "Lots of things work better now.",
     )
 
     Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -297,6 +296,28 @@ private fun LookStep(viewModel: SettingsViewModel) {
         color = ButlerTheme.colors.textLow,
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
     )
+    // Depth: new in 0.5.0, so someone who liked the flat look can have it back from here.
+    val depthPick by viewModel.depth.collectAsStateWithLifecycle()
+    val depth = depthPick.orDefaultFor(current)
+    Text(
+        "Depth",
+        style = MaterialTheme.typography.labelMedium,
+        color = ButlerTheme.colors.textMed,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp),
+    )
+    val depths = com.cherry.butler.core.design.Depth.entries
+    com.cherry.butler.ui.components.SegmentedChoice(
+        options = depths.map { it.label },
+        selected = depths.indexOf(depth).coerceAtLeast(0),
+        onSelect = { i -> viewModel.setDepth(depths[i]) },
+        modifier = Modifier.padding(horizontal = 8.dp),
+    )
+    Text(
+        depth.blurb,
+        style = MaterialTheme.typography.bodySmall,
+        color = ButlerTheme.colors.textLow,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
+    )
     if (customizing) CustomLookSheet(viewModel, onDismiss = { customizing = false })
 }
 
@@ -311,8 +332,8 @@ private fun DoneStep() {
         Text("All set", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(12.dp))
         Text(
-            "There's more in Settings when you want it: Butler specials (Butter mode, Highlights), Compact mode under Chat, " +
-                "fonts, chat backgrounds and look profiles.",
+            "There's more in Settings when you want it: Lessons (beta) and agent mode, Butler specials (Butter mode, Highlights), " +
+                "Compact mode under Chat, fonts, chat backgrounds and look profiles. In a chat, type / for commands.",
             style = MaterialTheme.typography.bodyLarge,
             color = ButlerTheme.colors.textMed,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

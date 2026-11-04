@@ -42,8 +42,8 @@ android {
         applicationId = "com.cherry.butler"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.4.5"
+        versionCode = 13
+        versionName = "0.5.0"
         vectorDrawables { useSupportLibrary = true }
     }
 
