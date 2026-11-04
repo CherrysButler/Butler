@@ -2,7 +2,6 @@ package com.cherry.butler.ui.components
 
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.border
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -235,7 +234,7 @@ private fun GroupChip(
             .heightIn(min = 40.dp)
             .clip(MaterialTheme.shapes.small)
             .background(if (lit) MaterialTheme.colorScheme.primaryContainer else ButlerTheme.colors.surfaceHigh)
-            .border(1.dp, if (lit) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+            .rim(1.dp, if (lit) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

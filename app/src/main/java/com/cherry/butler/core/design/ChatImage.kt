@@ -17,9 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.ui.components.card
 import java.net.URI
@@ -41,10 +39,10 @@ fun ChatImage(url: String, alt: String, modifier: Modifier = Modifier) {
     val trusted = scheme == "https" && host == JANITOR_IMAGE_HOST
     var allowed by rememberSaveable(url) { mutableStateOf(trusted) }
     if (allowed) {
-        AsyncImage(
-            model = url,
+        // Holds the picture's place while it loads, so the chat doesn't jump when it lands.
+        com.cherry.butler.ui.components.LoadingPicture(
+            url = url,
             contentDescription = alt.ifBlank { null },
-            contentScale = ContentScale.FillWidth,
             modifier = modifier
                 .fillMaxWidth()
                 .heightIn(max = 420.dp)

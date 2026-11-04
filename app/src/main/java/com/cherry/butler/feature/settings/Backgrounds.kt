@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.rim
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -25,7 +26,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -292,7 +292,7 @@ private fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .clip(MaterialTheme.shapes.small)
             .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else ButlerTheme.colors.surfaceHigh)
-            .border(1.dp, if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.cardOutline, MaterialTheme.shapes.small)
+            .rim(1.dp, if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.cardOutline, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -312,7 +312,7 @@ private fun AddTile(modifier: Modifier, ratio: Float, onClick: () -> Unit) {
             .aspectRatio(ratio)
             .clip(MaterialTheme.shapes.medium)
             .background(ButlerTheme.colors.surfaceHigh)
-            .border(1.dp, ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
+            .rim(1.dp, ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
             .clickable(onClickLabel = "Add a picture", onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -345,7 +345,7 @@ private fun SavedTile(
         modifier = modifier
             .aspectRatio(ratio)
             .clip(MaterialTheme.shapes.medium)
-            .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
+            .rim(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else ButlerTheme.colors.cardOutline, MaterialTheme.shapes.medium)
             .clickable(onClickLabel = "Use this background", onClick = onUse),
     ) {
         AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -537,7 +537,7 @@ private fun ToolKey(icon: ImageVector, label: String, on: Boolean, open: Boolean
                 .size(56.dp)
                 .clip(CircleShape)
                 .background(if (open) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.45f))
-                .border(1.dp, Color.White.copy(alpha = if (open) 0f else 0.18f), CircleShape)
+                .rim(1.dp, Color.White.copy(alpha = if (open) 0f else 0.18f), CircleShape)
                 .clickable(onClickLabel = label, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
@@ -595,7 +595,7 @@ private fun EdgeSlider(
                 .height(260.dp)
                 .clip(com.cherry.butler.core.design.liftedShape(22.dp))
                 .background(Color.Black.copy(alpha = 0.45f))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), com.cherry.butler.core.design.liftedShape(22.dp))
+                .rim(1.dp, Color.White.copy(alpha = 0.18f), com.cherry.butler.core.design.liftedShape(22.dp))
                 .pointerInput(max) {
                     detectTapGestures { pos -> onChange(at(pos.y, size.height)) }
                 }

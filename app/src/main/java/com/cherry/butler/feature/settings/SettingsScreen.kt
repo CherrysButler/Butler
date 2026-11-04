@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.Layers
 import com.cherry.butler.core.design.orDefaultFor
 import androidx.compose.material.icons.rounded.Close
@@ -89,7 +90,6 @@ import com.cherry.butler.core.design.AppTheme
 import com.cherry.butler.core.design.ChatStyle
 import com.cherry.butler.core.design.ButlerTheme
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
@@ -1310,7 +1310,7 @@ private fun TokenRow(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(32.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+        Box(Modifier.size(32.dp).clip(CircleShape).background(color).rim(1.dp, ButlerTheme.colors.rule, CircleShape))
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(token.label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             Text(
@@ -1345,7 +1345,7 @@ private fun ColorRow(title: String, subtitle: String, color: androidx.compose.ui
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(subtitle, style = MaterialTheme.typography.labelMedium, color = ButlerTheme.colors.textLow)
         }
-        Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+        Box(Modifier.size(36.dp).clip(CircleShape).background(color).rim(1.dp, ButlerTheme.colors.rule, CircleShape))
     }
 }
 
@@ -1493,7 +1493,7 @@ private fun MoodChips(on: Set<com.cherry.butler.core.generation.Mood>, onChange:
                     .heightIn(min = 36.dp)
                     .clip(MaterialTheme.shapes.small)
                     .background(if (lit) wash.copy(alpha = 0.22f) else ButlerTheme.colors.surfaceHigh)
-                    .border(1.dp, if (lit) wash else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+                    .rim(1.dp, if (lit) wash else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
                     .clickable(enabled = !lit || on.size > 1) { onChange(mood, !lit) }
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1774,7 +1774,7 @@ internal fun ThemeTile(theme: AppTheme, t: com.cherry.butler.core.design.Tones, 
                 .height(64.dp)
                 .clip(com.cherry.butler.core.design.liftedShape(12.dp))
                 .background(t.ground)
-                .border(if (selected) 2.dp else 1.dp, frame, com.cherry.butler.core.design.liftedShape(12.dp))
+                .rim(if (selected) 2.dp else 1.dp, frame, com.cherry.butler.core.design.liftedShape(12.dp))
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

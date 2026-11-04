@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.remember
 import androidx.compose.material.icons.rounded.Add
@@ -7,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -235,7 +235,7 @@ private fun WheelSwatch(own: Color?, modifier: Modifier = Modifier, onClick: () 
             .aspectRatio(1f)
             .clip(CircleShape)
             .then(if (own != null) Modifier.background(own) else Modifier.background(rainbow))
-            .border(if (own != null) 2.dp else 1.dp, if (own != null) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
+            .rim(if (own != null) 2.dp else 1.dp, if (own != null) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
             .clickable(onClickLabel = "Any colour", onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -260,7 +260,7 @@ private fun Swatch(color: Color?, chosen: Boolean, modifier: Modifier = Modifier
             .aspectRatio(1f)
             .clip(CircleShape)
             .background(color ?: MaterialTheme.colorScheme.background)
-            .border(if (chosen) 2.dp else 1.dp, ring, CircleShape)
+            .rim(if (chosen) 2.dp else 1.dp, ring, CircleShape)
             .clickable(onClickLabel = if (color == null) "Theme colour" else null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

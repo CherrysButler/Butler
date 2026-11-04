@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -298,7 +297,7 @@ private fun HeadingKey(level: Int, enabled: Boolean, onPicked: () -> Unit, onPic
             modifier = Modifier
                 .focusProperties { canFocus = false }
                 .clip(MaterialTheme.shapes.small)
-                .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
                 .clickable(enabled = enabled) { open = true }
                 .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -337,7 +336,7 @@ private fun ToolKey(icon: ImageVector, label: String, enabled: Boolean, on: Bool
             .focusProperties { canFocus = false }
             .clip(MaterialTheme.shapes.small)
             .then(if (on) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)) else Modifier)
-            .border(1.dp, if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+            .rim(1.dp, if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
             .clickable(enabled = enabled, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

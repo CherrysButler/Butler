@@ -1,9 +1,9 @@
 package com.cherry.butler.feature.profile
 
+import com.cherry.butler.ui.components.rim
 import com.cherry.butler.feature.settings.RowDivider
 import com.cherry.butler.ui.components.dropLastPixel
 import com.cherry.butler.ui.components.card
-import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.FileDownload
 import com.cherry.butler.ui.components.userMessage
@@ -591,7 +591,7 @@ private fun GroupDialog(start: GroupEdit, onSave: (name: String, color: String) 
                                     ),
                                 ),
                             )
-                            .border(if (chosen) 2.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, androidx.compose.foundation.shape.CircleShape)
+                            .rim(if (chosen) 2.dp else 1.dp, if (chosen) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, androidx.compose.foundation.shape.CircleShape)
                             .clickable { if (isWheel) wheel = true else color = hex },
                     )
                 }

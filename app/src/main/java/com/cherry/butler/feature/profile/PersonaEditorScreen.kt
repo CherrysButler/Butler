@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.profile
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
@@ -9,7 +10,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -452,7 +452,7 @@ private fun ColorChoice(label: String, value: String, enabled: Boolean, onPick: 
                 .size(28.dp)
                 .clip(MaterialTheme.shapes.small)
                 .then(if (color != null) Modifier.background(color) else Modifier)
-                .border(1.dp, ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small),
+                .rim(1.dp, ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small),
         )
         Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {

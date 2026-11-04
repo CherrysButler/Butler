@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.browse
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.ui.components.SearchBox
 import androidx.compose.runtime.LaunchedEffect
@@ -8,7 +9,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
@@ -226,7 +226,7 @@ internal fun ModeBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .padding(bottom = 6.dp)
-            .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium)
+            .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -339,7 +339,7 @@ internal fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emp
         modifier = Modifier
             .clip(shape)
             .background(fill)
-            .border(if (selected) 1.5.dp else 1.dp, edge, shape)
+            .rim(if (selected) 1.5.dp else 1.dp, edge, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,

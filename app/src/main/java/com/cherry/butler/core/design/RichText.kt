@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -32,7 +31,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.cherry.butler.core.markdown.RichHtml
 import com.cherry.butler.core.markdown.RichHtml.Align
 import com.cherry.butler.core.markdown.RichHtml.Block
@@ -142,10 +140,10 @@ fun RichText(
                         Align.Start -> Alignment.CenterStart
                     },
                 ) {
-                    AsyncImage(
-                        model = block.url,
+                    // Holds the picture's place while it loads, so the text below doesn't jump.
+                    com.cherry.butler.ui.components.LoadingPicture(
+                        url = block.url,
                         contentDescription = null,
-                        contentScale = ContentScale.FillWidth,
                         modifier = Modifier
                             .fillMaxWidth(block.widthFraction ?: 1f)
                             .clip(MaterialTheme.shapes.small)

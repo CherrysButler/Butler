@@ -1,9 +1,9 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,7 +71,7 @@ fun ProviderChip(label: String, percent: Int?, onClick: () -> Unit) {
         modifier = Modifier
             .widthIn(max = 150.dp)
             .clip(MaterialTheme.shapes.extraSmall)
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall)
+            .rim(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall)
             .clickable(onClick = onClick)
             .padding(start = 10.dp, end = if (percent != null) 7.dp else 10.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,

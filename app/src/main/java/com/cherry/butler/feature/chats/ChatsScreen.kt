@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chats
 
+import com.cherry.butler.ui.components.rim
 import com.cherry.butler.ui.components.pressSpring
 import com.cherry.butler.ui.components.SearchBox
 import androidx.compose.material.icons.outlined.Archive
@@ -58,7 +59,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.border
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -621,7 +621,7 @@ private fun SearchFilters(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = keepFocus
                     .clip(MaterialTheme.shapes.small)
-                    .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                    .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
                     .clickable(onClickLabel = "Filter by persona", onClick = onStartFilter)
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             )

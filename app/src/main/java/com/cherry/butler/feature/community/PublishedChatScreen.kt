@@ -1,8 +1,8 @@
 package com.cherry.butler.feature.community
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -451,7 +451,7 @@ private fun ReactionRow(tallies: List<ReactionTally>, emojiById: Map<String, Emo
                 modifier = Modifier
                     .clip(Pill)
                     .background(if (r.mine) MaterialTheme.colorScheme.primaryContainer else ButlerTheme.colors.surfaceHigh)
-                    .then(if (r.mine) Modifier.border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), Pill) else Modifier)
+                    .then(if (r.mine) Modifier.rim(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), Pill) else Modifier)
                     .clickable(onClickLabel = if (r.mine) "Take back your ${emoji?.label ?: "reaction"}" else "React with ${emoji?.label ?: r.emoji}") { onReact(r.emoji) }
                     .padding(start = 6.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,

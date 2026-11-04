@@ -1,8 +1,8 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -164,7 +164,7 @@ private fun DeskCard(onClose: () -> Unit, composerHeight: Dp, content: @Composab
                 .shadow(18.dp, MaterialTheme.shapes.large)
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
-                .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.large)
+                .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.large)
                 // Its own clicks stay on it; the dimmed story under it would take them.
                 .pointerInput(Unit) { detectTapGestures { } }
                 .padding(top = 14.dp),
@@ -326,7 +326,7 @@ private fun WritePanelBody(
                         modifier = Modifier
                             .clip(MaterialTheme.shapes.small)
                             .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
-                            .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                            .rim(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
                             .clickable { picks = SuggestionPrompt.toggle(picks, pick.label, rewrite) }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                     )

@@ -2,7 +2,6 @@ package com.cherry.butler.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -105,9 +104,9 @@ fun ColorPickerSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 // Before → after.
-                Box(Modifier.size(28.dp).clip(CircleShape).background(initial).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+                Box(Modifier.size(28.dp).clip(CircleShape).background(initial).rim(1.dp, ButlerTheme.colors.rule, CircleShape))
                 Text("→", style = MaterialTheme.typography.titleMedium, color = ButlerTheme.colors.textLow, modifier = Modifier.padding(horizontal = 6.dp))
-                Box(Modifier.size(36.dp).clip(CircleShape).background(color).border(1.dp, ButlerTheme.colors.rule, CircleShape))
+                Box(Modifier.size(36.dp).clip(CircleShape).background(color).rim(1.dp, ButlerTheme.colors.rule, CircleShape))
             }
 
             val wheel: @Composable () -> Unit = {
@@ -162,7 +161,7 @@ fun ColorPickerSheet(
                                     .size(if (compact) 28.dp else 36.dp)
                                     .clip(CircleShape)
                                     .background(c)
-                                    .border(if (c.toArgb() == color.toArgb()) 2.dp else 1.dp, if (c.toArgb() == color.toArgb()) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
+                                    .rim(if (c.toArgb() == color.toArgb()) 2.dp else 1.dp, if (c.toArgb() == color.toArgb()) MaterialTheme.colorScheme.onSurface else ButlerTheme.colors.rule, CircleShape)
                                     .clickable(onClickLabel = hexOf(c)) { take(c) },
                             )
                         }

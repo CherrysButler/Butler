@@ -1,10 +1,10 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -75,7 +75,7 @@ private fun Choice(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.small)
-            .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+            .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {

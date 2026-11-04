@@ -1,10 +1,10 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import com.cherry.butler.ui.components.card
@@ -168,7 +168,7 @@ fun ChoiceRow(
             Box(
                 modifier = Modifier
                     .size(22.dp)
-                    .border(2.dp, ring, CircleShape)
+                    .rim(2.dp, ring, CircleShape)
                     .padding(5.dp)
                     .graphicsLayer { scaleX = dot; scaleY = dot; alpha = dot }
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
@@ -595,7 +595,7 @@ fun BetaTag(modifier: Modifier = Modifier) {
         letterSpacing = 1.sp,
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier
-            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+            .rim(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }
@@ -615,7 +615,7 @@ fun ButlerSpecialTag(modifier: Modifier = Modifier) {
         color = butter,
         modifier = modifier
             .background(butter.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
-            .border(1.dp, butter.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+            .rim(1.dp, butter.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
 }

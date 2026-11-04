@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.rim
 import com.cherry.butler.ui.components.pressSpring
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.isAltPressed
@@ -9,7 +10,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -339,7 +339,7 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
                     .size(width = 36.dp, height = 28.dp)
                     .clip(MaterialTheme.shapes.small)
                     .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
-                    .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
+                    .rim(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
                     // Never takes the focus: a click with a mouse moved it off the box, which hid
                     // the keys (they show while the box has it) and lost the caret.
                     .focusProperties { canFocus = false }

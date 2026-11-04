@@ -3,7 +3,6 @@ package com.cherry.butler.ui.components
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -29,7 +28,7 @@ fun SegmentedChoice(options: List<String>, selected: Int, onSelect: (Int) -> Uni
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .border(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium)
+            .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {

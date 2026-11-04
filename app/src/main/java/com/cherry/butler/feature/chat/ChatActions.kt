@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.StarOutline
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.foundation.background
@@ -40,7 +41,6 @@ import kotlinx.coroutines.flow.first
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.border
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -493,7 +493,7 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                         modifier = Modifier
                             .clip(MaterialTheme.shapes.small)
                             .background(if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
-                            .border(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
+                            .rim(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, MaterialTheme.shapes.small)
                             .clickable { picks = if (on) picks - pick else picks + pick }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                     )

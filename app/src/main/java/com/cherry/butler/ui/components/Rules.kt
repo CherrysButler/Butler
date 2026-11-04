@@ -2,7 +2,6 @@ package com.cherry.butler.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +14,10 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.isSpecified
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Depth
@@ -55,7 +58,34 @@ fun HairlineRule(modifier: Modifier = Modifier, color: Color = MaterialTheme.col
  */
 fun Modifier.hairlineFrame(color: Color, shape: Shape? = null): Modifier = composed {
     val s = shape ?: MaterialTheme.shapes.small
-    clip(s).border(1.dp, color, s)
+    clip(s).rim(1.dp, color, s)
+}
+
+/**
+ * A border, inside the edge of [shape], as Modifier.border draws it. Use this, not border:
+ * for any shape that isn't a plain rounded rectangle (SmoothCornerShape, every theme shape
+ * here) Compose's border paints into an offscreen bitmap the size of the whole element. A
+ * card as tall as a long description passes Android's ~100 MB draw limit and crashes the app.
+ * This strokes the outline itself, clipped to the shape, at no size cost.
+ */
+fun Modifier.rim(width: Dp, color: Color, shape: Shape): Modifier = rim(width, SolidColor(color), shape)
+
+fun Modifier.rim(width: Dp, brush: Brush, shape: Shape): Modifier = drawWithCache {
+    val w = width.toPx().coerceAtLeast(1f)
+    // The outline of a box inset by half the stroke, so the stroke lands just inside the edge.
+    // No clip: an anti-aliased path clip costs a mask on every frame, for every card.
+    val inner = Size(size.width - w, size.height - w)
+    val path = if (inner.width > 0f && inner.height > 0f) {
+        Path().apply {
+            addOutline(shape.createOutline(inner, layoutDirection, this@drawWithCache))
+            translate(Offset(w / 2f, w / 2f))
+        }
+    } else null
+    val stroke = Stroke(width = w)
+    onDrawWithContent {
+        drawContent()
+        if (path != null) drawPath(path, brush, style = stroke)
+    }
 }
 
 /**
@@ -86,8 +116,8 @@ fun Modifier.card(shape: Shape? = null, color: Color? = null, clip: Boolean = tr
     // 1 dp, not one device pixel: a single pixel anti-aliases to nothing on a rounded corner.
     when {
         !outline.isSpecified -> base
-        lifted -> base.border(1.dp, rimBrush(outline, look, lift), s)
-        else -> base.border(1.dp, outline, s)
+        lifted -> base.rim(1.dp, rimBrush(outline, look, lift), s)
+        else -> base.rim(1.dp, outline, s)
     }
 }
 

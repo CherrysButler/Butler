@@ -1,8 +1,8 @@
 package com.cherry.butler.feature.creator
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -271,7 +271,7 @@ private fun LorebookRow(book: LorebookDto, card: CreatorCss.Look, dark: Boolean)
         modifier = Modifier
             .fillMaxWidth()
             .card(shape = card.radius?.let { RoundedCornerShape(it.dp) }, color = card.background.ink())
-            .then(card.border.ink()?.let { Modifier.border(1.dp, it, card.radius?.let { r -> RoundedCornerShape(r.dp) } ?: MaterialTheme.shapes.medium) } ?: Modifier)
+            .then(card.border.ink()?.let { Modifier.rim(1.dp, it, card.radius?.let { r -> RoundedCornerShape(r.dp) } ?: MaterialTheme.shapes.medium) } ?: Modifier)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

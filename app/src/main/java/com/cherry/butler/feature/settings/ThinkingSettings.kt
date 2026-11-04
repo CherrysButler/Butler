@@ -1,9 +1,9 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.rim
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +79,7 @@ private fun LookChoice(title: String, subtitle: String, selected: Boolean, onCli
             Box(
                 modifier = Modifier
                     .size(22.dp)
-                    .border(2.dp, ring, CircleShape)
+                    .rim(2.dp, ring, CircleShape)
                     .padding(5.dp)
                     .graphicsLayer { scaleX = dot; scaleY = dot; alpha = dot }
                     .background(MaterialTheme.colorScheme.primary, CircleShape),

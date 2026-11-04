@@ -15,7 +15,6 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import com.cherry.butler.core.design.Motion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -165,8 +164,8 @@ fun CharacterTile(
             }
             .pressSpring(pressSource)
             .card(shape = shape, color = containerColor, clip = false)
-            .then(if (edgeColor != null) Modifier.border(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
-            .then(if (motion) Modifier.border(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
+            .then(if (edgeColor != null) Modifier.rim(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
+            .then(if (motion) Modifier.rim(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
             .combinedClickable(
                 interactionSource = pressSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
@@ -398,7 +397,7 @@ fun TagPill(text: String, modifier: Modifier = Modifier) {
         color = tint,
         maxLines = 1,
         modifier = modifier
-            .border(1.dp, tint.copy(alpha = 0.45f), Pill)
+            .rim(1.dp, tint.copy(alpha = 0.45f), Pill)
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
 }
