@@ -27,6 +27,23 @@ object AgentSteps {
 
     fun isAgent(text: String): Boolean = text.indexOf(OPEN) >= 0
 
+    /**
+     * The reply as it stands, whole, hidden in the thought (the panel shows no step for it): what
+     * a Stop mid-check delivers instead of losing the reply.
+     */
+    fun text(reply: String): String = "$OPEN$TEXT$CLOSE$reply$OPEN/$TEXT$CLOSE"
+
+    /** The latest whole reply hidden in [thought] ([text]), or null. */
+    fun latestText(thought: String): String? {
+        val open = "$OPEN$TEXT$CLOSE"
+        val at = thought.lastIndexOf(open).takeIf { it >= 0 } ?: return null
+        val end = thought.indexOf("$OPEN/$TEXT$CLOSE", at)
+        if (end < 0) return null
+        return thought.substring(at + open.length, end).takeIf { it.isNotBlank() }
+    }
+
+    private const val TEXT = "text"
+
     /** The steps in [text], in order, or null when it carries no marks. */
     fun parse(text: String): List<Step>? {
         if (!isAgent(text)) return null

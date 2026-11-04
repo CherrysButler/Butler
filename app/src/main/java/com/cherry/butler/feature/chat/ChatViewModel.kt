@@ -67,6 +67,9 @@ data class EditStatus(val saving: Boolean = false, val error: ApiError? = null)
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    private val lessonsLearner: com.cherry.butler.core.generation.LessonsLearner,
+    private val lessonsStore: com.cherry.butler.core.data.LessonsStore,
+    private val agentPrefs: com.cherry.butler.core.data.AgentPrefs,
     private val savedStateHandle: SavedStateHandle,
     private val repository: ChatRepository,
     private val profile: ProfileRepository,
@@ -605,6 +608,12 @@ class ChatViewModel @Inject constructor(
     fun send() {
         val text = draft.value.trim()
         if (text.isEmpty()) return
+        // Butler's own commands: done here, never sent to the character.
+        ChatCommands.parse(text)?.let { c ->
+            onDraftChanged("")
+            run(c)
+            return
+        }
         suggestions.clear(chatId)
         onDraftChanged("")
         clearPicture()
@@ -613,11 +622,71 @@ class ChatViewModel @Inject constructor(
             commitIntro()
             val active = activePersona.value
             val persona = if (active != null) active.id else repository.chat(chatId)?.personaId
-            pipeline.send(chatId, text, persona)
+            // A /note waiting for this reply goes with it, and is used up.
+            val note = pendingNote.value
+            if (note != null) savedStateHandle[KEY_NOTE] = null
+            pipeline.send(chatId, text, persona, guidance = note)
+        }
+    }
+
+    /** A `/note` waiting for the next reply, shown over the box until it's sent or dropped. */
+    val pendingNote: StateFlow<String?> = savedStateHandle.getStateFlow(KEY_NOTE, null)
+
+    fun dropNote() { savedStateHandle[KEY_NOTE] = null }
+
+    /** A command typed in the box, done. */
+    private fun run(c: ChatCommands.Command) {
+        when (c) {
+            is ChatCommands.Command.Learn -> lessonsLearner.learn(c.focus)
+            is ChatCommands.Command.Note ->
+                if (c.text.isBlank()) _notices.trySend("Write the note after /note, like /note make her hesitate.")
+                else { savedStateHandle[KEY_NOTE] = c.text; _notices.trySend("Note saved for your next reply.") }
+            is ChatCommands.Command.Retry -> askAgainWith(c.text)
+            is ChatCommands.Command.Length -> {
+                val length = c.length ?: run { _notices.trySend("Length is default, short, medium or long."); return }
+                addons.setLength(length)
+                _notices.trySend("Replies: ${length.label.lowercase()}${if (length.rule != null) " (${length.blurb.lowercase()})" else ""}.")
+            }
+            is ChatCommands.Command.Thinking -> {
+                val level = c.level ?: run { _notices.trySend("Thinking is default, off, minimal, low, medium or high."); return }
+                val ai = aiSettingsState.value
+                val proxy = ai?.selectedProxy?.takeIf { ai.provider == Provider.Proxy }
+                    ?: run { _notices.trySend("Thinking is set per proxy, and you're chatting on JLLM."); return }
+                val viaOpenRouter = com.cherry.butler.core.data.OpenRouterOptions.isOpenRouter(proxy.apiUrl)
+                val now = openRouter.get(proxy.id)
+                openRouter.set(proxy.ids, now.copy(thinking = level))
+                val sent = if (!viaOpenRouter && !level.standard) " (sent as high: past high is OpenRouter's)" else ""
+                _notices.trySend("Thinking on ${proxy.name.ifBlank { "your proxy" }}: ${level.label.lowercase()}$sent.")
+            }
+            is ChatCommands.Command.Agent -> {
+                val on = c.on ?: !agentPrefs.enabled.value
+                agentPrefs.setEnabled(on)
+                val proxy = aiSettingsState.value?.provider == Provider.Proxy
+                _notices.trySend(if (on) "Agent mode on: replies are drafted, checked and fixed" + (if (proxy) "." else ", once you're on a proxy.") else "Agent mode off.")
+            }
+            is ChatCommands.Command.Remember -> {
+                if (c.text.isBlank()) { _notices.trySend("Write the note after /remember."); return }
+                if (!lessonsStore.on.value) { _notices.trySend("Lessons is a beta: switch it on in Settings › Chat first."); return }
+                lessonsStore.save(lessonsStore.lessons.value + com.cherry.butler.core.data.Lesson(text = c.text.trim()))
+                _notices.trySend("Added to your Lessons.")
+            }
         }
     }
 
     fun stop() = pipeline.stop(chatId)
+
+    /** "Check this reply": the latest reply through agent mode's check and fixes, as a new variant. */
+    fun checkReply(message: MessageEntity) {
+        if (aiSettingsState.value?.provider != Provider.Proxy) { _notices.trySend("Checking a reply needs a proxy; you're chatting on JLLM."); return }
+        viewModelScope.launch {
+            val latest = transcript.value.lastOrNull { it.isBot && it.isMain }
+            if (latest?.localId != message.localId) { _notices.trySend("Only the latest reply can be checked."); return@launch }
+            pipeline.review(chatId, message.markup ?: message.text)
+        }
+    }
+
+    /** Lessons (beta) is on: `/` offers /learn. */
+    val lessonsOn: StateFlow<Boolean> = lessonsStore.on
 
     fun retryNow(jobId: Long) {
         viewModelScope.launch { pipeline.retryNow(jobId) }
@@ -763,6 +832,7 @@ class ChatViewModel @Inject constructor(
     fun setCompact(on: Boolean) = memoryPrefs.setCompact(on)
 
     private companion object {
+        const val KEY_NOTE = "pending_note"
         const val KEY_DRAFT = "draft"
         /** How long typing must pause before the draft is written to disk. */
         const val DRAFT_SAVE_MS = 400L

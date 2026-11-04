@@ -45,8 +45,9 @@ fun QueueBanner(modifier: Modifier = Modifier) {
     val waiting by JanitorQueue.state.collectAsStateWithLifecycle()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(waiting != null) {
+        // Once a second while in line: the time waited counts up.
         while (waiting != null) {
-            delay(5_000)
+            delay(1_000)
             now = System.currentTimeMillis()
         }
     }
@@ -77,9 +78,9 @@ fun QueueBanner(modifier: Modifier = Modifier) {
                     )
                     Text(
                         listOfNotNull(
-                            shown?.estimate?.let { "Estimated wait: $it" },
-                            "Butler keeps your place and carries on by itself",
-                        ).joinToString(" · "),
+                            shown?.let { "Waiting ${waited(now - it.since)}" },
+                            shown?.estimate?.let { "estimated $it" },
+                        ).joinToString(" · ") + "\nButler keeps your place and carries on by itself",
                         style = MaterialTheme.typography.bodySmall,
                         color = ButlerTheme.colors.textMed,
                     )
@@ -87,4 +88,10 @@ fun QueueBanner(modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/** [ms] as minutes and seconds, "1:40". */
+private fun waited(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(s / 60, s % 60)
 }

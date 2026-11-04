@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.job
+import com.cherry.butler.core.network.cancelOnStop
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -102,7 +103,7 @@ class DescriptionWriter @Inject constructor(
             .header("X-Title", "janitor")
             .build()
         val call = http.newCall(request)
-        val handle = currentCoroutineContext().job.invokeOnCompletion { call.cancel() }
+        val handle = currentCoroutineContext().job.cancelOnStop(call)
         try {
             val response = try { call.execute() } catch (e: IOException) { throw ApiError.Network(ApiError.Network.Kind.Unknown, e) }
             response.use { r ->

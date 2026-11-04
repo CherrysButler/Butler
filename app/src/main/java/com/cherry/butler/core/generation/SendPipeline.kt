@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withTimeoutOrNull
 import com.cherry.butler.core.background.BackgroundReplies
 import kotlinx.serialization.json.JsonNull
@@ -75,6 +77,8 @@ class SendPipeline @Inject constructor(
     private val background: BackgroundReplies,
     private val gauge: ContextGauge,
     private val addons: PromptAddons,
+    private val lessons: com.cherry.butler.core.data.LessonsStore,
+    private val agent: AgentLoop,
     private val moodTagger: MoodTagger,
 ) {
     private val messageDao = db.messageDao()
@@ -110,7 +114,8 @@ class SendPipeline @Inject constructor(
     // ---- entry points ---------------------------------------------------------------
 
     /** Persists the user's words and a placeholder for the reply, then returns. Nothing here touches the network. */
-    suspend fun send(chatId: Long, text: String, personaId: String?): Long {
+    /** @param guidance a note for this reply only, never shown in the chat (`/note`, see [GuidedRetry]). */
+    suspend fun send(chatId: Long, text: String, personaId: String?, guidance: String? = null): Long {
         val chat = chatDao.get(chatId) ?: error("send: unknown chat $chatId")
         val now = System.currentTimeMillis()
         val jobId = db.withTransaction {
@@ -123,7 +128,7 @@ class SendPipeline @Inject constructor(
             )
             val botLocalId = messageDao.insert(placeholderReply(chatId, now + 1))
             chatDao.touch(chatId, now, text.take(160), delta = 1)
-            jobDao.insert(newJob(chat.characterId, chatId, GenerateMode.New, userLocalId, botLocalId, now))
+            jobDao.insert(newJob(chat.characterId, chatId, GenerateMode.New, userLocalId, botLocalId, now).copy(guidance = guidance?.trim()?.takeIf { it.isNotEmpty() }))
         }
         kick(chatId)
         return jobId
@@ -146,6 +151,15 @@ class SendPipeline @Inject constructor(
         }
         kick(chatId)
         return jobId
+    }
+
+    /**
+     * "Check this reply": agent mode's check and fixes on a reply already written; the result
+     * comes as a new variant beside it, so the original stays to swipe back to.
+     */
+    suspend fun review(chatId: Long, reply: String): Long {
+        agent.seed(chatId, reply)
+        return swipe(chatId)
     }
 
     /** Asks again after a reply was stopped before a word of it arrived. One row, never two. */
@@ -185,10 +199,21 @@ class SendPipeline @Inject constructor(
         _live.value = emptyMap()
     }
 
-    /** Stops the in-flight generation for a chat. Text already received is kept as a partial. */
+    /**
+     * Stops the chat's reply at once. Streaming, the stream is cut (and the connection with it,
+     * see cancelOnStop); text already received is kept as a partial. Not streaming yet (the
+     * message still posting, waiting in Janitor's queue, a retry counting down), the job ends
+     * where it is: Stop never waits for the network.
+     */
     fun stop(chatId: Long) {
-        activeStreams[chatId]?.cancel(CancellationException("stopped by user"))
+        activeStreams[chatId]?.let { it.cancel(CancellationException("stopped by user")); return }
+        val worker = workers[chatId] ?: return
+        stopping += chatId
+        worker.cancel(CancellationException("stopped by user"))
     }
+
+    /** Chats whose job Stop ended before it streamed; their worker winds down as stopped, not paused. */
+    private val stopping: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     suspend fun retryNow(jobId: Long) {
         val job = jobDao.get(jobId) ?: return
@@ -267,16 +292,27 @@ class SendPipeline @Inject constructor(
     }
 
     private suspend fun drain(chatId: Long) {
-        while (true) {
-            val job = jobDao.firstActive(chatId, SendJobState.active) ?: return
-            if (job.state == SendJobState.WAITING_RETRY) {
-                val wait = job.nextAttemptAt - System.currentTimeMillis()
-                if (wait > 0) {
-                    val seen = nudges.value
-                    withTimeoutOrNull(wait) { nudges.first { it != seen } }
+        try {
+            while (true) {
+                val job = jobDao.firstActive(chatId, SendJobState.active) ?: return
+                if (job.state == SendJobState.WAITING_RETRY) {
+                    val wait = job.nextAttemptAt - System.currentTimeMillis()
+                    if (wait > 0) {
+                        val seen = nudges.value
+                        withTimeoutOrNull(wait) { nudges.first { it != seen } }
+                    }
+                }
+                runJob(job)
+            }
+        } catch (e: CancellationException) {
+            // Stop before the reply streamed: the job is over, not paused for next launch.
+            if (stopping.remove(chatId)) withContext(NonCancellable) {
+                jobDao.firstActive(chatId, SendJobState.active)?.let { j ->
+                    j.botMessageLocalId?.let { markPartialIfStreaming(it) }
+                    persist(j.copy(state = SendJobState.CANCELLED, lastError = "Stopped", lastErrorRetryable = false))
                 }
             }
-            runJob(job)
+            throw e
         }
     }
 
@@ -304,8 +340,9 @@ class SendPipeline @Inject constructor(
             job.botMessageLocalId?.let { markPartialIfStreaming(it) }
             persist(job.copy(state = SendJobState.CANCELLED, lastError = "Stopped", lastErrorRetryable = false))
         } catch (e: CancellationException) {
-            // The pipeline's scope is going away; leave the job resumable for next launch.
-            persist(job.copy(state = SendJobState.WAITING_RETRY, resumeState = job.state, nextAttemptAt = 0))
+            // The pipeline's scope is going away; leave the job resumable for next launch (or,
+            // if this was Stop, drain marks it stopped just after).
+            withContext(NonCancellable) { persist(job.copy(state = SendJobState.WAITING_RETRY, resumeState = job.state, nextAttemptAt = 0)) }
             throw e
         } catch (e: ApiError) {
             fail(job, e)
@@ -423,7 +460,9 @@ class SendPipeline @Inject constructor(
         val baseHistory = GuidedRetry.apply(historyFor(job.chatId, mode, existing), job.guidance)
         // Butler's specials (reply length, Butter mode): on JLLM in the latest user line, on a
         // proxy in the system prompt (below). Never stored.
-        val addon = addons.instruction(mode)
+        // Lessons (beta): the player's standing notes, with every reply that's written anew.
+        val standing = if (mode == GenerateMode.New || mode == GenerateMode.Alternative) lessons.instructionFor(chat.characterId) else null
+        val addon = listOfNotNull(addons.instruction(mode), standing).joinToString("\n\n").takeIf { it.isNotEmpty() }
         val userConfigNow = profileRepository.userConfig(profileRepository.profile())
         val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
         // A character whose creator switched proxies off: Janitor would turn the message away,
@@ -531,7 +570,14 @@ class SendPipeline @Inject constructor(
             stopped = streamJob.isCancelled
         }
         if (stalled.remove(job.chatId)) throw ApiError.Network(ApiError.Network.Kind.Timeout)
-        if (stopped) throw StoppedByUser()
+        if (stopped) {
+            // Agent mode stopped mid-check: the reply as it stood is a whole one, and goes out
+            // as one rather than being lost (AgentSteps.text keeps it in the thought).
+            val kept = if (text.isEmpty()) AgentSteps.latestText(thinking.toString()) else null
+            if (kept == null) throw StoppedByUser()
+            text.append(kept)
+            done = true
+        }
         // A stream that closed without a terminator and without a single token is a failure
         // worth retrying; one that delivered text is a reply.
         if (!done && text.isEmpty()) throw ApiError.Server(code = 502, upstreamStatus = null)

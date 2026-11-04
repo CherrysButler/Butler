@@ -55,6 +55,15 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.rounded.BookmarkAdd
+import androidx.compose.material.icons.rounded.Loop
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.ShortText
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.StickyNote2
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
@@ -145,6 +154,10 @@ fun Composer(
     onRemovePicture: () -> Unit = {},
     /** On a PC keyboard, Shift+Enter sends and Enter starts a new line (see [enterKey]). */
     shiftEnterSends: Boolean = false,
+    /** What `/` offers: Butler's own commands, never sent to the character. Empty offers none. */
+    commands: List<SlashCommand> = emptyList(),
+    /** Over the box, inside its width: Lessons' strip while /learn runs. */
+    above: (@Composable () -> Unit)? = null,
 ) {
     // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
     // outside (sent, written for you, undone) resets the caret to the end.
@@ -159,6 +172,9 @@ fun Composer(
             if (draft.isEmpty()) typing = TypingState(richDefault)
         }
     }
+    // A command is typed plain: rich typing would wrap the `/` in its marks.
+    val command = field.text.startsWith("/")
+    val richNow = rich && !command
     val marks = RichMarks(
         mark = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
         speech = com.cherry.butler.core.design.LocalRpLook.current.speech?.let { androidx.compose.ui.graphics.Color(it) } ?: ButlerTheme.colors.speech,
@@ -189,16 +205,32 @@ fun Composer(
             }
         }
         picture?.let { PictureStrip(it, onUndo = onUndoPicture, onAgain = onDescribeAgain, onRemove = onRemovePicture) }
+        // `/` and a command's name being typed, or its options after it: what to tap instead of type.
+        val offered = if (command) ChatCommands.offers(field.text, commands) else emptyList()
+        // Lessons' strip and the commands float over the chat, just above the box, taking no
+        // room: grown into the box, they pushed the whole chat up as they came and went.
+        Column(Modifier.fillMaxWidth().overTheChat().padding(bottom = 2.dp)) {
+            above?.invoke()
+            if (offered.isNotEmpty()) {
+                CommandList(offered) { picked ->
+                    field = TextFieldValue(picked.fill, TextRange(picked.fill.length))
+                    onDraftChanged(picked.fill)
+                }
+            }
+        }
         // One field across the whole width, as Janitor's message box: the persona's face at
         // its start, the words, the send key at its end. The keys sit inside the field, so the
         // writing room is the screen's width and not what two keys leave of it.
+        // Concentric: the box's corner is the keys' corner plus the 6 dp around them, so the send
+        // key's curve runs parallel to the box's instead of jamming into it. On the 12 dp gutter
+        // the cards keep, resting on the ground rather than hovering over it.
         Row(
             modifier = Modifier
-                .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 10.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .card(shape = MaterialTheme.shapes.large, color = ButlerTheme.colors.surfaceHigh, lift = com.cherry.butler.core.design.Lift.Float)
-                .padding(start = 6.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                .card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
+                .padding(6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             if (onPickPersona != null) {
@@ -208,7 +240,7 @@ fun Composer(
             Box(modifier = Modifier.weight(1f).heightIn(min = 36.dp).padding(vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
                 Column {
                     // The three marks, over the words while the box has the keyboard.
-                    if (rich && focused) {
+                    if (richNow && focused) {
                         MarkKeys(
                             lit = RichTyping.lit(field, typing),
                             inSpeech = RichTyping.inSpeech(field, typing),
@@ -225,7 +257,7 @@ fun Composer(
                     // The field has drawn the marks' version: the keyboard has it now.
                     SideEffect { imeText.unseen = false }
                     val change: (TextFieldValue) -> Unit = { new ->
-                            if (rich) {
+                            if (rich && !new.text.startsWith("/")) {
                                 // When the marks change what was typed, the keyboard still holds its own
                                 // copy until the field redraws, and can send that copy again in the same
                                 // frame (Gboard does on a backspace). Its text is then what it sent last
@@ -251,7 +283,7 @@ fun Composer(
                         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        visualTransformation = if (rich) marks else androidx.compose.ui.text.input.VisualTransformation.None,
+                        visualTransformation = if (richNow) marks else androidx.compose.ui.text.input.VisualTransformation.None,
                         maxLines = 6,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -494,4 +526,120 @@ private val KEY_HEIGHT = 36.dp
 private class KeyboardCopy(var value: String? = null) {
     /** The marks changed the keyboard's text and the field hasn't drawn that yet. */
     var unseen = false
+}
+
+/**
+ * What `/` could be, floating over the chat above the box like a small palette: each command
+ * with its icon, its name and a line on what it does; once a command is chosen, its options as
+ * a row of keys. A tap takes it into the box.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CommandList(offers: List<ChatCommands.Offer>, onPick: (ChatCommands.Offer) -> Unit) {
+    val options = offers.firstOrNull()?.optionOf
+    Column(
+        modifier = Modifier
+            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
+            .fillMaxWidth()
+            // A tone under the keys' and tiles', so they read to the bottom of the card.
+            .card(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainer, lift = com.cherry.butler.core.design.Lift.Float)
+            .padding(6.dp),
+    ) {
+        if (options != null) {
+            Text(
+                COMMAND_TITLES[options] ?: options.removePrefix("/"),
+                style = MaterialTheme.typography.labelMedium,
+                color = ButlerTheme.colors.textLow,
+                modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 8.dp),
+            )
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 2.dp),
+            ) {
+                offers.forEach { o ->
+                    Text(
+                        OPTION_LABELS[o.label] ?: o.label.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(ButlerTheme.colors.surfaceHigh)
+                            .clickable(onClickLabel = "Use ${o.label}") { onPick(o) }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                    )
+                }
+            }
+        } else {
+            offers.forEach { c ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .clickable(onClickLabel = "Use ${c.label}") { onPick(c) }
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.size(36.dp).clip(MaterialTheme.shapes.small).background(ButlerTheme.colors.surfaceHigh),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(COMMAND_ICONS[c.label] ?: Icons.Rounded.AutoAwesome, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                androidx.compose.ui.text.buildAnnotatedString {
+                                    pushStyle(androidx.compose.ui.text.SpanStyle(color = ButlerTheme.colors.textLow))
+                                    append("/")
+                                    pop()
+                                    append(c.label.removePrefix("/"))
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            if (c.beta) {
+                                Text(
+                                    "BETA",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 6.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), MaterialTheme.shapes.extraSmall).padding(horizontal = 5.dp, vertical = 1.dp),
+                                )
+                            }
+                        }
+                        Text(c.summary, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Each command's mark in the palette. */
+private val COMMAND_ICONS = mapOf(
+    "/note" to Icons.Rounded.StickyNote2,
+    "/retry" to Icons.Rounded.Refresh,
+    "/thinking" to Icons.Rounded.Psychology,
+    "/length" to Icons.Rounded.ShortText,
+    "/learn" to Icons.Rounded.School,
+    "/remember" to Icons.Rounded.BookmarkAdd,
+    "/agent" to Icons.Rounded.Loop,
+)
+
+/** How an option reads on its key, where the typed word isn't a word. */
+private val OPTION_LABELS = mapOf("xhigh" to "Extra high")
+
+/** What an options row is headed with. */
+private val COMMAND_TITLES = mapOf("/thinking" to "Thinking level", "/length" to "Reply length", "/agent" to "Agent mode")
+
+/**
+ * Laid out at no height, drawn upward from here: what floats over the chat above the box,
+ * leaving the box (and the chat, which ends where the box starts) where they are.
+ */
+private fun Modifier.overTheChat(): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints.copy(minHeight = 0, maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+    layout(p.width, 0) { p.placeRelative(0, -p.height) }
 }

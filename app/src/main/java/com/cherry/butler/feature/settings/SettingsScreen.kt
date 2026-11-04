@@ -282,7 +282,7 @@ private fun SettingsBody(
             }
             SettingsPage.Model -> settings?.let { s ->
                 ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
-                AgentSection(viewModel, onProxy = s.provider == Provider.Proxy)
+                AgentSection(viewModel, onProxy = s.provider == Provider.Proxy, settings = s)
                 GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor)
             }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
@@ -376,6 +376,7 @@ private fun ChatSection(viewModel: SettingsViewModel) {
         }
     }
     WriteForMeSection(viewModel)
+    com.cherry.butler.feature.lessons.LessonsSection()
     CompactSection(viewModel)
     val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
@@ -828,7 +829,7 @@ private fun WriterPicker(
  * edits (or rewritten), and only then delivered. Proxies only, meant for reasoning models.
  */
 @Composable
-private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean) {
+private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean, settings: AiSettings) {
     val on by viewModel.agentOn.collectAsStateWithLifecycle()
     val effort by viewModel.agentEffort.collectAsStateWithLifecycle()
     val goals by viewModel.agentGoals.collectAsStateWithLifecycle()
@@ -838,7 +839,7 @@ private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean) {
         icon = Icons.Rounded.Loop,
         footnote = when {
             !onProxy -> "Works on a proxy only; the chat is on JLLM right now."
-            else -> "Each reply drafts, checks itself against the goals, fixes what fails, then delivers. Meant for reasoning models; costs two to four calls a reply. The thought panel shows what it did."
+            else -> "Each reply drafts, checks itself against the goals (and your Lessons notes), fixes what fails, then delivers. Repeated phrases are found on this device and handed to the check. A check reads the character and the last few turns, not the whole chat. Stop mid-check delivers the reply as it stands. Hold a reply and pick Check this reply to run it on one already written."
         },
     ) {
         SwitchRow("Agent mode", "Draft, check, fix, deliver", on, viewModel::setAgentOn, icon = Icons.Rounded.Loop)
@@ -850,8 +851,41 @@ private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean) {
                     }
                 }
             }
+            Branch(last = false) { AgentCheckerPicker(settings, viewModel) }
             Branch(last = true) { AgentGoalsField(goals, viewModel::setAgentGoals) }
         }
+    }
+}
+
+/** Which model checks the drafts: the chat's own, or another proxy set (often a cheaper, quicker one). */
+@Composable
+private fun AgentCheckerPicker(settings: AiSettings, viewModel: SettingsViewModel) {
+    val pick by viewModel.agentChecker.collectAsStateWithLifecycle()
+    var configuring by remember { mutableStateOf(false) }
+    val preset = pick?.let { p -> settings.proxies.firstOrNull { p.id in it.ids } }
+    val value = when {
+        pick != null && preset != null -> "${preset.name.ifBlank { "Untitled" }} · ${pick!!.model ?: preset.model.ifBlank { "no model" }}"
+        pick != null -> "The chat's model (that preset is gone)"
+        else -> "The chat's model"
+    }
+    DropRow(title = "Checks use", value = value) { close ->
+        DropItem(title = "The chat's model", subtitle = "The model that drafted it checks it", selected = pick == null, onClick = { close(); viewModel.setAgentChecker(null) })
+        DropItem(
+            title = "A proxy set",
+            subtitle = if (preset != null) value else "A cheaper or quicker model for the checks",
+            selected = pick != null && preset != null,
+            onClick = { close(); configuring = true },
+            trailing = { Icon(Icons.Rounded.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp)) },
+        )
+    }
+    if (configuring) {
+        WriterProxySheet(
+            title = "Checks use",
+            presets = settings.proxies,
+            current = pick,
+            onSave = { configuring = false; viewModel.setAgentChecker(it) },
+            onDismiss = { configuring = false },
+        )
     }
 }
 

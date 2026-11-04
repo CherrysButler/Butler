@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.job
+import com.cherry.butler.core.network.cancelOnStop
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -123,7 +124,12 @@ class HttpGenerationTransport(
 
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> = flow {
         val mode = envelope["generateMode"]?.jsonPrimitive?.contentOrNull
-        streamFrom(webRequest(envelope), proxy, mode)
+        val chat = envelope["chat"]?.jsonObject
+        streamFrom(
+            webRequest(envelope), proxy, mode,
+            characterId = chat?.get("character_id")?.jsonPrimitive?.contentOrNull,
+            chatId = chat?.get("id")?.jsonPrimitive?.contentOrNull?.toLongOrNull(),
+        )
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -154,7 +160,7 @@ class HttpGenerationTransport(
             .build()
     }
 
-    private suspend fun FlowCollector<GenerationEvent>.streamFrom(request: Request, proxy: ProxyTarget?, mode: String? = null) {
+    private suspend fun FlowCollector<GenerationEvent>.streamFrom(request: Request, proxy: ProxyTarget?, mode: String? = null, characterId: String? = null, chatId: Long? = null) {
         executeStreaming(request) { response ->
             val contentType = response.header("Content-Type").orEmpty()
             emit(
@@ -195,8 +201,8 @@ class HttpGenerationTransport(
                         janitorCode = "BUTLER_NO_PROXY_TARGET",
                         serverMessage = "Janitor handed back a payload but no proxy is configured to send it to.",
                     )
-                    val loop = agent?.takeIf { it.applies(mode) }
-                    if (loop != null) loop.run(this, payload, mode, hop(target)) else streamFromProxy(payload, target)
+                    val loop = agent?.takeIf { it.applies(mode, chatId) }
+                    if (loop != null) loop.run(this, payload, mode, hop(target), characterId, chatId, ::hop) else streamFromProxy(payload, target)
                 }
             }
         }
@@ -287,7 +293,7 @@ class HttpGenerationTransport(
         block: suspend (Response) -> Unit,
     ) {
         val call = (if (direct) proxyClient else client).newCall(request)
-        val handle = currentCoroutineContext().job.invokeOnCompletion { call.cancel() }
+        val handle = currentCoroutineContext().job.cancelOnStop(call)
         try {
             val response = try {
                 call.execute()

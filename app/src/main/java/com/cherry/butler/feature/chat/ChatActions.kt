@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.CallSplit
+import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
@@ -92,6 +93,8 @@ fun LineActionsSheet(
     /** A reply's 1–5 stars, when it can be rated; [rating] is the saved one. */
     rating: Int? = null,
     onRate: ((Int) -> Unit)? = null,
+    /** Agent mode's check and fixes on this reply, as a new variant; null hides it. */
+    onCheck: (() -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -116,6 +119,7 @@ fun LineActionsSheet(
             }
             ActionRow(Icons.Rounded.ContentCopy, "Copy", onClick = onCopy)
             if (canEdit) ActionRow(Icons.Rounded.Edit, "Edit", onClick = onEdit)
+            if (onCheck != null) ActionRow(Icons.Rounded.FactCheck, "Check this reply", onClick = onCheck)
             if (onBranch != null) ActionRow(Icons.Rounded.CallSplit, "Branch from here", onClick = onBranch)
             if (canDelete) ActionRow(Icons.Rounded.DeleteOutline, "Delete from here", tint = ButlerTheme.colors.danger, onClick = onDelete)
         }

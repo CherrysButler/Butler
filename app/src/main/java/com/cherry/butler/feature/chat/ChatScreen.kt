@@ -79,6 +79,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -373,6 +374,7 @@ fun ChatScreen(
             onDismiss = { actionsFor = null },
             rating = message.rating?.toIntOrNull(),
             onRate = if (message.isBot && confirmed) ({ n -> viewModel.rate(message, n) }) else null,
+            onCheck = if (message.isBot && confirmed && !busy) ({ actionsFor = null; viewModel.checkReply(message) }) else null,
             onBranch = if (confirmed && !busy) {
                 { actionsFor = null; viewModel.branch(message, onOpenChat) }
             } else {
@@ -536,8 +538,19 @@ fun ChatScreen(
             }
         },
         bottomBar = {
+            val lessonsOn by viewModel.lessonsOn.collectAsStateWithLifecycle()
             Composer(
                 shiftEnterSends = shiftEnterSends,
+                commands = run {
+                    val ai by viewModel.aiSettingsState.collectAsStateWithLifecycle()
+                    val proxyUrl = ai?.selectedProxy?.apiUrl?.takeIf { ai?.provider == com.cherry.butler.core.data.Provider.Proxy }
+                    remember(lessonsOn, proxyUrl) { ChatCommands.available(lessonsOn, proxyUrl?.let(com.cherry.butler.core.data.OpenRouterOptions::isOpenRouter) == true) }
+                },
+                above = {
+                    val note by viewModel.pendingNote.collectAsStateWithLifecycle()
+                    note?.let { NoteForNextReply(it, onDrop = viewModel::dropNote) }
+                    com.cherry.butler.feature.lessons.LessonsStrip()
+                },
                 draft = draft,
                 onDraftChanged = viewModel::onDraftChanged,
                 busy = busy,
@@ -1483,3 +1496,24 @@ private fun glideStep(offset: Int): Int = (offset * FOLLOW_EASE).toInt().coerceA
 
 /** Share of the remaining distance closed per frame: a quick, soft glide. */
 private const val FOLLOW_EASE = 0.16f
+
+/** A /note waiting for the next reply, over the box: what it says, and ✕ to drop it. */
+@Composable
+private fun NoteForNextReply(note: String, onDrop: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(start = 12.dp, end = 12.dp, top = 6.dp)
+            .fillMaxWidth()
+            .card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
+            .padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+            Text("Note for your next reply", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(note, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textMed, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        IconButton(onClick = onDrop) {
+            Icon(androidx.compose.material.icons.Icons.Rounded.Close, contentDescription = "Drop the note", tint = ButlerTheme.colors.textLow, modifier = Modifier.size(18.dp))
+        }
+    }
+}

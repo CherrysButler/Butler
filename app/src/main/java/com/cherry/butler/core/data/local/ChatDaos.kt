@@ -167,6 +167,14 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY createdAt ASC, localId ASC")
     suspend fun observeTranscriptOnce(chatId: Long): List<MessageEntity>
 
+    /** Lines the user wrote after [since], oldest first: what Lessons' /learn reads for OOC notes. */
+    @Query("SELECT * FROM messages WHERE isBot = 0 AND createdAt > :since ORDER BY createdAt ASC LIMIT :limit")
+    suspend fun userLinesSince(since: Long, limit: Int): List<MessageEntity>
+
+    /** The character's reply just before [before] in a chat, which an OOC note answers. */
+    @Query("SELECT * FROM messages WHERE chatId = :chatId AND isBot = 1 AND isMain = 1 AND createdAt < :before ORDER BY createdAt DESC LIMIT 1")
+    suspend fun replyBefore(chatId: Long, before: Long): MessageEntity?
+
     @Query("SELECT * FROM messages WHERE localId = :localId")
     suspend fun get(localId: Long): MessageEntity?
 
@@ -286,6 +294,10 @@ interface SendJobDao {
 
     @Query("SELECT * FROM send_jobs WHERE id = :id")
     suspend fun get(id: Long): SendJobEntity?
+
+    /** New replies asked for with something to change ("say what to change"), after [since]. */
+    @Query("SELECT * FROM send_jobs WHERE guidance IS NOT NULL AND guidance != '' AND createdAt > :since ORDER BY createdAt ASC")
+    suspend fun guidedSince(since: Long): List<SendJobEntity>
 
     @Query("SELECT * FROM send_jobs WHERE chatId = :chatId AND state IN (:states) ORDER BY id ASC")
     fun observeActive(chatId: Long, states: Set<String>): Flow<List<SendJobEntity>>

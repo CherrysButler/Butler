@@ -91,6 +91,8 @@ class SettingsViewModel @Inject constructor(
     fun setAgentEffort(effort: com.cherry.butler.core.data.AgentPrefs.Effort) = agent.setEffort(effort)
     val agentGoals: StateFlow<String> = agent.goals
     fun setAgentGoals(text: String) = agent.setGoals(text)
+    val agentChecker: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = agent.checker
+    fun setAgentChecker(proxy: com.cherry.butler.core.data.Writer.Proxy?) = agent.setChecker(proxy)
 
     /** Which proxy preset writes pictures into a line (beta); null: Write for me's. */
     val pictureDescriber: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = pictures.describer

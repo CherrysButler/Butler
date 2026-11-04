@@ -43,6 +43,18 @@ class AgentPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putString(KEY_EFFORT, effort.name).apply()
     }
 
+    private val _checker = MutableStateFlow(decodeChecker(prefs.getString(KEY_CHECKER, null)))
+
+    /** The proxy set that checks the drafts; null checks with the chat's own model. */
+    val checker: StateFlow<Writer.Proxy?> = _checker.asStateFlow()
+
+    fun setChecker(proxy: Writer.Proxy?) {
+        _checker.value = proxy
+        prefs.edit().apply { if (proxy == null) remove(KEY_CHECKER) else putString(KEY_CHECKER, proxy.id + SEP + proxy.model.orEmpty()) }.apply()
+    }
+
+    private fun decodeChecker(s: String?): Writer.Proxy? = s?.split(SEP, limit = 2)?.let { Writer.Proxy(it[0], it.getOrNull(1)?.takeIf { m -> m.isNotBlank() }) }
+
     fun setGoals(text: String) {
         val kept = text.lines().map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n").take(2000)
         _goals.value = kept
@@ -53,5 +65,7 @@ class AgentPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_ON = "agent_on"
         const val KEY_EFFORT = "agent_effort"
         const val KEY_GOALS = "agent_goals"
+        const val KEY_CHECKER = "agent_checker"
+        const val SEP = ""
     }
 }

@@ -41,41 +41,83 @@ import javax.inject.Singleton
 class AgentLoop @Inject constructor(
     private val prefs: AgentPrefs,
     private val json: Json,
+    private val lessons: com.cherry.butler.core.data.LessonsStore,
+    private val profiles: com.cherry.butler.core.data.ProfileRepository,
 ) {
+    /**
+     * A reply already written, to be checked and fixed rather than drafted: "Check this reply".
+     * Taken by the next generation for that chat, which goes through the loop even with agent
+     * mode off.
+     */
+    private val seeds = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    fun seed(chatId: Long, reply: String) { seeds[chatId] = reply }
+
     /** The loop's way to the proxy, provided by the transport: a streamed reply to [payload]. */
     fun interface Hop {
         suspend fun stream(payload: JsonObject, onEvent: suspend (GenerationEvent) -> Unit)
     }
 
-    /** Whether a generation in [mode] goes through the loop. */
-    fun applies(mode: String?): Boolean = prefs.enabled.value && mode in REPLY_MODES
+    /** Whether a generation in [mode] goes through the loop: agent mode on, or a reply seeded to check. */
+    fun applies(mode: String?, chatId: Long? = null): Boolean =
+        (prefs.enabled.value && mode in REPLY_MODES) || (chatId != null && seeds.containsKey(chatId))
 
-    suspend fun run(out: FlowCollector<GenerationEvent>, payload: JsonObject, mode: String?, hop: Hop) {
+    /**
+     * [hop] reaches the chat's proxy; [hopFor] any other (the checker preset, when one is set).
+     * [characterId] is whose Lessons count as goals.
+     */
+    suspend fun run(
+        out: FlowCollector<GenerationEvent>,
+        payload: JsonObject,
+        mode: String?,
+        hop: Hop,
+        characterId: String? = null,
+        chatId: Long? = null,
+        hopFor: ((ProxyTarget) -> Hop)? = null,
+    ) {
         val effort = prefs.effort.value
         suspend fun say(text: String) = out.emit(GenerationEvent.Reasoning(text))
 
-        // Draft: the model's own reasoning shows as it comes; the text is kept for the panel.
-        say(AgentSteps.open(AgentSteps.Kind.Reasoning))
-        val draft = StringBuilder()
-        hop.stream(payload) { e ->
-            when (e) {
-                is GenerationEvent.Delta -> draft.append(e.text)
-                is GenerationEvent.Reasoning -> out.emit(e)
-                is GenerationEvent.Meta -> out.emit(e)
-                GenerationEvent.Done -> Unit
+        val seeded = chatId?.let { seeds.remove(it) }
+        var text: String
+        if (seeded != null) {
+            text = seeded.trim()
+            say(AgentSteps.open(AgentSteps.Kind.Draft, "the reply to check") + text + AgentSteps.close(AgentSteps.Kind.Draft))
+        } else {
+            // Draft: the model's own reasoning shows as it comes; the text is kept for the panel.
+            say(AgentSteps.open(AgentSteps.Kind.Reasoning))
+            val draft = StringBuilder()
+            hop.stream(payload) { e ->
+                when (e) {
+                    is GenerationEvent.Delta -> draft.append(e.text)
+                    is GenerationEvent.Reasoning -> out.emit(e)
+                    is GenerationEvent.Meta -> out.emit(e)
+                    GenerationEvent.Done -> Unit
+                }
             }
+            say(AgentSteps.close(AgentSteps.Kind.Reasoning))
+            text = strip(draft.toString()).trim()
+            if (text.isEmpty()) throw ApiError.Api(0, janitorCode = "AGENT_EMPTY", serverMessage = "Nothing came back for the draft.", retryable = true)
+            say(AgentSteps.open(AgentSteps.Kind.Draft) + text + AgentSteps.close(AgentSteps.Kind.Draft))
         }
-        say(AgentSteps.close(AgentSteps.Kind.Reasoning))
-        var text = strip(draft.toString()).trim()
-        if (text.isEmpty()) throw ApiError.Api(0, janitorCode = "AGENT_EMPTY", serverMessage = "Nothing came back for the draft.", retryable = true)
-        say(AgentSteps.open(AgentSteps.Kind.Draft) + text + AgentSteps.close(AgentSteps.Kind.Draft))
+        // The reply as it stands, kept whole: a Stop from here on delivers it.
+        say(AgentSteps.text(text))
 
-        val goals = goals(mode)
+        // The checker: another preset when one is set (often a cheaper model), else the chat's own.
+        val checkHop = prefs.checker.value?.let { w ->
+            runCatching { profiles.inputsFor(profiles.profile(), w).second }.getOrNull()?.let { t -> hopFor?.invoke(t) }
+        } ?: hop
+
+        val goals = goals(mode, characterId)
+        val earlier = recentReplies(payload)
         var checks = 0
         for (round in 1..effort.rounds) {
             checks++
             say(AgentSteps.open(AgentSteps.Kind.Check, "$round of ${effort.rounds}"))
-            val verdict = runCatching { check(payload, text, goals, hop, out) }
+            // What this draft repeats from the replies before it, found here, not asked of the model.
+            val repeats = Repeats.find(text, earlier)
+            if (repeats.isNotEmpty()) say("Repeats from recent replies: " + repeats.joinToString(" · ") { "\u201C$it\u201D" } + "\n")
+            val verdict = runCatching { check(payload, text, goals, repeats, checkHop, out) }
                 .onFailure { Log.w(TAG, "check $round failed", it) }
                 .getOrNull()
             if (verdict == null) {
@@ -102,18 +144,18 @@ class AgentLoop @Inject constructor(
                         if (missed > 0) append(", $missed couldn't be")
                         append('\n')
                         placed.forEach { (f, r) -> append("− ").append(f.take(160)).append("\n+ ").append(r.take(160)).append('\n') }
-                    } + AgentSteps.close(AgentSteps.Kind.Fix))
+                    } + AgentSteps.close(AgentSteps.Kind.Fix) + AgentSteps.text(text))
                 }
                 rewriteOk -> {
                     text = verdict.rewrite!!.trim()
-                    say(AgentSteps.open(AgentSteps.Kind.Rewrite) + "The whole reply, rewritten:\n" + text + AgentSteps.close(AgentSteps.Kind.Rewrite))
+                    say(AgentSteps.open(AgentSteps.Kind.Rewrite) + "The whole reply, rewritten:\n" + text + AgentSteps.close(AgentSteps.Kind.Rewrite) + AgentSteps.text(text))
                 }
                 else -> {
                     say(AgentSteps.open(AgentSteps.Kind.Rewrite))
-                    val again = rewrite(payload, text, verdict.problems, hop, out)?.trim()?.ifEmpty { null }
+                    val again = rewrite(payload, text, verdict.problems, checkHop, out)?.trim()?.ifEmpty { null }
                     if (again != null) {
                         text = again
-                        say("\nRewritten:\n$text" + AgentSteps.close(AgentSteps.Kind.Rewrite))
+                        say("\nRewritten:\n$text" + AgentSteps.close(AgentSteps.Kind.Rewrite) + AgentSteps.text(text))
                     } else {
                         say("\nNo rewrite came back; the draft stands." + AgentSteps.close(AgentSteps.Kind.Rewrite))
                     }
@@ -128,9 +170,13 @@ class AgentLoop @Inject constructor(
     private class Verdict(val pass: Boolean, val problems: List<String>, val edits: List<Pair<String, String>>, val rewrite: String?)
 
     /** The check: the context, the draft as the assistant, the goals as one more user turn; JSON back. */
-    private suspend fun check(payload: JsonObject, draft: String, goals: String, hop: Hop, out: FlowCollector<GenerationEvent>): Verdict? {
+    private suspend fun check(payload: JsonObject, draft: String, goals: String, repeats: List<String>, hop: Hop, out: FlowCollector<GenerationEvent>): Verdict? {
         val ask = buildString {
             append(CHECK_HEAD).append("\n\nGOALS\n").append(goals)
+            if (repeats.isNotEmpty()) {
+                append("\n\nREPEATED FROM RECENT REPLIES\nThese exact phrases already appeared in the replies before this one. Each is a failed goal: reword every one in an edit.\n")
+                repeats.forEach { append("- ").append(it).append('\n') }
+            }
             append("\n\nDRAFT\n<draft>\n").append(draft).append("\n</draft>\n\n").append(CHECK_TAIL.trimIndent())
         }
         val answer = collect(judging(payload, draft, ask), hop, out)
@@ -171,9 +217,15 @@ class AgentLoop @Inject constructor(
         return text.toString()
     }
 
-    /** The payload for a judging call: the same context, the draft as the assistant's turn, [ask] as the user's. */
+    /**
+     * The payload for a judging call: the character's setup (the system prompt) and only the
+     * last few turns, not the whole chat again, then the draft as the assistant's turn and [ask]
+     * as the user's. A long chat made every check cost as much as the reply.
+     */
     private fun judging(payload: JsonObject, draft: String, ask: String, temperature: Double = 0.2): JsonObject {
-        val messages = payload["messages"]?.jsonArray.orEmpty().toMutableList()
+        val all = payload["messages"]?.jsonArray.orEmpty()
+        val (system, turns) = all.partition { runCatching { it.jsonObject["role"]?.jsonPrimitive?.contentOrNull }.getOrNull() == "system" }
+        val messages = (system + turns.takeLast(CONTEXT_TURNS)).toMutableList()
         messages += buildJsonObject { put("role", "assistant"); put("content", draft) }
         messages += buildJsonObject { put("role", "user"); put("content", ask) }
         return JsonObject(
@@ -186,9 +238,21 @@ class AgentLoop @Inject constructor(
         )
     }
 
-    private fun goals(mode: String?): String = buildString {
+    /** The character's last few replies in the context, newest last: what a draft mustn't repeat. */
+    private fun recentReplies(payload: JsonObject): List<String> =
+        payload["messages"]?.jsonArray.orEmpty().mapNotNull { m ->
+            val o = runCatching { m.jsonObject }.getOrNull() ?: return@mapNotNull null
+            o["content"]?.jsonPrimitive?.contentOrNull?.takeIf { o["role"]?.jsonPrimitive?.contentOrNull == "assistant" }
+        }.takeLast(RECENT_REPLIES)
+
+    private fun goals(mode: String?, characterId: String?): String = buildString {
         append(RUBRIC)
         if (mode == "CONTINUE") append("\n- The draft continues the previous reply mid-flow; it must pick up exactly where that left off, not restart.")
+        // Lessons (beta): the player's standing notes are goals too.
+        characterId?.let { lessons.instructionFor(it) }?.let { notes ->
+            append("\nThe player's standing notes, learned from their corrections, which count as much as the rest:\n")
+            notes.lines().filter { it.startsWith("- ") }.forEach { append(it).append('\n') }
+        }
         val own = prefs.goals.value.lines().map { it.trim() }.filter { it.isNotEmpty() }
         if (own.isNotEmpty()) {
             append("\nThe user's own goals, which count as much as the rest:\n")
@@ -202,6 +266,10 @@ class AgentLoop @Inject constructor(
     internal companion object {
         const val TAG = "AgentLoop"
         val REPLY_MODES = setOf("NEW", "ALTERNATIVE", "CONTINUE")
+        /** The turns a check reads besides the system prompt. */
+        const val CONTEXT_TURNS = 6
+        /** The character's replies a draft is checked against for repeats. */
+        const val RECENT_REPLIES = 3
 
         /** Edits applied in order: exact text first, then the same words across any whitespace. */
         internal fun apply(text: String, edits: List<Pair<String, String>>): Applied {
@@ -217,8 +285,7 @@ class AgentLoop @Inject constructor(
                     placed += find to replace
                     continue
                 }
-                val loose = Regex(find.trim().split(Regex("\\s+")).joinToString("\\s+") { Regex.escape(it) })
-                val m = loose.find(out)
+                val m = loose(find).find(out)
                 if (m != null) {
                     out = out.substring(0, m.range.first) + replace + out.substring(m.range.last + 1)
                     applied++
@@ -230,13 +297,41 @@ class AgentLoop @Inject constructor(
             return Applied(out, applied, missed, placed)
         }
 
-        /** The first JSON object in [text], reasoning and fences aside. */
+        /**
+         * [find] as a pattern that also matches the same words across any whitespace, curly or
+         * straight quotes, any dash, and `…` or `...`: a model copies the draft back with its own.
+         */
+        internal fun loose(find: String): Regex {
+            val words = find.trim().split(Regex("\\s+"))
+            return Regex(words.joinToString("\\s+") { w ->
+                buildString {
+                    var i = 0
+                    while (i < w.length) {
+                        val c = w[i]
+                        when {
+                            c == '.' && w.startsWith("...", i) -> { append("(?:…|\\.\\.\\.)"); i += 3; continue }
+                            c == '…' -> append("(?:…|\\.\\.\\.)")
+                            c == '"' || c == '“' || c == '”' -> append("[\"“”]")
+                            c == '\'' || c == '‘' || c == '’' -> append("['‘’]")
+                            c == '-' || c == '–' || c == '—' -> append("[-–—]")
+                            else -> append(Regex.escape(c.toString()))
+                        }
+                        i++
+                    }
+                }
+            })
+        }
+
+        @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+        private val lenient = Json { isLenient = true; allowTrailingComma = true; allowComments = true; ignoreUnknownKeys = true }
+
+        /** The check's JSON in [text], found among reasoning, fences and words, trailing commas forgiven. */
         internal fun jsonIn(text: String, json: Json): JsonObject? {
             val cleaned = strip(text)
-            val start = cleaned.indexOf('{')
-            val end = cleaned.lastIndexOf('}')
-            if (start < 0 || end <= start) return null
-            return runCatching { json.parseToJsonElement(cleaned.substring(start, end + 1)).jsonObject }.getOrNull()
+            return LessonsLearner.objects(cleaned).firstNotNullOfOrNull { candidate ->
+                runCatching { lenient.parseToJsonElement(candidate).jsonObject }.getOrNull()
+                    ?.takeIf { it.containsKey("verdict") || it.containsKey("edits") || it.containsKey("rewrite") || it.containsKey("problems") }
+            }
         }
 
         internal fun strip(text: String): String = text
