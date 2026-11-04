@@ -57,7 +57,59 @@ class CharacterDetailViewModel @Inject constructor(
     private val personas: PersonaRepository,
     private val community: CommunityRepository,
     private val profiles: com.cherry.butler.core.data.ProfileRepository,
+    private val cards: com.cherry.butler.core.data.CardExport,
 ) : ViewModel() {
+
+    private val _cardExport = kotlinx.coroutines.flow.MutableStateFlow<CardExportState?>(null)
+    /** Export card's dialog; null while it's closed. */
+    val cardExport: StateFlow<CardExportState?> = _cardExport
+    private var cardJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Opens Export card and reads the definition: from the page when it's open or yours, else
+     * through Janitor's proxy prompt when the creator allows proxies.
+     */
+    fun openCardExport(mine: Boolean) {
+        val detail = state.value.detail ?: return
+        val source = cards.source(detail, mine)
+        if (source == com.cherry.butler.core.data.CardExport.Source.None) { _cardExport.value = CardExportState.Hidden; return }
+        val viaProxy = source == com.cherry.butler.core.data.CardExport.Source.Proxy
+        _cardExport.value = CardExportState.Reading(viaProxy)
+        cardJob?.cancel()
+        cardJob = viewModelScope.launch {
+            // A hidden definition is read from the prompt for a message in your chat with it, the
+            // latest one, asked for again here: a chat started since the page opened counts.
+            val chatId = if (!viaProxy) null else {
+                val fresh = runCatching { repository.chatsWith(characterId) }.getOrNull()
+                if (fresh != null) _state.update { it.copy(chats = fresh) }
+                (fresh ?: state.value.chats).maxByOrNull { it.updatedAt ?: 0L }?.id
+                    ?: run { _cardExport.value = CardExportState.NeedsChat; return@launch }
+            }
+            runCatching { cards.card(detail, source, chatId) }
+                .onSuccess { _cardExport.value = CardExportState.Ready(it, viaProxy) }
+                .onFailure { e ->
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    val why = (e as? com.cherry.butler.core.network.ApiError)?.let { a -> (a as? com.cherry.butler.core.network.ApiError.Api)?.serverMessage ?: a.userMessage() } ?: e.message.orEmpty()
+                    _cardExport.value = CardExportState.Failed("Couldn't read the definition. $why".trim())
+                }
+        }
+    }
+
+    /** Your chats with the character asked for again: back on the page after starting one. */
+    fun refreshChats() {
+        viewModelScope.launch {
+            runCatching { repository.chatsWith(characterId) }.onSuccess { list -> _state.update { it.copy(chats = list) } }
+        }
+    }
+
+    fun closeCardExport() {
+        cardJob?.cancel()
+        _cardExport.value = null
+    }
+
+    /** [card] written into the character's picture: the file name and bytes. */
+    suspend fun cardFile(card: com.cherry.butler.core.data.CharacterCard): Pair<String, ByteArray> =
+        cards.png(state.value.detail ?: error("The character hasn't loaded yet."), card)
 
     /** Your own id, to know a character of yours: its page offers Edit instead of Block. */
     val myId: StateFlow<String?> = profiles.profile.map { it?.id }

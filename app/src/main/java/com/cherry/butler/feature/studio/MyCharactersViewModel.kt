@@ -45,6 +45,9 @@ data class CharacterSettings(
  */
 @HiltViewModel
 class MyCharactersViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
+    private val pictures: com.cherry.butler.core.data.PictureUpload,
+    private val tagSource: com.cherry.butler.core.data.remote.TagRemoteSource,
     private val studio: StudioRemoteSource,
     private val characters: CharacterRemoteSource,
     private val profiles: ProfileRepository,
@@ -226,6 +229,57 @@ class MyCharactersViewModel @Inject constructor(
     }
 
     fun dismissNotice() = _state.update { it.copy(notice = null) }
+
+    /** A card made into a draft: which one, and what it carried that Janitor has no place for. */
+    data class CardImport(val draftId: String, val name: String, val leftOut: List<String>)
+
+    private val _imported = MutableStateFlow<CardImport?>(null)
+    /** The card just imported, to open in the editor; null when there's none. */
+    val imported: StateFlow<CardImport?> = _imported.asStateFlow()
+
+    private val _importing = MutableStateFlow(false)
+    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+
+    fun importHandled() { _imported.value = null }
+
+    /**
+     * A character card (a card PNG or its JSON, V1 to V3) as a new draft on this device, its
+     * picture uploaded to Janitor as the character's, ready for the editor. Nothing is saved to
+     * Janitor until the person saves it there.
+     */
+    fun importCard(uri: android.net.Uri) {
+        if (_importing.value) return
+        _importing.value = true
+        viewModelScope.launch {
+            runCatching {
+                val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("That file couldn't be read.")
+                }
+                val card = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { com.cherry.butler.core.data.CharacterCard.read(bytes) }
+                val janitorTags = runCatching { tagSource.tags() }.getOrDefault(emptyList()).flatMap { t ->
+                    listOf(t.slug, t.name.filter { it.isLetterOrDigit() || it == ' ' || it == '-' }.trim()).filter { it.isNotBlank() }.map { it.lowercase() to t.id }
+                }.toMap()
+                var leftOut = card.leftOut
+                // The card's own picture is the character's; a JSON card has none, so the editor asks.
+                val avatar = if (com.cherry.butler.core.data.CharacterCard.isPng(bytes)) {
+                    runCatching { pictures.upload(uri, "bot") }.getOrElse { leftOut = leftOut + "its picture (it didn't upload; pick one in the editor)"; "" }
+                } else ""
+                val draft = card.toDraft(janitorTags).copy(avatar = avatar)
+                val stored = com.cherry.butler.core.data.StoredDraft(
+                    id = com.cherry.butler.core.data.StoredDraft.newId(),
+                    draft = draft,
+                    pictureUrl = avatar.takeIf { it.isNotEmpty() }?.let { com.cherry.butler.core.config.JanitorConfig.avatarUrl(it) },
+                )
+                characterDrafts.put(stored)
+                CardImport(stored.id, draft.name, leftOut)
+            }.onSuccess { _imported.value = it }
+                .onFailure { e ->
+                    val why = (e as? IllegalArgumentException)?.message ?: (e as? ApiError)?.userMessage() ?: e.message ?: "That file couldn't be read."
+                    _state.update { it.copy(notice = "Not imported. $why") }
+                }
+            _importing.value = false
+        }
+    }
 
     /** Public to private or back: noted at once, and put back if Janitor says no. */
     fun togglePublic(item: MyCharacter) {

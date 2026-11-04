@@ -101,6 +101,40 @@ fun MyCharactersScreen(
     }
     LaunchedEffect(refreshKey) { if (refreshKey > 0) viewModel.reload() }
 
+    // A character card from SillyTavern, Chub and the like, into a draft.
+    val importing by viewModel.importing.collectAsStateWithLifecycle()
+    val imported by viewModel.imported.collectAsStateWithLifecycle()
+    val pickCard = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importCard(uri)
+    }
+    imported?.let { done ->
+        if (done.leftOut.isEmpty()) {
+            LaunchedEffect(done) { viewModel.importHandled(); onEdit(CharacterEditorViewModel.DRAFT_PREFIX + done.draftId) }
+        } else {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = viewModel::importHandled,
+                shape = MaterialTheme.shapes.extraLarge,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                title = { Text("${done.name.ifBlank { "The card" }} is ready to edit", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) },
+                text = {
+                    Text(
+                        "It's kept as a draft on this device until you save it. A Janitor character has no place for " +
+                            (if (done.leftOut.size == 1) done.leftOut[0] else done.leftOut.dropLast(1).joinToString(", ") + " or " + done.leftOut.last()) +
+                            (if (done.leftOut.size == 1) ", so that was left out." else ", so those were left out."),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ButlerTheme.colors.textMed,
+                    )
+                },
+                confirmButton = {
+                    KeyButton("Open in editor", onClick = { viewModel.importHandled(); onEdit(CharacterEditorViewModel.DRAFT_PREFIX + done.draftId) }, primary = true)
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = viewModel::importHandled) { Text("Later") }
+                },
+            )
+        }
+    }
+
     deleting?.let { item ->
         DeleteConfirmDialog(
             count = 1,
@@ -143,6 +177,12 @@ fun MyCharactersScreen(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            KeyButton(
+                if (importing) "Importing…" else "Import card",
+                onClick = { pickCard.launch(arrayOf("image/png", "application/json", "text/plain", "application/octet-stream")) },
+                enabled = !importing,
+            )
+            Spacer(Modifier.width(8.dp))
             KeyButton("New character", onClick = { onEdit("new") }, primary = true)
         }
         SearchBox(

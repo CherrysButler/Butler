@@ -232,6 +232,11 @@ fun DesktopShell() {
         LocalChatLight provides chatLight,
         com.cherry.butler.ui.components.LocalBackdropHost provides remember { com.cherry.butler.ui.components.BackdropHost() },
         com.cherry.butler.ui.components.LocalRefreshHandle provides com.cherry.butler.desktop.DesktopKeys.screen,
+        // Janitor links open here, not in the browser: a character in the panel, a creator in the pane.
+        androidx.compose.ui.platform.LocalUriHandler provides com.cherry.butler.ui.components.rememberInAppLinks(
+            onCharacter = { panelCharacter = it },
+            onCreator = { navController.navigate(Routes.creator(it)) },
+        ),
     ) {
         Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().background(ButlerTheme.colors.chrome)) {

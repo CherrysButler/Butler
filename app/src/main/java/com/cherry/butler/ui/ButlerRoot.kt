@@ -153,7 +153,14 @@ fun ButlerRoot() {
             color = MaterialTheme.colorScheme.background,
             shape = if (showBar && !lifted) RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) else RectangleShape,
         ) {
-            androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.ui.components.LocalBottomChrome provides if (under) barPadding else 0.dp) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.cherry.butler.ui.components.LocalBottomChrome provides if (under) barPadding else 0.dp,
+                // Janitor links open here, not in Janitor's app.
+                androidx.compose.ui.platform.LocalUriHandler provides com.cherry.butler.ui.components.rememberInAppLinks(
+                    onCharacter = { navController.navigate(Routes.character(it)) },
+                    onCreator = { navController.navigate(Routes.creator(it)) },
+                ),
+            ) {
             NavHost(
                 navController = navController,
                 startDestination = Routes.TABS,

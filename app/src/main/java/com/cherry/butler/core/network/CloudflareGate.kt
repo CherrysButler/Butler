@@ -74,8 +74,11 @@ object CloudflareGate {
     fun classify(r: Response, body: String): Kind? {
         val cookies = r.headers("Set-Cookie").map { it.substringBefore('=').trim() }
         val start = body.trimStart()
-        val json = start.startsWith("{") || start.startsWith("[")
-        val html = r.header("Content-Type").orEmpty().startsWith("text/html") || start.startsWith("<")
+        val type = r.header("Content-Type").orEmpty().lowercase()
+        // Janitor's own answer: an object or a list, or a bare `true` (a delete, a move, a
+        // reorder), a number or a string, or anything it labels JSON.
+        val json = "json" in type || start.startsWith("{") || start.startsWith("[") || JSON_SCALAR.matches(start.trimEnd())
+        val html = !json && (type.startsWith("text/html") || start.startsWith("<"))
         // The queue's cookie went out with the call: an answer that isn't Janitor's is the queue's.
         val queued = r.request.header("Cookie").orEmpty().contains("__cfwaitingroom")
         val queueWords = html && QUEUE_WORDS.any { body.contains(it, ignoreCase = true) }
@@ -85,13 +88,18 @@ object CloudflareGate {
         return when {
             r.header("cf-mitigated").equals("challenge", ignoreCase = true) -> Kind.Challenge
             body.contains("\"cfWaitingRoom\"") -> Kind.WaitingRoom
-            cookies.any { it.startsWith("__cfwaitingroom") } && !json -> Kind.WaitingRoom
-            (queued || queueWords || refreshes) && !json && (html || r.isSuccessful) -> Kind.WaitingRoom
+            // The queue is a page. Its cookie stays in the jar long after the line is gone, so
+            // the cookie alone never makes Janitor's own short answer (`true`) the queue.
+            cookies.any { it.startsWith("__cfwaitingroom") } && html -> Kind.WaitingRoom
+            (queued || queueWords || refreshes) && html -> Kind.WaitingRoom
             r.code == 403 && !json && (html || r.header("Server").equals("cloudflare", ignoreCase = true)) -> Kind.Block
             r.isSuccessful && html && !json -> Kind.Page
             else -> null
         }
     }
+
+    /** A bare JSON value: `true`, `false`, `null`, a number or a string. */
+    private val JSON_SCALAR = Regex("true|false|null|-?\\d+(\\.\\d+)?([eE][+-]?\\d+)?|\"([^\"\\\\]|\\\\.)*\"")
 
     /** What a queue page says on it: Cloudflare's waiting room, and Janitor's own "You're in line". */
     private val QUEUE_WORDS = listOf(

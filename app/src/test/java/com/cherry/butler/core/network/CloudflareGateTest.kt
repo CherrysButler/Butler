@@ -79,6 +79,19 @@ class CloudflareGateTest {
     }
 
     @Test
+    fun `janitor's short answers are its own even with the queue's cookie still in the jar`() {
+        // A delete or a group move answers a bare `true`; the queue's cookie outlives the line.
+        val stale = "__cfwaitingroom_catdogxxx=abc; __cf_bm=x"
+        assertNull(CloudflareGate.classify(response(200, "application/json; charset=utf-8", cookie = stale), "true"))
+        assertNull(CloudflareGate.classify(response(200, "text/plain", cookie = stale), "true"))
+        assertNull(CloudflareGate.classify(response(200, "text/plain", cookie = stale), "42"))
+        assertNull(CloudflareGate.classify(response(201, "application/json", cookie = stale), """{"id":"p1","name":"Rain"}"""))
+        assertNull(CloudflareGate.classify(response(200, "application/json", "Set-Cookie" to "__cfwaitingroom_catdogxxx=y; Path=/"), "true"))
+        // The queue page itself still is the queue.
+        assertEquals(CloudflareGate.Kind.WaitingRoom, CloudflareGate.classify(response(200, "text/html; charset=UTF-8", cookie = stale), "<html>You're in line</html>"))
+    }
+
+    @Test
     fun `janitor's own queue page is the queue, with its estimate`() {
         // 2026-11-03: "Please wait \u2014 janitor", Refresh: 20, no queue cookie, no "waiting room" words.
         val r = response(200, "text/html; charset=utf-8", "Refresh" to "20")

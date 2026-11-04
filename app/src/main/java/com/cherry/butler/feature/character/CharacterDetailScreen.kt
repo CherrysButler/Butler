@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.character
 
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PersonOff
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Edit
@@ -49,6 +50,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -177,6 +179,42 @@ fun CharacterDetailScreen(
             onDismiss = { blocking = null },
         )
     }
+    // A character card PNG (V2) for SillyTavern, Chub and the rest.
+    var cardNote by remember { mutableStateOf<String?>(null) }
+    var cardSaving by remember { mutableStateOf(false) }
+    val saveCard = com.cherry.butler.ui.components.rememberBytesSaver(
+        onError = { cardSaving = false; cardNote = it },
+        onSaved = { cardSaving = false; viewModel.closeCardExport(); cardNote = "Card saved." },
+        onCancelled = { cardSaving = false },
+    )
+    val cardScope = androidx.compose.runtime.rememberCoroutineScope()
+    cardNote?.let { note -> androidx.compose.runtime.LaunchedEffect(note) { kotlinx.coroutines.delay(3_500); cardNote = null } }
+    val cardExport by viewModel.cardExport.collectAsStateWithLifecycle()
+    // Back on the page (from a chat just started, say): your chats with it are asked for again.
+    var resumedOnce by remember { mutableStateOf(false) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        if (resumedOnce) viewModel.refreshChats() else resumedOnce = true
+        onPauseOrDispose { }
+    }
+    cardExport?.let { export ->
+        CardExportDialog(
+            state = export,
+            name = header?.name.orEmpty(),
+            creator = header?.creatorName,
+            avatarUrl = header?.avatarUrl,
+            saving = cardSaving,
+            onSave = { card ->
+                cardSaving = true
+                cardScope.launch {
+                    runCatching { viewModel.cardFile(card) }
+                        .onSuccess { (name, bytes) -> saveCard(name, bytes) }
+                        .onFailure { cardSaving = false; cardNote = "Couldn't make the card. ${it.message.orEmpty()}" }
+                }
+            },
+            onStartChat = { viewModel.closeCardExport(); viewModel.startChat(onOpenChat) },
+            onDismiss = { cardSaving = false; viewModel.closeCardExport() },
+        )
+    }
     // The card under the bar already carries the name; the bar takes it once that scrolls away.
     val titleGone by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 120 }
@@ -195,7 +233,11 @@ fun CharacterDetailScreen(
                 onBlock = if (mine) null else ({ creator -> blocking = creator }),
                 onEdit = if (mine) ({ onEditCharacter(viewModel.characterId) }) else null,
                 onShare = header?.let { h -> { shareCharacter(context, viewModel.characterId, h.name) } },
+                onExport = if (state.detail != null) ({ viewModel.openCardExport(mine) }) else null,
             )
+            cardNote?.let { msg ->
+                Text(msg, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textMed, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            }
             state.socialError?.let { msg ->
                 Text(msg, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.danger, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             }
@@ -267,6 +309,8 @@ private fun TopBar(
     onShare: (() -> Unit)? = null,
     /** Your own character: the pencil to its editor. */
     onEdit: (() -> Unit)? = null,
+    /** Saves the character as a card PNG; null when its definition is hidden. */
+    onExport: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -335,7 +379,7 @@ private fun TopBar(
                 Icon(Icons.Rounded.Edit, contentDescription = "Edit character", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
-        if (onBlock != null) {
+        if (onBlock != null || onExport != null) {
             var menu by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menu = true }) {
@@ -347,12 +391,19 @@ private fun TopBar(
                     shape = MaterialTheme.shapes.medium,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
-                    androidx.compose.material3.DropdownMenuItem(
+                    if (onExport != null) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Export card", style = MaterialTheme.typography.titleSmall) },
+                            leadingIcon = { Icon(Icons.Rounded.Download, contentDescription = null, tint = ButlerTheme.colors.textMed) },
+                            onClick = { menu = false; onExport() },
+                        )
+                    }
+                    if (onBlock != null) androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Block character", style = MaterialTheme.typography.titleSmall) },
                         leadingIcon = { Icon(Icons.Rounded.Block, contentDescription = null, tint = ButlerTheme.colors.textMed) },
                         onClick = { menu = false; onBlock(false) },
                     )
-                    if (!creatorName.isNullOrBlank()) {
+                    if (onBlock != null && !creatorName.isNullOrBlank()) {
                         androidx.compose.material3.DropdownMenuItem(
                             text = { Text("Block @$creatorName", style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             leadingIcon = { Icon(Icons.Rounded.PersonOff, contentDescription = null, tint = ButlerTheme.colors.textMed) },

@@ -107,6 +107,29 @@ fun rememberFileSaver(onError: (String) -> Unit): (name: String, text: String) -
     return { name, text -> pending = text; save.launch(name) }
 }
 
+/** As [rememberFileSaver], for a file that isn't text (a card PNG). */
+@Composable
+fun rememberBytesSaver(onError: (String) -> Unit, onSaved: () -> Unit = {}, onCancelled: () -> Unit = {}): (name: String, bytes: ByteArray) -> Unit {
+    var pending by remember { mutableStateOf<ByteArray?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
+        val bytes = pending
+        pending = null
+        if (uri == null) onCancelled()
+        if (uri != null && bytes != null) {
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("Couldn't open the file.")
+                    }
+                }.onSuccess { onSaved() }.onFailure { onError("Couldn't save the file. ${it.message.orEmpty()}") }
+            }
+        }
+    }
+    return { name, bytes -> pending = bytes; save.launch(name) }
+}
+
 /** A copy being written line by line; the bar fills as it goes. Not dismissable mid-way. */
 @Composable
 fun TransferProgressDialog(title: String, done: Int, total: Int, unit: String = "messages") {
