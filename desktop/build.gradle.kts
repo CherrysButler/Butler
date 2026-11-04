@@ -34,6 +34,8 @@ val androidOnly = listOf(
     "feature/auth/TurnstileSheet.kt",
     // The desktop says "PC" where the phone says "phone".
     "core/platform/Device.kt",
+    // Loads through Coil 2's request options and View geometry; the desktop has its own.
+    "ui/components/LoadingPicture.kt",
 )
 
 /*
