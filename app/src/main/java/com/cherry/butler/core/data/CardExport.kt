@@ -37,10 +37,16 @@ class CardExport @Inject constructor(
         return when (source) {
             Source.Page -> page
             Source.Proxy -> proxyDefinition.read(chatId ?: error("A chat with the character is needed.")).let { d ->
+                // A hidden character's page leaves out its first intro (Janitor sends it as null)
+                // and shows the rest. The first is the chat's opening line, from the bundle; the
+                // ones the page shows are the alternates, less the one the chat opened with.
+                val intro = d.firstMessage.ifBlank { c.firstMessages.firstOrNull().orEmpty() }
                 page.copy(
                     description = d.personality,
                     scenario = d.scenario.ifBlank { page.scenario },
                     exampleMessages = d.exampleDialogs.ifBlank { page.exampleMessages },
+                    firstMessage = intro,
+                    alternateGreetings = c.firstMessages.filter { it.isNotBlank() && !sameIntro(it, intro, c) },
                 )
             }
             Source.None -> error("This character's definition is hidden.")
@@ -71,6 +77,20 @@ class CardExport @Inject constructor(
     }
 
     companion object {
+        /**
+         * Whether two intros are the same line: the page's has `{{char}}`/`{{user}}` (or `{char}`)
+         * where the bundle's has the character's name and `{{user}}` put back, so both are read
+         * alike, spacing and case aside.
+         */
+        internal fun sameIntro(a: String, b: String, c: CharacterDetail): Boolean {
+            val char = (c.chatName?.takeIf { it.isNotBlank() } ?: c.name)
+            fun norm(s: String) = s
+                .replace(Regex("\\{\\{?char\\}\\}?", RegexOption.IGNORE_CASE), char)
+                .replace(Regex("\\{\\{?user\\}\\}?", RegexOption.IGNORE_CASE), "{{user}}")
+                .replace(Regex("\\s+"), " ").trim().lowercase()
+            return norm(a) == norm(b)
+        }
+
         /**
          * [c] as a card: Janitor's personality is the card's definition (its one box for who the
          * character is), the first intro the first message and the rest alternate greetings,

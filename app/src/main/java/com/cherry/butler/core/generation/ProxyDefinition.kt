@@ -37,18 +37,25 @@ class ProxyDefinition @Inject constructor(
     private val messageDao = db.messageDao()
 
     /** What a proxy prompt says the character is. */
-    data class Definition(val personality: String, val scenario: String, val exampleDialogs: String)
+    data class Definition(
+        val personality: String,
+        val scenario: String,
+        val exampleDialogs: String,
+        /** The chat's opening line, the intro: a hidden character's page doesn't give it. */
+        val firstMessage: String = "",
+    )
 
-    /** The definition, from the proxy prompt Janitor assembles for a message in [chatId]. */
+    /** The definition, from the proxy bundle Janitor assembles for a message in [chatId]. */
     suspend fun read(chatId: Long): Definition {
-        val (system, who) = assemble(chatId)
-        return Prompt.definition(system, who)
+        val (payload, who) = assemble(chatId)
+        return Prompt.definition(payload, who)
     }
 
-    /** The system prompt Janitor assembles for [chatId], and the name it filled `{{user}}` with. */
-    private suspend fun assemble(chatId: Long): Pair<String, String> {
+    /** The bundle Janitor assembles for [chatId], and the name it filled `{{user}}` with. */
+    private suspend fun assemble(chatId: Long): Pair<JsonObject, String> {
         val chat = chatDao.get(chatId)?.takeIf { it.detailLoaded } ?: chats.refreshChat(chatId)
-        val history = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.serverId != null }.takeLast(HISTORY)
+        // The chat's opening line (the intro, which comes back as the bundle's first reply), then the message.
+        val history = Variants.collapse(messageDao.observeTranscriptOnce(chatId)).filter { it.serverId != null }.take(1)
         val profile = profiles.profile()
         val played = profiles.playedPersona(chat, history)
         // A normal proxy prompt, whatever the person chats with now: their own proxy when they
@@ -89,40 +96,48 @@ class ProxyDefinition @Inject constructor(
         } catch (e: Throwable) {
             if (payload == null) throw e
         }
-        val system = payload?.get("messages")?.jsonArray?.firstOrNull()?.jsonObject
-            ?.takeIf { it["role"]?.jsonPrimitive?.contentOrNull == "system" }
-            ?.get("content")?.jsonPrimitive?.contentOrNull
-            ?: throw ApiError.Api(code = 200, janitorCode = "BUTLER_NO_PROMPT", serverMessage = "Janitor didn't hand back a proxy prompt for this character.")
-        return system to (played.persona?.name ?: profile.name.ifBlank { profile.userName })
+        val bundle = payload ?: throw ApiError.Api(code = 200, janitorCode = "BUTLER_NO_PROMPT", serverMessage = "Janitor didn't hand back a proxy prompt for this character.")
+        return bundle to (played.persona?.name ?: profile.name.ifBlank { profile.userName })
     }
 
     private class Kept : RuntimeException("kept")
 
     /** Reads the sections Janitor wraps a character in (captured 2026-09-23 and 2026-10-05). */
     internal object Prompt {
+        /** The definition in a proxy [payload]: its system prompt, and the intro as its first reply. */
+        fun definition(payload: JsonObject, userName: String?): Definition {
+            val messages = payload["messages"]?.let { runCatching { it.jsonArray }.getOrNull() }.orEmpty().mapNotNull { it as? JsonObject }
+            fun role(m: JsonObject) = m["role"]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
+            fun text(m: JsonObject) = m["content"]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
+            val system = messages.firstOrNull { role(it) == "system" }?.let(::text)
+                ?: throw ApiError.Api(code = 200, janitorCode = "BUTLER_NO_PROMPT", serverMessage = "Janitor didn't hand back a proxy prompt for this character.")
+            val intro = messages.firstOrNull { role(it) == "assistant" }?.let(::text).orEmpty()
+            return definition(system, userName).copy(firstMessage = back(intro, userName))
+        }
+
         /** The definition in [system], with `{{user}}` put back where Janitor wrote [userName]. */
         fun definition(system: String, userName: String?): Definition {
             val persona = Regex("<([^<>\\n]{1,120})'s Persona>(.*?)</\\1's Persona>", RegexOption.DOT_MATCHES_ALL).find(system)?.groupValues?.get(2)
                 ?: throw ApiError.Api(code = 200, janitorCode = "BUTLER_NO_PERSONA", serverMessage = "Janitor's proxy prompt didn't carry this character's definition.")
             fun section(tag: String) = Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL).find(system)?.groupValues?.get(1).orEmpty()
-            fun back(text: String): String {
-                val t = text.trim()
-                val name = userName?.trim()?.takeIf { it.length >= 2 } ?: return t
-                return Regex("(?<![\\p{L}\\p{N}])${Regex.escape(name)}(?![\\p{L}\\p{N}])").replace(t, "{{user}}")
-            }
             return Definition(
-                personality = back(persona),
-                scenario = back(section("Scenario")),
-                exampleDialogs = back(section("example_dialogs")),
+                personality = back(persona, userName),
+                scenario = back(section("Scenario"), userName),
+                exampleDialogs = back(section("example_dialogs"), userName),
             )
+        }
+
+        /** [text] with `{{user}}` put back where Janitor wrote [userName], as a whole word. */
+        fun back(text: String, userName: String?): String {
+            val t = text.trim()
+            val name = userName?.trim()?.takeIf { it.length >= 2 } ?: return t
+            return Regex("(?<![\\p{L}\\p{N}])${Regex.escape(name)}(?![\\p{L}\\p{N}])").replace(t, "{{user}}")
         }
     }
 
     private companion object {
         /** Where a proxy would be, for a person with none saved. Nothing is ever sent there. */
         const val STAND_IN = "https://proxy.invalid/v1/chat/completions"
-        /** The chat's last lines sent along, as a message would carry them. */
-        const val HISTORY = 4
         const val MESSAGE = "Hello."
     }
 }

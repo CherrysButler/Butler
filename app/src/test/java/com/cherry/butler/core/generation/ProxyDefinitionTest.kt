@@ -42,6 +42,20 @@ class ProxyDefinitionTest {
         assertEquals("", d.exampleDialogs)
     }
 
+    @Test
+    fun `the bundle's first reply is the intro`() {
+        val payload = kotlinx.serialization.json.buildJsonObject {
+            put("messages", kotlinx.serialization.json.buildJsonArray {
+                add(kotlinx.serialization.json.buildJsonObject { put("role", kotlinx.serialization.json.JsonPrimitive("system")); put("content", kotlinx.serialization.json.JsonPrimitive(prompt)) })
+                add(kotlinx.serialization.json.buildJsonObject { put("role", kotlinx.serialization.json.JsonPrimitive("assistant")); put("content", kotlinx.serialization.json.JsonPrimitive("*Ash looks up.* \"You're late, Rain.\"")) })
+                add(kotlinx.serialization.json.buildJsonObject { put("role", kotlinx.serialization.json.JsonPrimitive("user")); put("content", kotlinx.serialization.json.JsonPrimitive("Hello.")) })
+            })
+        }
+        val d = ProxyDefinition.Prompt.definition(payload, userName = "Rain")
+        assertEquals("*Ash looks up.* \"You're late, {{user}}.\"", d.firstMessage)
+        assertEquals("{{user}} arrives at the Larkspur long after midnight.", d.scenario)
+    }
+
     @Test(expected = ApiError.Api::class)
     fun `a prompt without the character says so`() {
         ProxyDefinition.Prompt.definition("<UserPersona>x</UserPersona>", userName = null)
