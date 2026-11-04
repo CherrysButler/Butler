@@ -18,6 +18,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -332,11 +333,15 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
 
 /**
  * Who the next line goes out as: the persona's face on a key, where Janitor puts it in its
- * message box. Tapping it opens the persona list; the pick holds for this chat.
+ * message box. Tapping it opens the persona list (the pick holds for this chat); holding it
+ * shows the face full size.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
     val name = persona?.name.orEmpty()
+    val viewer = com.cherry.butler.ui.components.LocalPictureViewer.current
+    val face = persona?.avatarUrl?.takeIf { it.isNotBlank() }
     // As tall as the send key, so the face sits level with it beside a one-line draft.
     Box(modifier = Modifier.size(width = 32.dp, height = KEY_HEIGHT), contentAlignment = Alignment.Center) {
         Avatar(
@@ -346,7 +351,11 @@ private fun PersonaChip(persona: PersonaOption?, onClick: () -> Unit) {
             initialStyle = MaterialTheme.typography.labelMedium,
             modifier = Modifier
                 .clip(MaterialTheme.shapes.small)
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClickLabel = "Show picture",
+                    onLongClick = if (viewer != null && face != null) ({ viewer(face, name) }) else null,
+                )
                 .semantics { contentDescription = if (name.isEmpty()) "Choose persona" else "Playing as $name. Change persona" },
         )
     }

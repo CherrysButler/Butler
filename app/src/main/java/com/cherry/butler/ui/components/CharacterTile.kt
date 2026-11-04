@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,6 +114,7 @@ private const val PORTRAIT_ASPECT = "25:27"
  * description and the first tags. Every part has a fixed line count so the two cards in
  * a row always end level. The picture is requested at exactly its pixel box.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun CharacterTile(
     name: String,
@@ -128,9 +130,12 @@ fun CharacterTile(
     edgeColor: Color? = null,
     corner: Dp? = null,
     nameColor: Color? = null,
+    /** Held down: everything about it at once (CharacterPeekSheet); null does nothing. */
+    onLongClick: (() -> Unit)? = null,
     footer: @Composable () -> Unit,
 ) {
     val height = portraitHeight(width)
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val shape = corner?.let { com.cherry.butler.core.design.liftedShape(it) }
     val motion = LocalPointerMotion.current
     val hoverSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -162,7 +167,13 @@ fun CharacterTile(
             .card(shape = shape, color = containerColor, clip = false)
             .then(if (edgeColor != null) Modifier.border(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
             .then(if (motion) Modifier.border(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
-            .clickable(interactionSource = pressSource, indication = androidx.compose.foundation.LocalIndication.current, onClick = onClick),
+            .combinedClickable(
+                interactionSource = pressSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = onClick,
+                onLongClickLabel = if (onLongClick != null) "Show tags and tokens" else null,
+                onLongClick = onLongClick?.let { held -> { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); held() } },
+            ),
     ) {
         Text(
             text = name,
@@ -322,6 +333,8 @@ fun BrowseTileFooter(
     tags: List<String>,
     creatorColor: String? = null,
     textColor: Color? = null,
+    /** The creator's own tags, after Janitor's, marked with `#`. */
+    customTags: List<String> = emptyList(),
 ) {
     // The creator's own username colour, as Janitor shows it, when it reads on this ground.
     val red = MaterialTheme.colorScheme.primary
@@ -371,7 +384,7 @@ fun BrowseTileFooter(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         maxLines = 1,
     ) {
-        tags.take(4).forEach { TagPill(it) }
+        (tags + customTags.map { "#" + it.removePrefix("#") }).take(4).forEach { TagPill(it) }
     }
 }
 

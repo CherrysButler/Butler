@@ -305,6 +305,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setWriter(writer: com.cherry.butler.core.data.Writer) = writerPrefs.set(writer)
 
+    /** The library prompt Write for me follows too; null for none. */
+    val writePrompt: StateFlow<String?> = writerPrefs.writePrompt
+    fun setWritePrompt(id: String?) = writerPrefs.setWritePrompt(id)
+
     /** Which model writes summaries and compacts. */
     val memoryWriter: StateFlow<com.cherry.butler.core.data.Writer> = writerPrefs.memory
     fun setMemoryWriter(writer: com.cherry.butler.core.data.Writer) = writerPrefs.setMemory(writer)

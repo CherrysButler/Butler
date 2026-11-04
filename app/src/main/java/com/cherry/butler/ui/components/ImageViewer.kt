@@ -69,3 +69,26 @@ fun ImageViewer(url: String, name: String, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** Opens a picture full screen ([ImageViewer]); null outside a [PictureViewerHost]. */
+val LocalPictureViewer = androidx.compose.runtime.staticCompositionLocalOf<((url: String, name: String) -> Unit)?> { null }
+
+/**
+ * Where any picture under it opens full screen: a description's pictures, a chat's, your
+ * persona's face, a character's portrait. One viewer for the whole app.
+ */
+@Composable
+fun PictureViewerHost(content: @Composable () -> Unit) {
+    var open by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val show = remember { { url: String, name: String -> open = url to name } }
+    androidx.compose.runtime.CompositionLocalProvider(LocalPictureViewer provides show, content = content)
+    open?.let { (url, name) -> ImageViewer(url = url, name = name, onDismiss = { open = null }) }
+}
+
+/** Taps open [url] full screen, where a [PictureViewerHost] is there to show it. */
+@Composable
+fun Modifier.opensPicture(url: String?, name: String = ""): Modifier {
+    val viewer = LocalPictureViewer.current
+    if (viewer == null || url.isNullOrBlank()) return this
+    return clickable(onClickLabel = "Show picture") { viewer(url, name) }
+}

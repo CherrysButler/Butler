@@ -161,6 +161,8 @@ fun ButlerRoot() {
                     onCreator = { navController.navigate(Routes.creator(it)) },
                 ),
             ) {
+            com.cherry.butler.ui.components.PictureViewerHost {
+            com.cherry.butler.ui.components.PeekHost(onOpen = { navController.navigate(Routes.character(it)) }) {
             NavHost(
                 navController = navController,
                 startDestination = Routes.TABS,
@@ -384,6 +386,8 @@ fun ButlerRoot() {
                         onEditPersona = { navController.navigate(Routes.persona(it)) },
                     )
                 }
+            }
+            }
             }
             }
         }

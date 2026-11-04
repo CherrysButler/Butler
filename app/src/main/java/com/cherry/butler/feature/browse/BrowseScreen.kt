@@ -112,6 +112,7 @@ fun BrowseScreen(
             onClearAll = viewModel::onClearTags,
             onDismiss = { showTagPicker = false },
             onAddCustom = viewModel::onCustomTagAdded,
+            suggestCustom = viewModel::suggestCustomTags,
         )
     }
     if (showFilters) {
@@ -513,6 +514,7 @@ internal fun CharacterRoster(
 
 @Composable
 private fun RosterTile(character: Character, tileWidth: Dp, onClick: () -> Unit) {
+    val peek = com.cherry.butler.ui.components.LocalPeek.current
     CharacterTile(
         name = character.name,
         avatarUrl = character.avatarUrl,
@@ -522,6 +524,7 @@ private fun RosterTile(character: Character, tileWidth: Dp, onClick: () -> Unit)
         obscured = character.isImageNsfw,
         nsfw = character.isNsfw,
         chatCount = character.chatCount.compactCount(),
+        onLongClick = peek?.let { p -> { p.shown = character } },
     ) {
         BrowseTileFooter(
             creatorName = character.creatorName,
@@ -529,9 +532,11 @@ private fun RosterTile(character: Character, tileWidth: Dp, onClick: () -> Unit)
             creatorColor = character.creatorColor,
             blurb = character.blurb,
             tags = character.tagNames,
+            customTags = character.customTags,
         )
     }
 }
+
 
 /**
  * Home one page at a time: this page's tiles, then "Previous · Page N · Next" under them.

@@ -238,6 +238,8 @@ fun DesktopShell() {
             onCreator = { navController.navigate(Routes.creator(it)) },
         ),
     ) {
+        com.cherry.butler.ui.components.PictureViewerHost {
+        com.cherry.butler.ui.components.PeekHost(onOpen = { panelCharacter = it }) {
         Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().background(ButlerTheme.colors.chrome)) {
             DesktopRail(
@@ -306,6 +308,8 @@ fun DesktopShell() {
         }
         // An open chat's light, over the rail and the panes alike.
         ChatLightOverlay(chatLight, Modifier.matchParentSize())
+        }
+        }
         }
     }
 }

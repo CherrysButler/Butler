@@ -183,6 +183,9 @@ class BrowseViewModel @Inject constructor(
     /** The custom tags most used in the results on screen, offered as one-tap additions. */
     val topCustomTags: StateFlow<List<String>> get() = repository.topCustomTags
 
+    /** Creators' tags for what's typed in the tag picker, the ones already picked left out. */
+    suspend fun suggestCustomTags(typed: String): List<String> = repository.suggestCustomTags(typed, _query.value.customTags)
+
     /** Adds a creator's tag as typed: `#`, spaces and case don't matter. */
     fun onCustomTagAdded(raw: String) {
         val tag = normalizeCustomTag(raw) ?: return

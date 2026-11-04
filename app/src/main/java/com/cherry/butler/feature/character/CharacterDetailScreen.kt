@@ -88,6 +88,7 @@ import com.cherry.butler.core.markdown.stripPersonaMarks
 import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.ui.components.Roster
 import com.cherry.butler.ui.components.TagPill
+import com.cherry.butler.ui.components.opensPicture
 import com.cherry.butler.ui.components.card
 import com.cherry.butler.core.model.Lorebook
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
@@ -606,7 +607,7 @@ private fun Portrait(header: Header) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (revealed) Modifier else Modifier.blur(28.dp)),
+                .then(if (revealed) Modifier.opensPicture(header.avatarUrl, header.name) else Modifier.blur(28.dp)),
         )
         Row(
             modifier = Modifier

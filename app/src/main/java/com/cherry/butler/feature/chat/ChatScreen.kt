@@ -1298,11 +1298,13 @@ private fun UserTurn(
             .padding(horizontal = 20.dp, vertical = if (janitor) 10.dp else 8.dp),
         horizontalAlignment = if (janitor) Alignment.Start else Alignment.End,
     ) {
+        val viewer = com.cherry.butler.ui.components.LocalPictureViewer.current
         JanitorFrame(
             enabled = janitor,
             avatarUrl = persona?.avatarUrl,
             name = persona?.name ?: personaName.orEmpty(),
             nameColor = MaterialTheme.colorScheme.onSurface,
+            onAvatar = persona?.avatarUrl?.takeIf { it.isNotBlank() && viewer != null }?.let { face -> { viewer!!(face, persona.name) } },
             tools = if (!editing && message.serverId != null) ({ LineTools(onMore = { actions.onLongPress(message) }) }) else null,
         ) {
         if (editing) {

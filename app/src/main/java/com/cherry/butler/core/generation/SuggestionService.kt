@@ -54,6 +54,7 @@ class SuggestionService @Inject constructor(
     private val transport: GenerationTransport,
     private val memoryPrefs: MemoryPrefs,
     private val writerPrefs: WriterPrefs,
+    private val aiSettings: com.cherry.butler.core.data.SettingsRepository,
 ) {
     private val chatDao = db.chatDao()
     private val messageDao = db.messageDao()
@@ -204,6 +205,12 @@ class SuggestionService @Inject constructor(
         val played = profileRepository.playedPersona(chat, history)
         // The user's lines can come from another model than the character's (Settings › Model).
         val inputs = profileRepository.inputsFor(profile, writerPrefs.writer.value)
+        // A prompt from the library Write for me follows too (Settings › Model): on a proxy in the
+        // system prompt, on JLLM with the ask itself.
+        val libraryPrompt = writerPrefs.writePrompt.value?.let { id ->
+            (aiSettings.settings.value ?: runCatching { aiSettings.load() }.getOrNull())?.prompts?.firstOrNull { it.id == id }
+        }?.content?.trim()?.takeIf { it.isNotEmpty() }
+        val viaJllm = inputs.second == null
         // The line lands in the composer as the user's own words, so the macros are filled in.
         val who = played.persona?.name ?: chat.personaName ?: profile.name.ifBlank { profile.userName }
         onNames { it.fillUserAndChar(who, chat.shownName) }
@@ -229,7 +236,7 @@ class SuggestionService @Inject constructor(
                 guidance = SuggestionPrompt.guidance(ask.picks, ask.words, rewrite = draft.isNotBlank()),
                 name = who,
                 pronouns = played.persona?.pronouns,
-            ),
+            ).let { line -> if (libraryPrompt != null && viaJllm) "$line\n\n(Also follow: $libraryPrompt)" else line },
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
         )
@@ -239,7 +246,8 @@ class SuggestionService @Inject constructor(
         val line = StringBuilder()
         val thought = StringBuilder()
         val splitter = ThinkSplitter(line, thought)
-        transport.generate(envelope, inputs.second).collect { event ->
+        val target = inputs.second?.let { t -> if (libraryPrompt != null) t.then { PromptAddons.intoPayload(it, libraryPrompt) } else t }
+        transport.generate(envelope, target).collect { event ->
             when (event) {
                 is GenerationEvent.Delta -> splitter.feed(event.text)
                 is GenerationEvent.Reasoning -> thought.append(event.text)

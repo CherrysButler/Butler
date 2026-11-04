@@ -99,8 +99,9 @@ fun LazyListScope.communitySections(
                             obscured = c.isImageNsfw,
                             nsfw = c.isNsfw,
                             chatCount = c.chatCount.takeIf { it > 0 }?.compactCount(),
+                            onLongClick = com.cherry.butler.ui.components.LocalPeek.current?.let { p -> { p.shown = c } },
                         ) {
-                            BrowseTileFooter(creatorName = c.creatorName, creatorVerified = c.creatorVerified, blurb = c.blurb, tags = c.tagNames, creatorColor = c.creatorColor)
+                            BrowseTileFooter(creatorName = c.creatorName, creatorVerified = c.creatorVerified, blurb = c.blurb, tags = c.tagNames, creatorColor = c.creatorColor, customTags = c.customTags)
                         }
                     }
                 }

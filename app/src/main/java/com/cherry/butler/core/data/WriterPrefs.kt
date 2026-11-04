@@ -62,6 +62,16 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putString(KEY_PERSPECTIVE, perspective.name).apply()
     }
 
+    private val _writePrompt = MutableStateFlow(prefs.getString(KEY_WRITE_PROMPT, null))
+
+    /** A prompt from the library that Write for me follows as well (its id); null for none. */
+    val writePrompt: StateFlow<String?> = _writePrompt.asStateFlow()
+
+    fun setWritePrompt(id: String?) {
+        _writePrompt.value = id
+        prefs.edit().apply { if (id == null) remove(KEY_WRITE_PROMPT) else putString(KEY_WRITE_PROMPT, id) }.apply()
+    }
+
     private fun encode(w: Writer) = when (w) {
         Writer.SameAsChat -> "same"
         Writer.Jllm -> "jllm"
@@ -77,6 +87,7 @@ class WriterPrefs @Inject constructor(@ApplicationContext context: Context) {
     }
 
     private companion object {
+        const val KEY_WRITE_PROMPT = "write_prompt"
         const val KEY = "writer"
         const val KEY_PERSPECTIVE = "writer_perspective"
         const val KEY_MEMORY = "memory_writer"

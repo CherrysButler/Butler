@@ -1,5 +1,6 @@
 package com.cherry.butler.core.design
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,7 +48,8 @@ fun ChatImage(url: String, alt: String, modifier: Modifier = Modifier) {
             modifier = modifier
                 .fillMaxWidth()
                 .heightIn(max = 420.dp)
-                .clip(MaterialTheme.shapes.medium),
+                .clip(MaterialTheme.shapes.medium)
+                .then(com.cherry.butler.ui.components.LocalPictureViewer.current?.let { open -> Modifier.clickable(onClickLabel = "Show picture") { open(url, alt) } } ?: Modifier),
         )
         return
     }

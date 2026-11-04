@@ -35,6 +35,41 @@ class CharacterRepository @Inject constructor(
     /** The custom tags most used in the latest results (`top_custom_tags`), for suggestions. */
     val topCustomTags: kotlinx.coroutines.flow.StateFlow<List<String>> = _topCustomTags
 
+    /** Creators' tags seen in Browse, for suggestions as one is typed; kept on the phone. */
+    private val vocabulary = CustomTagVocabulary().apply {
+        prefs.getString(KEY_TAG_WORDS, null)?.let { saved ->
+            runCatching {
+                val o = org.json.JSONObject(saved)
+                restore(o.keys().asSequence().associateWith { o.optInt(it, 1) })
+            }
+        }
+    }
+    @Volatile private var learnedSince = 0
+
+    private fun learnCustomTags(tags: List<String>) {
+        if (tags.isEmpty()) return
+        vocabulary.learn(tags)
+        // Written now and then, not on every page.
+        if (++learnedSince >= SAVE_EVERY) {
+            learnedSince = 0
+            prefs.edit().putString(KEY_TAG_WORDS, org.json.JSONObject(vocabulary.snapshot() as Map<*, *>).toString()).apply()
+        }
+    }
+
+    /**
+     * Creators' tags for what's typed: those Browse has shown, and those on the characters a
+     * search for the typed word finds (Janitor has no search for tags themselves).
+     */
+    suspend fun suggestCustomTags(typed: String, exclude: Collection<String>): List<String> {
+        val q = CustomTagVocabulary.normalize(typed) ?: return emptyList()
+        val known = vocabulary.suggest(q, exclude = exclude)
+        if (known.size >= SUGGEST_ENOUGH || q.length < 2) return known
+        runCatching { remote.browse(BrowseQuery(search = q, special = null).server(), 1) }.getOrNull()?.let { found ->
+            learnCustomTags(found.data.flatMap { it.customTags } + found.topCustomTags)
+        }
+        return vocabulary.suggest(q, exclude = exclude)
+    }
+
     private fun keepTopCustomTags(tags: List<String>) {
         _topCustomTags.value = tags
         prefs.edit().putString(KEY_TOP_TAGS, tags.joinToString(",")).apply()
@@ -50,6 +85,10 @@ class CharacterRepository @Inject constructor(
      */
     private companion object {
         const val KEY_TOP_TAGS = "browse_top_custom_tags"
+        const val KEY_TAG_WORDS = "browse_custom_tag_words"
+        const val SAVE_EVERY = 5
+        /** As many suggestions as fill the row; fewer known, and a search is asked too. */
+        const val SUGGEST_ENOUGH = 6
     }
 
     /**
@@ -74,7 +113,7 @@ class CharacterRepository @Inject constructor(
             // card along the grid's rows whenever that start isn't a multiple of the row.
             enablePlaceholders = true,
         ),
-        remoteMediator = CharacterRemoteMediator(query.server(), remote, db, ::keepTopCustomTags),
+        remoteMediator = CharacterRemoteMediator(query.server(), remote, db, ::keepTopCustomTags, ::learnCustomTags),
         pagingSourceFactory = {
             db.characterDao().pagingSource(query.server().cacheKey, query.minMessages, query.minTokens, query.proxyOnly)
         },
@@ -88,6 +127,7 @@ class CharacterRepository @Inject constructor(
     suspend fun page(query: BrowseQuery, page: Int): Pair<List<Character>, Boolean> {
         val dto = remote.browse(query, page)
         if (dto.topCustomTags.isNotEmpty()) keepTopCustomTags(dto.topCustomTags)
+        learnCustomTags(dto.data.flatMap { it.customTags } + dto.topCustomTags)
         val now = System.currentTimeMillis()
         val items = dto.data.mapIndexed { i, c -> c.toEntity(query.cacheKey, i, now).toDomain() }
         return items to (dto.data.size >= CharacterRemoteSource.PAGE_SIZE)

@@ -685,6 +685,7 @@ private fun ModelSection(
             settings = settings,
             onSet = viewModel::setWriter,
         )
+        WritePromptRow(settings, viewModel)
         val memoryWriter by viewModel.memoryWriter.collectAsStateWithLifecycle()
         WriterPicker(
             title = "Summaries use",
@@ -734,6 +735,33 @@ private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
             onPick = { id -> viewModel.setJllmPrompt(id); picking = false },
             onDismiss = { picking = false },
             noneSubtitle = "JLLM answers with Janitor's own prompt only",
+        )
+    }
+}
+
+/**
+ * A prompt from the library that Write for me follows on top of its own ask: how your lines
+ * should read (length, style, rules). Any prompt, system or jailbreak; kept on this device.
+ */
+@Composable
+private fun WritePromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
+    var picking by remember { mutableStateOf(false) }
+    val id by viewModel.writePrompt.collectAsStateWithLifecycle()
+    val picked = settings.prompts.firstOrNull { it.id == id }
+    LinkRow(
+        title = "Write for me prompt",
+        icon = Icons.Rounded.Notes,
+        subtitle = picked?.name?.ifBlank { "Untitled prompt" }
+            ?: if (id != null) "None (that prompt is gone)" else if (settings.prompts.isEmpty()) "None · add one under Prompts" else "None",
+        onClick = { picking = true },
+    )
+    if (picking) {
+        PromptPickerSheet(
+            prompts = settings.prompts,
+            selectedId = picked?.id,
+            onPick = { pick -> viewModel.setWritePrompt(pick); picking = false },
+            onDismiss = { picking = false },
+            noneSubtitle = "Write for me follows its own ask only",
         )
     }
 }

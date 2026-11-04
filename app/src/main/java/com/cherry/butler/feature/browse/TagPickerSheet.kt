@@ -45,7 +45,7 @@ import com.cherry.butler.core.design.ButlerTheme
  * list is filtered on [TagDto.slug] as well as name — typing "male" should match
  * whether or not the user can produce the emoji.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun TagPickerSheet(
     tags: List<TagDto>,
@@ -55,9 +55,19 @@ fun TagPickerSheet(
     onDismiss: () -> Unit,
     /** Adds what was typed as a creator's own tag (`custom_tags[]`). */
     onAddCustom: (String) -> Unit = {},
+    /** Creators' tags for what's typed ("ocx" → ocxcanon, ocxoc), to pick instead of typing in full. */
+    suggestCustom: suspend (String) -> List<String> = { emptyList() },
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var filter by remember { mutableStateOf("") }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Asked once typing pauses; what's known shows at once, a search's findings after.
+    androidx.compose.runtime.LaunchedEffect(filter) {
+        val typed = BrowseViewModel.normalizeCustomTag(filter)
+        if (typed == null) { suggestions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(SUGGEST_PAUSE_MS)
+        suggestions = runCatching { suggestCustom(typed) }.getOrDefault(suggestions)
+    }
 
     val visible = remember(tags, filter) {
         if (filter.isBlank()) {
@@ -125,6 +135,23 @@ fun TagPickerSheet(
                     )
                     Text("a creator's tag", style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
                 }
+                // Tags creators actually use that start with (or hold) what's typed.
+                if (suggestions.isNotEmpty()) {
+                    androidx.compose.foundation.layout.FlowRow(
+                        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        suggestions.forEach { tag ->
+                            com.cherry.butler.ui.components.TagPill(
+                                "#$tag",
+                                modifier = Modifier
+                                    .clip(com.cherry.butler.core.design.Pill)
+                                    .clickable(onClickLabel = "Add #$tag") { onAddCustom(tag); filter = "" },
+                            )
+                        }
+                    }
+                }
             }
 
             if (visible.isEmpty()) {
@@ -186,3 +213,6 @@ private fun TagRow(tag: TagDto, checked: Boolean, onToggle: () -> Unit) {
         }
     }
 }
+
+/** How long typing pauses before creators' tags are suggested for it. */
+private const val SUGGEST_PAUSE_MS = 300L

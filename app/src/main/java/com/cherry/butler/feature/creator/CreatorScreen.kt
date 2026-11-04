@@ -175,6 +175,7 @@ fun CreatorScreen(
                         edgeColor = card.border.ink()?.takeIf { dark },
                         corner = card.radius?.dp,
                         nameColor = (look(Part.CardName).color ?: card.color).ink()?.takeIf { dark },
+                        onLongClick = com.cherry.butler.ui.components.LocalPeek.current?.let { p -> { p.shown = c } },
                     ) {
                         BrowseTileFooter(
                             creatorName = c.creatorName,
@@ -182,6 +183,7 @@ fun CreatorScreen(
                             creatorColor = c.creatorColor,
                             blurb = c.blurb,
                             tags = c.tagNames,
+                            customTags = c.customTags,
                             textColor = (look(Part.CardText).color ?: card.color).ink()?.takeIf { dark },
                         )
                     }

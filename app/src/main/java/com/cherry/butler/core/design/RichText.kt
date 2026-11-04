@@ -1,5 +1,6 @@
 package com.cherry.butler.core.design
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -147,7 +148,8 @@ fun RichText(
                         contentScale = ContentScale.FillWidth,
                         modifier = Modifier
                             .fillMaxWidth(block.widthFraction ?: 1f)
-                            .clip(MaterialTheme.shapes.small),
+                            .clip(MaterialTheme.shapes.small)
+                            .then(with(com.cherry.butler.ui.components.LocalPictureViewer.current) { if (this == null) Modifier else Modifier.clickable(onClickLabel = "Show picture") { this(block.url, "") } }),
                     )
                 }
                 Block.Rule -> HairlineRule(color = ButlerTheme.colors.rule, modifier = Modifier.padding(vertical = 4.dp))
