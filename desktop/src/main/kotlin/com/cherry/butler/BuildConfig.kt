@@ -4,8 +4,8 @@ package com.cherry.butler
 object BuildConfig {
     @JvmField val DEBUG: Boolean = System.getProperty("butler.debug") == "true"
     const val APPLICATION_ID = "com.cherry.butler"
-    const val VERSION_NAME = "0.5.1"
-    const val VERSION_CODE = 14
+    const val VERSION_NAME = "0.5.2"
+    const val VERSION_CODE = 15
     @JvmField val DEV_MIRROR: Boolean = false
     const val BUILD_TYPE = "release"
 }

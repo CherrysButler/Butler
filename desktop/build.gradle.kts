@@ -356,7 +356,7 @@ compose.desktop {
             )
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "Butler"
-            packageVersion = "0.5.1"
+            packageVersion = "0.5.2"
             vendor = "Cherry"
             windows {
                 // The bow tie on Butler's slate, for the Start menu, the shortcut and Butler.exe.
