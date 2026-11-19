@@ -1,6 +1,7 @@
 package com.cherry.butler.core.di
 
 import android.content.Context
+import com.cherry.butler.core.auth.AuthHosts
 import com.cherry.butler.core.auth.DevSessionSink
 import com.cherry.butler.core.auth.SecureSessionStore
 import com.cherry.butler.core.config.JanitorConfig
@@ -40,11 +41,14 @@ object SupabaseModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(sessionManager: SessionManager): SupabaseClient =
+    fun provideSupabaseClient(@ApplicationContext context: Context, sessionManager: SessionManager): SupabaseClient =
         createSupabaseClient(
-            supabaseUrl = JanitorConfig.SUPABASE_URL,
+            supabaseUrl = AuthHosts.startUrl(context),
             supabaseKey = JanitorConfig.SUPABASE_ANON_KEY,
         ) {
+            // Janitor's sign-in answers on two names; a call walled off on one goes to the other.
+            @OptIn(io.github.jan.supabase.annotations.SupabaseInternal::class)
+            httpConfig { install(AuthHosts.Fallback) }
             install(Auth) {
                 this.sessionManager = sessionManager
                 alwaysAutoRefresh = true

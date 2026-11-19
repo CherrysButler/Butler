@@ -9,8 +9,7 @@ package com.cherry.butler.core.config
  * device talks directly to Janitor's servers.
  */
 object JanitorConfig {
-    // Supabase (auth, realtime, storage, PostgREST)
-    const val SUPABASE_URL = "https://auth.janitorai.com"
+    // Supabase (auth). Its address is AuthHosts': Janitor's sign-in answers on two names.
     const val SUPABASE_ANON_KEY =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
             "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jbXp4dHpvbW1wbnhreW5kZGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjgzNzA3NDAsImV4cCI6MjA0Mzk0Njc0MH0." +

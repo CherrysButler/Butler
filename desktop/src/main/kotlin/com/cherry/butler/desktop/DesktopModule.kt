@@ -3,6 +3,7 @@ package com.cherry.butler.desktop
 import android.content.Context
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import com.cherry.butler.core.auth.AuthHosts
 import com.cherry.butler.core.auth.AuthRepository
 import com.cherry.butler.core.auth.DevSessionSink
 import com.cherry.butler.core.auth.NoOpDevSessionSink
@@ -137,11 +138,13 @@ object DesktopModule {
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(sessionManager: SessionManager): SupabaseClient =
+    fun provideSupabaseClient(@ApplicationContext context: Context, sessionManager: SessionManager): SupabaseClient =
         createSupabaseClient(
-            supabaseUrl = JanitorConfig.SUPABASE_URL,
+            supabaseUrl = AuthHosts.startUrl(context),
             supabaseKey = JanitorConfig.SUPABASE_ANON_KEY,
         ) {
+            @OptIn(io.github.jan.supabase.annotations.SupabaseInternal::class)
+            httpConfig { install(AuthHosts.Fallback) }
             install(Auth) {
                 this.sessionManager = sessionManager
                 alwaysAutoRefresh = true

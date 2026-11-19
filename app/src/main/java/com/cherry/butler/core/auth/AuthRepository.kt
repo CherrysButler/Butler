@@ -1,10 +1,16 @@
 package com.cherry.butler.core.auth
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.cherry.butler.core.config.JanitorConfig
+import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Discord
 import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.OAuthProvider
 import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.OTP
@@ -24,6 +30,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class AuthRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val supabase: SupabaseClient,
     private val keeper: SessionKeeper,
 ) {
@@ -44,13 +51,25 @@ class AuthRepository @Inject constructor(
      * MainActivity hands the deep link back to the SDK, the session lands through
      * [SecureSessionStore], and [sessionStatus] flips to Authenticated.
      */
-    suspend fun signInWithGoogle() {
-        auth.signInWith(Google, redirectUrl = JanitorConfig.OAUTH_REDIRECT)
-    }
+    suspend fun signInWithGoogle() = signInWith(Google)
 
     /** Discord OAuth — the provider whose redirect the official app itself uses. */
-    suspend fun signInWithDiscord() {
-        auth.signInWith(Discord, redirectUrl = JanitorConfig.OAUTH_REDIRECT)
+    suspend fun signInWithDiscord() = signInWith(Discord)
+
+    /**
+     * The sign-in page opens on whichever of Janitor's two sign-in hosts answers now ([AuthHosts]).
+     * On the one the client was built with, supabase-kt opens it as always (a Custom Tab on the
+     * phone); on the other, Butler builds the same link (PKCE kept by [Auth.getOAuthUrl]) and
+     * opens it in the browser itself. Either way the code comes back to the same project.
+     */
+    private suspend fun signInWith(provider: OAuthProvider) {
+        val host = AuthHosts.reachable()
+        if (host == AuthHosts.configured) {
+            auth.signInWith(provider, redirectUrl = JanitorConfig.OAUTH_REDIRECT)
+        } else {
+            val url = AuthHosts.onHost(auth.getOAuthUrl(provider, JanitorConfig.OAUTH_REDIRECT), host)
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
     }
 
     /**
