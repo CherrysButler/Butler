@@ -68,6 +68,7 @@ import com.cherry.butler.feature.chats.ChatsScreen
 import com.cherry.butler.feature.community.CommentsScreen
 import com.cherry.butler.feature.community.PublishedChatScreen
 import com.cherry.butler.feature.community.PublishedListScreen
+import com.cherry.butler.feature.lorebook.lorebookLibraryDestinations
 import com.cherry.butler.feature.notifications.NotificationsScreen
 import com.cherry.butler.feature.profile.ProfileScreen
 import com.cherry.butler.feature.settings.CustomizeScreen
@@ -419,6 +420,19 @@ private fun PaneNav(
         composable(Routes.BLOCKED) { com.cherry.butler.feature.settings.BlockedScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.DIAGNOSTICS) { com.cherry.butler.feature.settings.DiagnosticsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.ROUTER) { com.cherry.butler.feature.settings.RouterScreen(onBack = { navController.popBackStack() }) }
+        lorebookLibraryDestinations(navController)
+        composable(Routes.LOREBOOK_EDITOR, arguments = listOf(
+            navArgument(Routes.ARG_LOREBOOK_ID) { type = NavType.StringType },
+            navArgument(Routes.ARG_LOREBOOK_SCOPE) { type = NavType.StringType; nullable = true; defaultValue = null },
+        )) { entry ->
+            val scope = entry.arguments?.getString(Routes.ARG_LOREBOOK_SCOPE)
+            com.cherry.butler.feature.lorebook.LorebookEditorScreen(
+                bookId = entry.arguments?.getString(Routes.ARG_LOREBOOK_ID)?.takeUnless { it == "new" },
+                newBookScope = scope,
+                onBack = { navController.popBackStack() },
+                onSaved = { _, _ -> navController.popBackStack() },
+            )
+        }
         composable(Routes.NOTIFICATION_PREFS) {
             com.cherry.butler.feature.notifications.NotificationPrefsScreen(onBack = { navController.popBackStack() })
         }
@@ -545,6 +559,7 @@ private fun settingsScreen(
     onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
     onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
     onOpenRouter = { navController.navigate(Routes.ROUTER) },
+    onOpenLorebooks = { navController.navigate(Routes.LOREBOOKS) },
     onOpenPage = onOpenPage,
     page = page,
     onBack = onBack,

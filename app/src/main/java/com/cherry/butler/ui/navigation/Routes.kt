@@ -27,6 +27,12 @@ object Routes {
     const val BLOCKED = "settings/blocked"
     const val DIAGNOSTICS = "settings/diagnostics"
     const val ROUTER = "settings/router"
+    const val LOREBOOKS = "settings/lorebooks"
+    const val IMPORT_LOREBOOK = "settings/lorebooks/import"
+    const val ARG_LOREBOOK_ID = "lorebookId"
+    const val ARG_LOREBOOK_SCOPE = "enableIn"
+    const val LOREBOOK_EDITOR = "lorebook/edit/{$ARG_LOREBOOK_ID}?$ARG_LOREBOOK_SCOPE={$ARG_LOREBOOK_SCOPE}"
+    const val LOREBOOK_CREATED = "lorebookCreated"
     const val PERSONA = "persona/{personaId}"
     const val PUBLISHED_LIST = "published-list/{characterId}?name={name}"
     const val CREATOR = "creator/{$ARG_USER_ID}"
@@ -40,6 +46,9 @@ object Routes {
     fun proxy(id: String?) = "settings/proxy/${id ?: "new"}"
     fun prompt(id: String?) = "settings/prompt/${id ?: "new"}"
     fun persona(id: String) = "persona/$id"
+    fun lorebookEditor(id: String?, enableIn: String? = null): String =
+        "lorebook/edit/${android.net.Uri.encode(id ?: "new")}" +
+            (enableIn?.let { "?$ARG_LOREBOOK_SCOPE=${android.net.Uri.encode(it)}" } ?: "")
     fun comments(characterId: String, name: String) = "comments/$characterId?name=${android.net.Uri.encode(name)}"
     fun publishedList(characterId: String, name: String) = "published-list/$characterId?name=${android.net.Uri.encode(name)}"
     fun published(slug: String) = "published/${android.net.Uri.encode(slug)}"
