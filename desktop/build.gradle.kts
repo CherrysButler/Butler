@@ -24,6 +24,7 @@ val shared = rootProject.file("app/src/main/java")
 val androidOnly = listOf(
     "ButlerApp.kt",
     "MainActivity.kt",
+    "EndpointRestartActivity.kt",
     "core/di/DataModule.kt",
     "core/di/GenerationModule.kt",
     "core/di/SupabaseModule.kt",

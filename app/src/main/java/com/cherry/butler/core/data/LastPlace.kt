@@ -2,6 +2,7 @@ package com.cherry.butler.core.data
 
 import android.content.Context
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.model.BrowseQuery
 import com.cherry.butler.core.model.CharacterSort
 import com.cherry.butler.core.model.NsfwMode
@@ -23,7 +24,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class LastPlace @Inject constructor(@ApplicationContext context: Context) {
-    private val prefs = context.getSharedPreferences("butler_place", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName("butler_place"), Context.MODE_PRIVATE)
 
     /** Set by the activity: true only when it starts with no saved state of its own. */
     @Volatile

@@ -7,6 +7,12 @@ import org.junit.Test
 class JanitorLinkTest {
     private val id = "3f0c1b2a-9d8e-4f7a-b6c5-1a2b3c4d5e6f"
 
+    @Test fun opensCharacterAndCreatorLinksOnJani() {
+        assertEquals(JanitorLink.Character(id), JanitorLink.parse("https://jani.com/characters/${id}_character-ash"))
+        assertEquals(JanitorLink.Creator(id), JanitorLink.parse("https://jani.com/profiles/$id"))
+        assertNull(JanitorLink.parse("https://jani.com.example.org/characters/$id"))
+    }
+
     @Test
     fun `a character link with its slug opens the character`() {
         assertEquals(JanitorLink.Character(id), JanitorLink.parse("https://janitorai.com/characters/${id}_character-ash-the-night-clerk"))

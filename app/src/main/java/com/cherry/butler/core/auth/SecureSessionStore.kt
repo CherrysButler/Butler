@@ -4,8 +4,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.cherry.butler.core.config.JanitorEndpoint
+import io.github.jan.supabase.auth.CodeVerifierCache
 import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.user.UserSession
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -21,8 +25,12 @@ import kotlinx.serialization.json.Json
 class SecureSessionStore(
     context: Context,
     private val json: Json,
-    private val devSessionSink: DevSessionSink,
-) : SessionManager {
+    devSessionSink: DevSessionSink,
+    endpoint: JanitorEndpoint,
+) : SessionManager, CodeVerifierCache {
+
+    // Existing adb session backups belong to the original endpoint.
+    private val legacySink = devSessionSink.takeIf { endpoint == JanitorEndpoint.JanitorAI }
 
     private val prefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(context)
@@ -30,7 +38,7 @@ class SecureSessionStore(
             .build()
         EncryptedSharedPreferences.create(
             context,
-            PREFS_FILE,
+            endpoint.scopedName(PREFS_FILE),
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
@@ -38,8 +46,8 @@ class SecureSessionStore(
     }
 
     override suspend fun saveSession(session: UserSession) {
-        prefs.edit().putString(KEY_SESSION, json.encodeToString(session)).apply()
-        devSessionSink.onSaved(session)
+        persist { putString(KEY_SESSION, json.encodeToString(session)) }
+        legacySink?.onSaved(session)
     }
 
     /**
@@ -50,16 +58,33 @@ class SecureSessionStore(
      */
     override suspend fun loadSession(): UserSession? {
         val raw = prefs.getString(KEY_SESSION, null)
-            ?: return devSessionSink.seed()?.also { saveSession(it) }
+            ?: return legacySink?.seed()?.also { saveSession(it) }
         return runCatching { json.decodeFromString<UserSession>(raw) }.getOrNull()
     }
 
     override suspend fun deleteSession() {
-        prefs.edit().remove(KEY_SESSION).apply()
-        devSessionSink.onCleared()
+        persist { remove(KEY_SESSION).remove(KEY_CODE_VERIFIER) }
+        legacySink?.onCleared()
+    }
+
+    override suspend fun saveCodeVerifier(codeVerifier: String) {
+        persist { putString(KEY_CODE_VERIFIER, codeVerifier) }
+    }
+
+    override suspend fun loadCodeVerifier(): String? = prefs.getString(KEY_CODE_VERIFIER, null)
+
+    override suspend fun deleteCodeVerifier() {
+        persist { remove(KEY_CODE_VERIFIER) }
+    }
+
+    private suspend fun persist(change: SharedPreferences.Editor.() -> Unit) {
+        withContext(Dispatchers.IO) {
+            check(prefs.edit().apply(change).commit())
+        }
     }
 
     private companion object {
+        const val KEY_CODE_VERIFIER = "pkce_code_verifier"
         const val PREFS_FILE = "butler_session"
         const val KEY_SESSION = "supabase_session"
     }

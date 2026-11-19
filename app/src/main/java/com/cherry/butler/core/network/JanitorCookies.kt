@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import android.webkit.CookieManager
+import com.cherry.butler.core.config.JanitorConfig
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -12,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
- * Cloudflare's cookies for janitorai.com, kept and sent back as a browser does. Nothing else:
+ * Cloudflare's cookies for the selected Janitor site, kept and sent back as a browser does. Nothing else:
  * no other cookie is stored, and no other host is sent any.
  *
  * - `cf_clearance`: Cloudflare's "this browser passed a check". Janitor's sign-in Turnstile
@@ -31,7 +32,8 @@ import java.util.concurrent.TimeUnit
 object JanitorCookies : CookieJar {
     private const val TAG = "JanitorCookies"
     private const val PREFS = "butler_cf_cookies"
-    private const val SITE = "janitorai.com"
+    private val site: String get() = JanitorConfig.endpoint.host
+    private val siteUrl: String get() = "${JanitorConfig.endpoint.origin}/"
 
     private var prefs: SharedPreferences? = null
     private val store = ConcurrentHashMap<String, Cookie>()
@@ -41,8 +43,8 @@ object JanitorCookies : CookieJar {
     private const val KEY_AGENT = "~clearance_agent"
 
     fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).also { p ->
-            val url = "https://$SITE/".toHttpUrl()
+        prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName(PREFS), Context.MODE_PRIVATE).also { p ->
+            val url = siteUrl.toHttpUrl()
             clearanceAgent = p.getString(KEY_AGENT, null)
             for ((key, raw) in p.all) {
                 if (key == KEY_AGENT) continue
@@ -55,7 +57,7 @@ object JanitorCookies : CookieJar {
     private fun isCloudflare(name: String) =
         name == "cf_clearance" || name == "__cf_bm" || name.startsWith("__cfwaitingroom")
 
-    private fun isJanitor(host: String) = host == SITE || host.endsWith(".$SITE")
+    private fun isJanitor(host: String) = host == site || host.endsWith(".$site")
 
     private fun key(c: Cookie) = "${c.name}@${c.domain}"
 
@@ -88,7 +90,7 @@ object JanitorCookies : CookieJar {
      * answers refresh them anyway.
      */
     fun importFromWebView(agent: String? = null) {
-        val raw = runCatching { CookieManager.getInstance().getCookie("https://$SITE/") }.getOrNull() ?: return
+        val raw = runCatching { CookieManager.getInstance().getCookie(siteUrl) }.getOrNull() ?: return
         if (agent != null) {
             clearanceAgent = agent
             prefs?.edit()?.putString(KEY_AGENT, agent)?.apply()
@@ -105,7 +107,7 @@ object JanitorCookies : CookieJar {
             val life = if (name == "cf_clearance") TimeUnit.DAYS.toMillis(365) else TimeUnit.MINUTES.toMillis(30)
             val cookie = Cookie.Builder()
                 .name(name).value(value)
-                .domain(SITE).path("/")
+                .hostOnlyDomain(site).path("/")
                 .expiresAt(now + life)
                 .secure().httpOnly()
                 .build()
@@ -123,7 +125,16 @@ object JanitorCookies : CookieJar {
         clearanceAgent = null
         store.clear()
         prefs?.edit()?.clear()?.apply()
-        runCatching { CookieManager.getInstance().removeAllCookies(null) }
+        runCatching {
+            val manager = CookieManager.getInstance()
+            val names = manager.getCookie(siteUrl).orEmpty().split(';')
+                .map { it.substringBefore('=').trim() }.filter(::isCloudflare)
+            for (name in names) {
+                manager.setCookie(siteUrl, "$name=; Max-Age=0; Path=/; Secure")
+                manager.setCookie(siteUrl, "$name=; Max-Age=0; Path=/; Domain=$site; Secure")
+            }
+            manager.flush()
+        }
     }
 
     /** The names held now, for the diagnostics report. */

@@ -8,9 +8,10 @@ when you ask it to. Here is the long version, and how to check it.
 
 Butler contacts exactly these hosts:
 
-- `janitorai.com` and its subdomains: the API, the chat generation route, notifications,
-  and `ella.janitorai.com` for pictures.
-- `auth.janitorai.com`: Janitor's Supabase project, which is where your login lives.
+- The selected Janitor site (`janitorai.com` or `jani.com`) serves the API, generation
+  and notifications. Its image CDN is `ella.janitorai.com` or `janitorsunite.b-cdn.net`.
+- Janitor's Supabase project handles login at `auth.janitorai.com` for the original site
+  and `mcmzxtzommpnxkynddbo.supabase.co` for `jani.com`.
 - `challenges.cloudflare.com`, only during an e-mail sign-in, because Janitor requires
   Cloudflare's check for that.
 - Your own reverse proxy, if you set one (OpenRouter or wherever you point it). Butler
@@ -27,14 +28,14 @@ so it sends strictly less of your data than the app you'd otherwise use.
 
 ## What's on the phone
 
-- Your session (the tokens that prove you're you), encrypted with a key in the Android
-  Keystore. It never touches plain storage.
+- Your sessions, stored separately for each Janitor endpoint and encrypted with a key
+  in the Android Keystore.
 - A mirror of your chats and characters, so screens paint instantly and work offline.
 - Messages you've written and not yet managed to send. These are written before any
   network call, which is the whole point.
 - Your settings: the look, the chat layout, fonts, which proxy is selected, routing and
   thinking options for OpenRouter.
-- Cloudflare's cookies for janitorai.com: the pass Cloudflare gives you when you clear the
+- Cloudflare's cookies for each Janitor site: the pass Cloudflare gives you when you clear the
   check at sign-in, and its usual bot and queue cookies. Butler sends them back to Janitor
   the way a browser would, so it's treated like the browser that passed the check. They go
   nowhere else, and they're cleared when you sign out.
@@ -43,10 +44,10 @@ so it sends strictly less of your data than the app you'd otherwise use.
   each reply (Janitor gets the clean one). The proxy key itself is kept by Janitor, not by Butler; Butler only knows
   whether one is saved.
 
-Signing out deletes all of it from the phone. Pins, archive and folders live on your Janitor
-account, so they come back when you sign in again.
+Signing out clears the active endpoint’s session and offline chat data. Pins, archive
+and folders live on your Janitor account, so they come back when you sign in again.
 
-A debug build can also write the session to a plain file so the API can be probed from a
+A debug build can also write the original endpoint’s session to a plain file so the API can be probed from a
 dev machine, but only when the developer turns it on for their own machine
 (`butler.devMirror=true` in `local.properties`). The release build doesn't contain that code
 at all, and the debug APKs published on GitHub are built with it off.

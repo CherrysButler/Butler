@@ -14,7 +14,7 @@ class CookieManager private constructor() {
 
     fun setCookie(url: String, value: String) {
         val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return
-        jar[host] = value
+        if ("Max-Age=0" in value) jar.remove(host) else jar[host] = value
     }
 
     fun removeAllCookies(callback: ((Boolean) -> Unit)?) {

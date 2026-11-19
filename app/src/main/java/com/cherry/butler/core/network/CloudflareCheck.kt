@@ -1,6 +1,7 @@
 package com.cherry.butler.core.network
 
 import com.cherry.butler.core.diagnostics.Diagnostics
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +42,7 @@ object CloudflareCheck {
             pending ?: CompletableDeferred<Boolean>().also {
                 pending = it
                 _asking.value = url
-                Diagnostics.record("cloudflare", "check shown for ${url.substringAfter("janitorai.com").substringBefore('?')}")
+                Diagnostics.record("cloudflare", "check shown for ${url.toHttpUrlOrNull()?.encodedPath.orEmpty()}")
             }
         }
         return withTimeoutOrNull(WAIT_MS) { wait.await() } ?: run { finish(false); false }

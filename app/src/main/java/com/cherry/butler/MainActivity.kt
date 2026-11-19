@@ -14,6 +14,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import com.cherry.butler.core.auth.AuthRepository
 import com.cherry.butler.core.background.OpenChatRequests
 import com.cherry.butler.core.data.LastPlace
 import com.cherry.butler.core.generation.SendPipeline
@@ -22,9 +23,8 @@ import com.cherry.butler.core.data.ThemePrefs
 import com.cherry.butler.core.data.TextLookPrefs
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.ui.AuthGate
+import com.cherry.butler.ui.components.LocalEndpointRestart
 import dagger.hilt.android.AndroidEntryPoint
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import com.cherry.butler.core.security.AppLock
 import com.cherry.butler.ui.LockScreen
@@ -39,7 +39,7 @@ private val signInScope = kotlinx.coroutines.MainScope()
 class MainActivity : FragmentActivity() {
 
     @Inject
-    lateinit var supabase: SupabaseClient
+    lateinit var authRepository: AuthRepository
 
     @Inject
     lateinit var updates: com.cherry.butler.core.update.UpdateChecker
@@ -136,7 +136,10 @@ class MainActivity : FragmentActivity() {
                         modifier = (if (locked) androidx.compose.ui.Modifier.clearAndSetSemantics { } else androidx.compose.ui.Modifier)
                             .sheetPushBack(),
                     ) {
-                        CompositionLocalProvider(LocalLastPlace provides lastPlace) {
+                        CompositionLocalProvider(
+                            LocalLastPlace provides lastPlace,
+                            LocalEndpointRestart provides { EndpointRestartActivity.launch(this@MainActivity) },
+                        ) {
                             AuthGate()
                         }
                         // Cloudflare's browser check, when a call meets one.
@@ -168,7 +171,7 @@ class MainActivity : FragmentActivity() {
         val code = data.getQueryParameter("code")?.takeIf { it.isNotBlank() } ?: return
         signInScope.launch {
             try {
-                supabase.auth.exchangeCodeForSession(code)
+                authRepository.finishOAuth(code)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

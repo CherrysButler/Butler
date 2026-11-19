@@ -1,5 +1,6 @@
 package com.cherry.butler.core.generation
 
+import com.cherry.butler.core.config.JanitorConfig
 import android.content.Context
 import com.cherry.butler.core.data.OpenRouterOptions
 import com.cherry.butler.core.data.OpenRouterOptionsStore
@@ -99,7 +100,7 @@ class DescriptionWriter @Inject constructor(
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${proxy.key}")
             .header("Accept", "text/event-stream")
-            .header("HTTP-Referer", "https://janitorai.com")
+            .header("HTTP-Referer", JanitorConfig.endpoint.origin)
             .header("X-Title", "janitor")
             .build()
         val call = http.newCall(request)

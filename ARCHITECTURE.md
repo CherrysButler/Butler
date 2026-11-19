@@ -30,16 +30,16 @@ on disk, which is why screens paint instantly and keep working offline.
 
 ## Auth
 
-Janitor's auth is Supabase, so Butler uses supabase-kt against `auth.janitorai.com`. The
-session is persisted through `SecureSessionStore` (EncryptedSharedPreferences, Android
-Keystore). `SessionKeeper` keeps the last good session through a failed refresh, refreshes
+The selected Janitor endpoint determines the website, CDN and Supabase URLs at startup.
+`SecureSessionStore` persists each endpoint's session and OAuth verifier separately using
+EncryptedSharedPreferences and Android Keystore. Switching endpoints restarts Butler with
+the chosen session and chat database. `SessionKeeper` keeps the last good session through a failed refresh, refreshes
 when under ninety seconds remain, and renews on foreground, so an expired token on launch is
 renewed instead of signing the user out.
 
 OAuth runs in a Custom Tab and comes back through `janitor://auth/…`, the deep-link scheme
 Janitor's own project allow-lists. E-mail sign-in needs a Cloudflare Turnstile token, which
-`TurnstileSheet` gets from the widget running in a WebView whose document origin is
-janitorai.com (the site key is bound to that hostname).
+`TurnstileSheet` gets from the widget running in a WebView with the selected site's origin.
 
 ## Generation
 

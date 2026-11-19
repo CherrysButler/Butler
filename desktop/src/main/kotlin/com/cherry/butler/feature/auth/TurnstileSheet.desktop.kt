@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.network.JanitorCookies
 import com.cherry.butler.desktop.FilePickers
@@ -41,7 +42,7 @@ import java.io.File
  * The Turnstile check on Windows, inside Butler's window. The panel draws here; the check
  * itself runs in WebView2 (butler-turnstile.exe, Edge's engine), as a borderless panel Butler
  * owns, laid exactly over the empty slot below. The page is the phone's, served as
- * janitorai.com so the site key accepts it; like Android's WebView it keeps its own
+ * the selected Janitor site as its origin; like Android's WebView it keeps its own
  * User-Agent, and the clearance it earns comes over through [JanitorCookies].
  */
 @Composable
@@ -111,7 +112,7 @@ private fun runCheck(dark: Boolean, panel: Color, slot: Rect, check: TurnstileCh
     }
     val placement = placement(slot)
     val ground = "%06X".format(panel.toArgb() and 0xFFFFFF)
-    val args = listOf(exe.path, page.path, "One moment · Butler", if (dark) "dark" else "light") +
+    val args = listOf(exe.path, page.path, "One moment · Butler", if (dark) "dark" else "light", JanitorConfig.endpoint.host) +
         (placement?.let { listOf(it.owner.toString(), it.x.toString(), it.y.toString(), it.w.toString(), it.h.toString(), ground) } ?: emptyList())
     val process = runCatching { ProcessBuilder(args).redirectErrorStream(true).start() }.getOrElse { return "error helper-start" }
     started(process)
@@ -130,7 +131,7 @@ private fun runCheck(dark: Boolean, panel: Color, slot: Rect, check: TurnstileCh
         }
     }
     if (cookies.isNotEmpty()) {
-        android.webkit.CookieManager.getInstance().setCookie("https://janitorai.com/", cookies.joinToString("; "))
+        android.webkit.CookieManager.getInstance().setCookie("${JanitorConfig.endpoint.origin}/", cookies.joinToString("; "))
     }
     JanitorCookies.importFromWebView(agent)
     page.delete()

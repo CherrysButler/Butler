@@ -1,6 +1,7 @@
 package com.cherry.butler.core.generation
 
 import android.content.Context
+import com.cherry.butler.core.config.JanitorConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class ContextGauge @Inject constructor(@ApplicationContext context: Context) {
-    private val prefs = context.getSharedPreferences("context_gauge", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName("context_gauge"), Context.MODE_PRIVATE)
     private val _all = MutableStateFlow<Map<Long, Int>>(
         prefs.all.mapNotNull { (k, v) -> k.toLongOrNull()?.let { id -> (v as? Int)?.let { id to it } } }.toMap(),
     )

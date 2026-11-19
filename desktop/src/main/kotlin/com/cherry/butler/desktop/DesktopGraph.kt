@@ -28,7 +28,7 @@ interface ViewModelComponent {
 @Component(modules = [DesktopModule::class])
 interface DesktopComponent : WidgetsEntryPoint, LockEntryPoint {
     fun viewModels(): ViewModelComponent.Factory
-    fun supabase(): io.github.jan.supabase.SupabaseClient
+    fun authRepository(): com.cherry.butler.core.auth.AuthRepository
     fun updates(): com.cherry.butler.core.update.UpdateChecker
     fun fontPrefs(): com.cherry.butler.core.data.FontPrefs
     fun themePrefs(): com.cherry.butler.core.data.ThemePrefs

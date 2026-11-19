@@ -45,6 +45,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".EndpointRestartActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:process=":endpoint_restart"
+            android:taskAffinity="${applicationId}.endpoint_restart"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <receiver
             android:name=".core.background.ButlerWidget"
             android:exported="false">

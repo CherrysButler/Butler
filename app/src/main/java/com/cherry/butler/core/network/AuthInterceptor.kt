@@ -2,6 +2,8 @@ package com.cherry.butler.core.network
 
 import com.cherry.butler.core.auth.AuthRepository
 import com.cherry.butler.core.config.JanitorConfig
+import com.cherry.butler.core.config.JanitorEndpoint
+import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.Response
 import javax.inject.Inject
@@ -29,7 +31,7 @@ class AuthInterceptor @Inject constructor(
         val request = chain.request()
         // Janitor's own API only. Image CDNs and other people's hosts (Google avatars among
         // them) share this client through Coil and must never see the user's token.
-        if (!isJanitorApi(request.url.host)) return chain.proceed(request)
+        if (!isJanitorApi(request.url)) return chain.proceed(request)
         val builder = request.newBuilder()
         // The website sends no `apikey` to its generation route (the POST, or the JLLM socket's
         // upgrade); Janitor's firewall turned away the call that carried it (2026-10-06).
@@ -45,8 +47,7 @@ class AuthInterceptor @Inject constructor(
     }
 
     companion object {
-        fun isJanitorApi(host: String): Boolean = host == JANITOR_HOST
-
-        private const val JANITOR_HOST = "janitorai.com"
+        fun isJanitorApi(url: HttpUrl, endpoint: JanitorEndpoint = JanitorConfig.endpoint): Boolean =
+            url.isHttps && url.port == 443 && url.host == endpoint.host
     }
 }

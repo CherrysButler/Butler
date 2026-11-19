@@ -1946,6 +1946,9 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
     val activity = context as? androidx.fragment.app.FragmentActivity
 
     SettingsSection(title = "App", icon = Icons.Rounded.PhoneAndroid) {
+        com.cherry.butler.ui.components.JanitorEndpointPicker { host, open ->
+            LinkRow(title = "Janitor endpoint", subtitle = host, onClick = open)
+        }
         LinkRow(title = "Notifications", subtitle = null, onClick = onOpenNotifications, icon = Icons.Rounded.Notifications)
         LinkRow(title = "Blocked", subtitle = null, onClick = onOpenBlocked, icon = Icons.Rounded.Block)
         LinkRow(title = "Report a problem", subtitle = null, onClick = onOpenDiagnostics, icon = Icons.Rounded.BugReport)

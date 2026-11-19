@@ -1,5 +1,6 @@
 package com.cherry.butler.core.generation
 
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.Lesson
 import com.cherry.butler.core.data.LessonChange
 import com.cherry.butler.core.data.LessonDiff
@@ -196,7 +197,7 @@ class LessonsLearner @Inject constructor(
             .url(proxy.url)
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${proxy.key}")
-            .header("HTTP-Referer", "https://janitorai.com")
+            .header("HTTP-Referer", JanitorConfig.endpoint.origin)
             .header("X-Title", "janitor")
             .build()
         val body = try {

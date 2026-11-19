@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.cherry.butler.BuildConfig
+import com.cherry.butler.core.config.JanitorConfig
+import com.cherry.butler.core.config.JanitorEndpoint
 import com.cherry.butler.core.diagnostics.Diagnostics
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -21,7 +23,7 @@ import okhttp3.Response
  *
  * Should the firewall turn the chosen browser away ("Access Restricted", nothing Janitor said),
  * the call is made once more as a different browser; if that one passes, it becomes the device's
- * from then on. Only janitorai.com is ever retried. Clients that drop Butler's interceptors on
+ * from then on. Only Janitor sites are retried. Clients that drop Butler's interceptors on
  * purpose (the user's proxy, storage uploads) add this one back, so no call goes out as OkHttp.
  *
  * Butler's own name, [APP], goes only to GitHub's API (the update check), which asks who calls.
@@ -43,7 +45,7 @@ object ButlerUserAgent : Interceptor {
 
     /** Reads the device's browser, choosing one the first time. */
     fun load(context: Context) {
-        val p = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val p = context.getSharedPreferences(JanitorConfig.endpoint.scopedName(PREFS), Context.MODE_PRIVATE)
         prefs = p
         val saved = p.getString(KEY, null)
         val webView = saved != null && saved == p.getString(KEY_WEBVIEW, null)
@@ -87,7 +89,7 @@ object ButlerUserAgent : Interceptor {
         val request = chain.request()
         val ua = chosen
         val response = chain.proceed(request.newBuilder().header("User-Agent", ua).build())
-        if (response.code != 403 || !isJanitor(request.url.host)) return response
+        if (response.code != 403 || !JanitorEndpoint.isSiteHost(request.url.host)) return response
         if (!blocked(response)) return response
 
         response.close()
@@ -128,7 +130,6 @@ object ButlerUserAgent : Interceptor {
 
     private fun name(ua: String) = BrowserUserAgent.familyOf(ua)?.name ?: ua
 
-    private fun isJanitor(host: String) = host == "janitorai.com" || host.endsWith(".janitorai.com")
 
     private const val TAG = "ButlerUserAgent"
     private const val PEEK = 64L * 1024

@@ -886,7 +886,7 @@ private fun FollowPill(following: Boolean, onClick: () -> Unit) {
  */
 private fun shareCharacter(context: android.content.Context, characterId: String, name: String) {
     val slug = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60)
-    val link = "https://janitorai.com/characters/$characterId" + (if (slug.isEmpty()) "" else "_character-$slug")
+    val link = "${JanitorConfig.endpoint.origin}/characters/$characterId" + (if (slug.isEmpty()) "" else "_character-$slug")
     val send = android.content.Intent(android.content.Intent.ACTION_SEND)
         .setType("text/plain")
         .putExtra(android.content.Intent.EXTRA_SUBJECT, "$name on JanitorAI")

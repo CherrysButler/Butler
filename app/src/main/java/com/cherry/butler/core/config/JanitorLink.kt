@@ -15,7 +15,7 @@ sealed interface JanitorLink {
     companion object {
         private val UUID = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
         private val LINK = Regex(
-            """^(?:https?://)?(?:[a-z0-9-]+\.)*janitorai\.com(?::\d+)?/(characters|character|profiles|profile)/($UUID)(?:[_/?#].*)?$""",
+            """^(?:https?://)?(?:[a-z0-9-]+\.)*(?:janitorai|jani)\.com(?::\d+)?/(characters|character|profiles|profile)/($UUID)(?:[_/?#].*)?$""",
             RegexOption.IGNORE_CASE,
         )
 

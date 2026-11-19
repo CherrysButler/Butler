@@ -1,5 +1,6 @@
 package com.cherry.butler.core.generation
 
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.markdown.fillUserAndChar
 import android.content.Context
 import android.graphics.Bitmap
@@ -134,7 +135,7 @@ class PictureDescriber @Inject constructor(
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${target.key}")
             .header("Accept", "application/json")
-            .header("HTTP-Referer", "https://janitorai.com")
+            .header("HTTP-Referer", JanitorConfig.endpoint.origin)
             .header("X-Title", "janitor")
             .build()
         val response = try { http.newCall(request).execute() } catch (e: IOException) { throw ApiError.Network(ApiError.Network.Kind.Unknown, e) }

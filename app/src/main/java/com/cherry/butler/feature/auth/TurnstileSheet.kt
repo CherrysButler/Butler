@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.ui.components.SheetHandle
@@ -32,12 +33,12 @@ import com.cherry.butler.ui.components.SheetScrim
 
 /**
  * Cloudflare's Turnstile check, which Janitor's sign-in requires. The widget is a web
- * thing, so it runs in a WebView; the page is given janitorai.com as its origin because
+ * thing, so it runs in a WebView; the page is given the selected Janitor site as its origin because
  * the site key is bound to that hostname. Usually it passes by itself in a second or two;
  * when Cloudflare wants a tap, the box shows it. The token comes back through [onToken]
  * and is good for one request within five minutes.
  *
- * Passing it also clears this phone with Cloudflare for janitorai.com (`cf_clearance`, Janitor's
+ * Passing it also clears this phone with Cloudflare for the selected Janitor site (`cf_clearance`, Janitor's
  * Turnstile is set to pre-clear), which the WebView keeps; [JanitorCookies] brings it over for
  * Butler's own calls. The WebView says Butler's User-Agent so the clearance matches them.
  */
@@ -101,7 +102,7 @@ private fun TurnstileView(dark: Boolean, check: TurnstileCheck, onToken: (String
                     @JavascriptInterface fun onError(code: String) = post { onError(code) }
                 }, "Butler")
                 // The origin is what the site key is bound to; the page itself is Butler's.
-                loadDataWithBaseURL("https://janitorai.com/", turnstilePage(dark, check), "text/html", "utf-8", null)
+                loadDataWithBaseURL("${JanitorConfig.endpoint.origin}/", turnstilePage(dark, check), "text/html", "utf-8", null)
             }
         },
         // The clearance can land a moment after the token; take whatever arrived by the time

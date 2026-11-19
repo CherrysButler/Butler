@@ -38,14 +38,16 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import com.cherry.butler.core.config.JanitorConfig
+import com.cherry.butler.core.config.JanitorEndpointPrefs
 import com.cherry.butler.core.data.LocalLastPlace
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.isLight
 import com.cherry.butler.ui.AuthGate
 import com.cherry.butler.ui.LockScreen
+import com.cherry.butler.ui.components.LocalEndpointRestart
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import io.github.jan.supabase.auth.auth
 import okio.Path.Companion.toOkioPath
 import java.awt.event.WindowEvent
 import java.awt.event.WindowFocusListener
@@ -55,12 +57,14 @@ import java.awt.event.WindowFocusListener
  * up where it stopped, and the same AuthGate and ButlerRoot draw inside.
  */
 fun main(args: Array<String>) {
+    val launchArgs = DesktopInstance.awaitPreviousProcess(args)
+    JanitorConfig.initialize(JanitorEndpointPrefs(DesktopContext))
     FrameLog.startIfOn()
-    linkLog("start", args.toList())
+    linkLog("start", launchArgs.toList())
     // A second launch (a janitor: sign-in link from the browser) goes to the Butler already open.
-    if (!DesktopInstance.claim(args) { handed -> takeLinks(handed); if ("--quit" !in handed) focusWindow?.invoke() }) return
+    if (!DesktopInstance.claim(launchArgs) { handed -> takeLinks(handed); if ("--quit" !in handed) focusWindow?.invoke() }) return
     // Nothing to quit: this was the only Butler.
-    if ("--quit" in args) return
+    if ("--quit" in launchArgs) return
     com.cherry.butler.core.diagnostics.Diagnostics.installCrashKeeper(DesktopContext)
     val graph = DesktopGraph.component
     installImageLoader { graph.okHttpClient() }
@@ -72,11 +76,11 @@ fun main(args: Array<String>) {
     // picks up whatever it was doing when Butler last closed.
     Thread({
         runCatching { DesktopInstance.registerLinks() }
-        runCatching { graph.database(); graph.okHttpClient(); graph.supabase(); graph.chatRepository() }
+        runCatching { graph.database(); graph.okHttpClient(); graph.authRepository(); graph.chatRepository() }
         graph.pipeline().resumeAll()
     }, "butler-warm").start()
     // Cold start through the OAuth redirect.
-    takeLinks(args.toList())
+    takeLinks(launchArgs.toList())
 
     application {
         val state = rememberWindowState(
@@ -165,7 +169,14 @@ fun main(args: Array<String>) {
             val config = remember(state.size) {
                 android.content.res.Configuration(state.size.width.value.toInt(), state.size.height.value.toInt())
             }
-            CompositionLocalProvider(LocalConfiguration provides config) {
+            CompositionLocalProvider(
+                LocalConfiguration provides config,
+                LocalEndpointRestart provides {
+                    quitButler?.let { quit ->
+                        DesktopInstance.startReplacement().also { if (it) quit() }
+                    } ?: false
+                },
+            ) {
                 ButlerWindow(graph, onGround = { argb -> WindowFrame.paintBehind(window, argb) })
             }
         }
@@ -196,10 +207,10 @@ private fun takeLinks(args: List<String>) {
     }
     val link = args.firstOrNull { it.startsWith("${com.cherry.butler.core.config.JanitorConfig.OAUTH_SCHEME}://") } ?: return
     val code = android.net.Uri.parse(link).getQueryParameter("code") ?: return
-    val auth = DesktopGraph.component.supabase().auth
+    val auth = DesktopGraph.component.authRepository()
     DesktopToasts.show("Finishing sign-in…")
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-        runCatching { auth.exchangeCodeForSession(code) }
+        runCatching { auth.finishOAuth(code) }
             .onFailure { DesktopToasts.show("Sign-in didn't finish. Try again.") }
     }
 }
@@ -276,7 +287,7 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                     if (locked) LockScreen(appLock)
                     else com.cherry.butler.feature.settings.UpdatePrompt(graph.updates())
                     // The splash until there is something to show (DesktopStartup), then the hand-over.
-                    val session by graph.supabase().auth.sessionStatus.collectAsState()
+                    val session by graph.authRepository().sessionStatus.collectAsState()
                     val contentReady by com.cherry.butler.desktop.ui.DesktopStartup.ready.collectAsState()
                     var waited by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                     LaunchedEffect(Unit) { delay(4_000); waited = true }

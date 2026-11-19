@@ -2,6 +2,7 @@ package com.cherry.butler.core.auth
 
 import com.cherry.butler.core.config.JanitorConfig
 import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Discord
 import io.github.jan.supabase.auth.providers.Google
@@ -26,6 +27,7 @@ import javax.inject.Singleton
 class AuthRepository @Inject constructor(
     private val supabase: SupabaseClient,
     private val keeper: SessionKeeper,
+    private val signInStore: SecureSessionStore,
 ) {
     private val auth get() = supabase.auth
 
@@ -46,6 +48,15 @@ class AuthRepository @Inject constructor(
      */
     suspend fun signInWithGoogle() {
         auth.signInWith(Google, redirectUrl = JanitorConfig.OAUTH_REDIRECT)
+    }
+
+    /**
+     * The OAuth code is usable only with the PKCE verifier saved by this endpoint.
+     * Check for it before handing a browser callback to the selected auth service.
+     */
+    suspend fun finishOAuth(code: String) {
+        check(signInStore.loadCodeVerifier() != null)
+        auth.exchangeCodeForSession(code)
     }
 
     /** Discord OAuth — the provider whose redirect the official app itself uses. */
@@ -82,7 +93,8 @@ class AuthRepository @Inject constructor(
 
     suspend fun signOut() {
         keeper.markSigningOut()
-        auth.signOut()
+        // Both endpoints can use the same Supabase project with distinct sessions.
+        auth.signOut(SignOutScope.LOCAL)
         com.cherry.butler.core.network.JanitorCookies.clear()
     }
 }

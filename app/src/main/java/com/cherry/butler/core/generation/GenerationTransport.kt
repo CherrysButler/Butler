@@ -152,7 +152,7 @@ class HttpGenerationTransport(
             .header("x-app-version", JanitorConfig.WEB_APP_VERSION)
             .header("Origin", JanitorConfig.LLM_BASE)
             .header("Sec-GPC", "1")
-            .header("Alt-Used", "janitorai.com")
+            .header("Alt-Used", JanitorConfig.endpoint.host)
             .header("Sec-Fetch-Dest", "empty")
             .header("Sec-Fetch-Mode", "cors")
             .header("Sec-Fetch-Site", "same-origin")
@@ -230,7 +230,7 @@ class HttpGenerationTransport(
             .header("Authorization", target.authorization())
             .header("Accept", "text/event-stream")
             // The headers the official client sends to a reverse proxy (docs/JANITOR_API.md §7.5).
-            .header("HTTP-Referer", "https://janitorai.com")
+            .header("HTTP-Referer", JanitorConfig.endpoint.origin)
             .header("X-Title", "janitor")
             .build()
         executeStreaming(request, direct = true) { response -> readOpenAiStream(response) }

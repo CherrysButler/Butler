@@ -27,7 +27,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
-import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import kotlinx.coroutines.Dispatchers
@@ -76,7 +75,7 @@ object DesktopModule {
             .addInterceptor(authInterceptor)
             .authenticator { _, response ->
                 val request = response.request
-                if (!AuthInterceptor.isJanitorApi(request.url.host)) return@authenticator null
+                if (!AuthInterceptor.isJanitorApi(request.url)) return@authenticator null
                 if (request.header(RETRIED) != null) return@authenticator null
                 val stale = request.header("Authorization")?.removePrefix("Bearer ")
                 val fresh = runBlocking { keeper.refreshAfter(stale) } ?: return@authenticator null
@@ -97,7 +96,7 @@ object DesktopModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ButlerDatabase =
-        Room.databaseBuilder<ButlerDatabase>(name = File(context.filesDir, ButlerDatabase.NAME).path)
+        Room.databaseBuilder<ButlerDatabase>(name = File(context.filesDir, JanitorConfig.endpoint.scopedName(ButlerDatabase.NAME)).path)
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(Dispatchers.IO)
             .build()
@@ -133,17 +132,18 @@ object DesktopModule {
         @ApplicationContext context: Context,
         json: Json,
         devSessionSink: DevSessionSink,
-    ): SessionManager = SecureSessionStore(context, json, devSessionSink)
+    ): SecureSessionStore = SecureSessionStore(context, json, devSessionSink, JanitorConfig.endpoint)
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(sessionManager: SessionManager): SupabaseClient =
+    fun provideSupabaseClient(sessionManager: SecureSessionStore): SupabaseClient =
         createSupabaseClient(
             supabaseUrl = JanitorConfig.SUPABASE_URL,
             supabaseKey = JanitorConfig.SUPABASE_ANON_KEY,
         ) {
             install(Auth) {
                 this.sessionManager = sessionManager
+                this.codeVerifierCache = sessionManager
                 alwaysAutoRefresh = true
                 autoLoadFromStorage = true
                 enableLifecycleCallbacks = false

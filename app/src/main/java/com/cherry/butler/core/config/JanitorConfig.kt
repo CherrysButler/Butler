@@ -9,8 +9,16 @@ package com.cherry.butler.core.config
  * device talks directly to Janitor's servers.
  */
 object JanitorConfig {
+    // The graph, its session, and the outbox all use the same endpoint for the life of the process.
+    var endpoint: JanitorEndpoint = JanitorEndpoint.JanitorAI
+        private set
+
+    fun initialize(prefs: JanitorEndpointPrefs) {
+        endpoint = prefs.selected()
+    }
+
     // Supabase (auth, realtime, storage, PostgREST)
-    const val SUPABASE_URL = "https://auth.janitorai.com"
+    val SUPABASE_URL: String get() = endpoint.authUrl
     const val SUPABASE_ANON_KEY =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
             "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jbXp4dHpvbW1wbnhreW5kZGJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjgzNzA3NDAsImV4cCI6MjA0Mzk0Njc0MH0." +
@@ -21,7 +29,7 @@ object JanitorConfig {
      * but since 2026-10-12 it answers only clients that pass Play Integrity (Firebase App
      * Check), which is Janitor's own app alone; Butler speaks to the website's routes.
      */
-    const val BACKEND_BASE = "https://janitorai.com/hampter"
+    val BACKEND_BASE: String get() = "${endpoint.origin}/hampter"
     /**
      * The website's generation routes: `POST /generateAlpha` for a proxy (Janitor assembles the
      * prompt and hands the OpenAI payload back for the device to send; captured 2026-09-23,
@@ -29,17 +37,17 @@ object JanitorConfig {
      * app's `/mobile/…` routes are gone from Butler: Janitor's firewall began turning them away
      * for every client that was not its own app (2026-10-08), and the website's pass.
      */
-    const val LLM_BASE = "https://janitorai.com"
+    val LLM_BASE: String get() = endpoint.origin
 
     /** The website build's `x-app-version`, sent with generation calls as the website does. */
     const val WEB_APP_VERSION = "10.0.0.116"
     /** The website's notifications service (the mobile app's is `/notifs/mobile`). */
-    const val NOTIFS_BASE = "https://janitorai.com/notifs"
+    val NOTIFS_BASE: String get() = "${endpoint.origin}/notifs"
 
-    // Media CDN (the only non-Janitor-first-party host we ever contact is Supabase above)
-    const val MEDIA_BASE = "https://ella.janitorai.com"
-    const val BOT_AVATARS = "$MEDIA_BASE/bot-avatars"
-    const val MEDIA_APPROVED = "$MEDIA_BASE/media-approved"
+    // Media CDN
+    val MEDIA_BASE: String get() = endpoint.mediaUrl
+    val BOT_AVATARS: String get() = "$MEDIA_BASE/bot-avatars"
+    val MEDIA_APPROVED: String get() = "$MEDIA_BASE/media-approved"
 
     /**
      * Character avatars arrive as a **bare filename** (`85f5b296-....jpeg`), not a URL —
@@ -57,7 +65,7 @@ object JanitorConfig {
      * file. Anything not on the media host passes through unchanged.
      */
     fun sizedMediaUrl(url: String?, widthPx: Int, aspect: String? = null): String? {
-        if (url == null || !url.startsWith(MEDIA_BASE) || '?' in url) return url
+        if (url == null || '?' in url || JanitorEndpoint.entries.none { url.startsWith("${it.mediaUrl}/") }) return url
         val step = if (widthPx <= 32) 32 else (widthPx + 63) / 64 * 64
         return if (aspect == null) "$url?width=$step" else "$url?width=$step&aspect_ratio=$aspect"
     }
@@ -87,7 +95,7 @@ object JanitorConfig {
      *
      * Butler doesn't own Janitor's Supabase project, so GoTrue only honours a
      * `redirect_to` that is on *their* allow-list; anything else is discarded and the
-     * user lands on janitorai.com logged into the website instead of back in the app.
+     * user lands on Janitor’s website logged in instead of back in the app.
      *
      * Verified against the official app: it declares exactly two deep links —
      * `janitor://age-verification-complete` and `janitor://auth/discord`. There is no

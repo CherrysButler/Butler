@@ -1,6 +1,7 @@
 package com.cherry.butler.core.data
 
 import android.content.Context
+import com.cherry.butler.core.config.JanitorConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class MemoryThoughts @Inject constructor(@ApplicationContext context: Context) {
-    private val prefs = context.getSharedPreferences("memory_thoughts", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName("memory_thoughts"), Context.MODE_PRIVATE)
 
     /** A thought, how long it took (when that was seen), and a fingerprint of the summary it led to. */
     data class Thought(val text: String, val ms: Long?, val of: Int)

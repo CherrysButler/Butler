@@ -1,6 +1,7 @@
 package com.cherry.butler.core.data
 
 import android.content.Context
+import com.cherry.butler.core.config.JanitorConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -115,7 +116,7 @@ class OpenRouterOptionsStore @Inject constructor(
     @ApplicationContext context: Context,
     private val json: Json,
 ) {
-    private val prefs = context.getSharedPreferences("butler_prefs", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName("butler_prefs"), Context.MODE_PRIVATE)
     private val serializer = MapSerializer(String.serializer(), OpenRouterOptions.serializer())
 
     private val _all = MutableStateFlow(

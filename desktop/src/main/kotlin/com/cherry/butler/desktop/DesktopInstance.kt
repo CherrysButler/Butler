@@ -6,6 +6,8 @@ import com.sun.jna.Pointer
 import com.sun.jna.win32.StdCallLibrary
 import com.sun.jna.platform.win32.WinReg
 import java.io.File
+import java.lang.management.ManagementFactory
+import java.util.concurrent.TimeUnit
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -93,6 +95,28 @@ object DesktopInstance {
             // Explorer caches associations, and browsers ask it to open links: tell it.
             ShellNotify.INSTANCE.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, null)
         }.onFailure { android.util.Log.w("DesktopInstance", "couldn't register janitor: links", it) }
+    }
+
+    private const val WAIT_FOR = "--restart-after="
+
+    fun startReplacement(): Boolean = runCatching {
+        val command = installedExe()?.let { listOf(it) } ?: buildList {
+            add(ProcessHandle.current().info().command().orElseThrow())
+            addAll(ManagementFactory.getRuntimeMXBean().inputArguments)
+            addAll(listOf("-cp", System.getProperty("java.class.path"), "com.cherry.butler.desktop.MainKt"))
+        }
+        ProcessBuilder(command + "$WAIT_FOR${ProcessHandle.current().pid()}").inheritIO().start()
+    }.isSuccess
+
+    fun awaitPreviousProcess(args: Array<String>): Array<String> {
+        val flag = args.firstOrNull { it.startsWith(WAIT_FOR) } ?: return args
+        val pid = flag.removePrefix(WAIT_FOR).toLongOrNull()
+        if (pid != null && pid != ProcessHandle.current().pid()) {
+            ProcessHandle.of(pid).ifPresent { previous ->
+                runCatching { previous.onExit().get(20, TimeUnit.SECONDS) }
+            }
+        }
+        return args.filterNot { it == flag }.toTypedArray()
     }
 
     /** Butler.exe when this is the installed app; null for a run from the build tools. */

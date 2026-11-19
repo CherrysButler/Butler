@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import com.cherry.butler.R
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.feature.settings.FieldBlock
 import com.cherry.butler.ui.components.HairlineRule
+import com.cherry.butler.ui.components.JanitorEndpointPicker
 
 /**
  * The door. Google and Discord go out through the browser and come back by deep link;
@@ -115,6 +117,12 @@ fun LoginScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
+            JanitorEndpointPicker { host, open ->
+                TextButton(onClick = open, enabled = !signingIn && !challenge, modifier = edge) {
+                    Text("Janitor endpoint · $host")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             DoorKey(label = "Continue with Google", busy = signingIn && !emailOpen, enabled = !signingIn, primary = true, onClick = onContinueWithGoogle, modifier = edge)
             Spacer(Modifier.height(10.dp))
             DoorKey(label = "Continue with Discord", busy = false, enabled = !signingIn, primary = false, onClick = onContinueWithDiscord, modifier = edge)

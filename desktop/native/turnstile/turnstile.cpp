@@ -1,15 +1,15 @@
 // butler-turnstile: the Turnstile check for Butler on Windows, in WebView2 (Edge's engine,
 // part of Windows). Butler starts it with the page to show; it serves that page as
-// https://janitorai.com/ (the origin Janitor's site key is bound to) and writes one line per
+// the selected Janitor site (the Turnstile origin) and writes one line per
 // event to stdout:
 //
 //   agent <the WebView's User-Agent>
 //   token <the Turnstile token>
 //   error <code>
-//   cookie <name>=<value>      (janitorai.com's, after the token: Cloudflare's clearance)
+//   cookie <name>=<value>      (the site's cookies, after the token: Cloudflare's clearance)
 //   done
 //
-// Usage: butler-turnstile.exe <page.html> <title> <dark|light> [<owner hwnd> <x> <y> <w> <h> <RRGGBB>]
+// Usage: butler-turnstile.exe <page.html> <title> <dark|light> <janitorai.com|jani.com> [<owner hwnd> <x> <y> <w> <h> <RRGGBB>]
 //
 // With an owner, the check is a borderless panel owned by Butler's window at x, y (screen
 // pixels), w by h, on the RRGGBB ground: it sits inside Butler's own dialog, with no title bar
@@ -31,7 +31,7 @@ using Microsoft::WRL::ComPtr;
 
 namespace {
 
-const wchar_t *kOrigin = L"https://janitorai.com/";
+const wchar_t *origin = L"https://janitorai.com/";
 HWND window = nullptr;
 COLORREF ground = RGB(0x2B, 0x2E, 0x33);
 ComPtr<ICoreWebView2Environment> environment;
@@ -73,7 +73,7 @@ void say(const std::string &line)
     FlushFileBuffers(GetStdHandle(STD_OUTPUT_HANDLE));
 }
 
-/** After the token: hand over janitorai.com's cookies (the clearance), then close. */
+/** After the token: hand over the selected site's cookies (the clearance), then close. */
 void finish()
 {
     if (finished) return;
@@ -81,7 +81,7 @@ void finish()
     ComPtr<ICoreWebView2_2> view2;
     ComPtr<ICoreWebView2CookieManager> cookies;
     if (SUCCEEDED(view.As(&view2)) && SUCCEEDED(view2->get_CookieManager(&cookies))) {
-        cookies->GetCookies(kOrigin, Callback<ICoreWebView2GetCookiesCompletedHandler>(
+        cookies->GetCookies(origin, Callback<ICoreWebView2GetCookiesCompletedHandler>(
             [](HRESULT, ICoreWebView2CookieList *list) -> HRESULT {
                 UINT count = 0;
                 if (list) list->get_Count(&count);
@@ -162,7 +162,7 @@ HRESULT onController(HRESULT result, ICoreWebView2Controller *created)
         nullptr);
 
     // Butler's page, answered locally for the origin's own address only.
-    view->AddWebResourceRequestedFilter(kOrigin, COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT);
+    view->AddWebResourceRequestedFilter(origin, COREWEBVIEW2_WEB_RESOURCE_CONTEXT_DOCUMENT);
     EventRegistrationToken t1, t2;
     view->add_WebResourceRequested(Callback<ICoreWebView2WebResourceRequestedEventHandler>(
         [](ICoreWebView2 *, ICoreWebView2WebResourceRequestedEventArgs *args) -> HRESULT {
@@ -170,7 +170,7 @@ HRESULT onController(HRESULT result, ICoreWebView2Controller *created)
             args->get_Request(&request);
             LPWSTR uri = nullptr;
             request->get_Uri(&uri);
-            if (take(uri) != kOrigin) return S_OK;
+            if (take(uri) != origin) return S_OK;
             ComPtr<IStream> stream;
             stream.Attach(SHCreateMemStream(reinterpret_cast<const BYTE *>(page.data()), UINT(page.size())));
             ComPtr<ICoreWebView2WebResourceResponse> response;
@@ -193,7 +193,7 @@ HRESULT onController(HRESULT result, ICoreWebView2Controller *created)
         }).Get(), &t2);
 
     resize();
-    view->Navigate(kOrigin);
+    view->Navigate(origin);
     return S_OK;
 }
 
@@ -216,16 +216,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int)
     const std::wstring title = argv[2];
     const bool dark = argc > 3 && std::wstring(argv[3]) == L"dark";
     ground = dark ? RGB(0x2B, 0x2E, 0x33) : RGB(0xF3, 0xF3, 0xF1);
-    const bool embedded = argc > 9;
+    if (argc > 4 && std::wstring(argv[4]) == L"jani.com") origin = L"https://jani.com/";
+    const bool embedded = argc > 10;
     HWND owner = nullptr;
     int ex = 0, ey = 0, ew = 0, eh = 0;
     if (embedded) {
-        owner = reinterpret_cast<HWND>(static_cast<LONG_PTR>(_wtoi64(argv[4])));
-        ex = _wtoi(argv[5]);
-        ey = _wtoi(argv[6]);
-        ew = _wtoi(argv[7]);
-        eh = _wtoi(argv[8]);
-        const unsigned long rgb = wcstoul(argv[9], nullptr, 16);
+        owner = reinterpret_cast<HWND>(static_cast<LONG_PTR>(_wtoi64(argv[5])));
+        ex = _wtoi(argv[6]);
+        ey = _wtoi(argv[7]);
+        ew = _wtoi(argv[8]);
+        eh = _wtoi(argv[9]);
+        const unsigned long rgb = wcstoul(argv[10], nullptr, 16);
         ground = RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
         if (!IsWindow(owner)) owner = nullptr;
     }

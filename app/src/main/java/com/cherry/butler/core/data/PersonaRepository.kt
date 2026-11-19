@@ -66,7 +66,7 @@ class PersonaRepository @Inject constructor(
     private val profile: ProfileRepository,
     private val json: Json,
 ) {
-    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(JanitorConfig.endpoint.scopedName(PREFS), Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _selectedId = MutableStateFlow(prefs.getString(KEY_SELECTED, null))

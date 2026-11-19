@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import com.cherry.butler.core.auth.SessionKeeper
 import android.content.Context
 import androidx.room.Room
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.local.ButlerDatabase
 import com.cherry.butler.core.network.ApiCall
 import com.cherry.butler.core.network.AuthInterceptor
@@ -42,14 +43,14 @@ object DataModule {
             .proxySelector(DebugProxy)
             .apply { if (com.cherry.butler.BuildConfig.DEBUG) sslSocketFactory(DebugProxy.socketFactory, DebugProxy.trustManager) }
             .addInterceptor(ButlerUserAgent)
-            // Cloudflare's cookies for janitorai.com only, sent back as a browser does.
+            // Cloudflare cookies scoped to the active site.
             .cookieJar(com.cherry.butler.core.network.JanitorCookies)
             .addInterceptor(authInterceptor)
             // A 401 from Janitor: renew the session once and send the call again. Never for
             // another host (the user's proxy shares this builder), and never twice.
             .authenticator { _, response ->
                 val request = response.request
-                if (!AuthInterceptor.isJanitorApi(request.url.host)) return@authenticator null
+                if (!AuthInterceptor.isJanitorApi(request.url)) return@authenticator null
                 if (request.header(RETRIED) != null) return@authenticator null
                 val stale = request.header("Authorization")?.removePrefix("Bearer ")
                 val fresh = runBlocking { keeper.refreshAfter(stale) } ?: return@authenticator null
@@ -74,6 +75,6 @@ object DataModule {
     fun provideDatabase(@ApplicationContext context: Context): ButlerDatabase =
         // No destructive fallback: from schema v2 the database holds the outbox, which is
         // user-authored text. Every version bump ships a migration (see ButlerDatabase).
-        Room.databaseBuilder(context, ButlerDatabase::class.java, ButlerDatabase.NAME)
+        Room.databaseBuilder(context, ButlerDatabase::class.java, JanitorConfig.endpoint.scopedName(ButlerDatabase.NAME))
             .build()
 }

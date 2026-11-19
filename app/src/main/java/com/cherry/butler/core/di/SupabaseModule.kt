@@ -12,7 +12,6 @@ import dagger.hilt.components.SingletonComponent
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
-import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.createSupabaseClient
 import kotlinx.serialization.json.Json
@@ -36,17 +35,18 @@ object SupabaseModule {
         @ApplicationContext context: Context,
         json: Json,
         devSessionSink: DevSessionSink,
-    ): SessionManager = SecureSessionStore(context, json, devSessionSink)
+    ): SecureSessionStore = SecureSessionStore(context, json, devSessionSink, JanitorConfig.endpoint)
 
     @Provides
     @Singleton
-    fun provideSupabaseClient(sessionManager: SessionManager): SupabaseClient =
+    fun provideSupabaseClient(sessionManager: SecureSessionStore): SupabaseClient =
         createSupabaseClient(
             supabaseUrl = JanitorConfig.SUPABASE_URL,
             supabaseKey = JanitorConfig.SUPABASE_ANON_KEY,
         ) {
             install(Auth) {
                 this.sessionManager = sessionManager
+                this.codeVerifierCache = sessionManager
                 alwaysAutoRefresh = true
                 autoLoadFromStorage = true
                 // Off: on leaving the screen supabase-kt resets the session to "Initializing",

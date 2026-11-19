@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.cherry.butler.core.config.JanitorConfig
+import com.cherry.butler.core.config.JanitorEndpoint
 import com.cherry.butler.ui.components.card
 import java.net.URI
 
@@ -36,7 +36,7 @@ fun ChatImage(url: String, alt: String, modifier: Modifier = Modifier) {
         if (alt.isNotBlank()) Text(text = alt, style = MaterialTheme.typography.bodySmall, color = ButlerTheme.colors.textLow, modifier = modifier)
         return
     }
-    val trusted = scheme == "https" && host == JANITOR_IMAGE_HOST
+    val trusted = scheme == "https" && JanitorEndpoint.entries.any { host == it.mediaHost }
     var allowed by rememberSaveable(url) { mutableStateOf(trusted) }
     if (allowed) {
         // Holds the picture's place while it loads, so the chat doesn't jump when it lands.
@@ -71,5 +71,3 @@ fun ChatImage(url: String, alt: String, modifier: Modifier = Modifier) {
         TextButton(onClick = { allowed = true }, shape = Pill) { Text("Load image") }
     }
 }
-
-private val JANITOR_IMAGE_HOST = URI(JanitorConfig.MEDIA_BASE).host
