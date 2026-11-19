@@ -113,9 +113,11 @@ object DesktopModule {
         json: Json,
         auth: Provider<AuthRepository>,
         agent: AgentLoop,
+        lorebooks: com.cherry.butler.core.lorebook.LorebookStore,
     ): GenerationTransport = RoutingTransport(
         proxyPath = HttpGenerationTransport(client, apiCall, json, agent),
         jllm = JllmTransport(client, apiCall, json) { auth.get().currentAccessToken },
+        prepare = lorebooks::prepare,
     )
 
     // SupabaseModule

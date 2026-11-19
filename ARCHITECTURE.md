@@ -51,8 +51,12 @@ Two transports behind one interface (`GenerationTransport`):
 - **JLLM.** Janitor's own model over a WebSocket at `/mobile/generateAlpha`.
 
 Reasoning tags (`<think>`, `<thinking>`) are lifted out of the stream by an incremental
-parser and kept in their own column. Prompt assembly is entirely server-side; Butler never
-needs Janitor's system prompt.
+parser and kept in their own column. Janitor assembles its prompt server-side; Butler never
+needs Janitor's system prompt. Immediately before routing, `LorebookRequest` selects local
+World Info entries and appends them to a request-only copy of the latest user line (or a
+transient user line when there is none). This also covers HTTP server-stream fallbacks.
+`LorebookStore` keeps the device library, favorites, persona bindings and chat overrides
+in device preferences. The library opens without making a profile request.
 
 ## The outbox, which is why this exists
 
