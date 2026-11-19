@@ -1,10 +1,14 @@
 name: Release
 
 # Push a tag like v0.2.0 (matching versionName in app/build.gradle.kts and packageVersion in
-# desktop/build.gradle.kts) and this builds the signed release APK and the Windows installer,
-# scans both on VirusTotal, and attaches them, with their checksums, to a GitHub Release. The
-# release text is .github/release-notes/vX.Y.Z.md, written by hand for each version; the
+# desktop/build.gradle.kts) and this builds the signed release APK and the Windows installer side
+# by side, sends both to VirusTotal, and attaches them, with their checksums, to a GitHub Release.
+# The release text is .github/release-notes/vX.Y.Z.md, written by hand for each version; the
 # workflow adds the checksums and the scan links under it.
+#
+# Built for speed: the two builds run at the same time; the unit tests are left to CI, which runs
+# them on the same push to main; and the release goes up as soon as the files are with
+# VirusTotal, its scan verdicts written in when the vendors finish.
 
 on:
   push:
@@ -57,8 +61,7 @@ jobs:
           path: dist/*.msi
           retention-days: 7
 
-  release:
-    needs: windows
+  android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,87 +99,96 @@ jobs:
           BUTLER_KEYSTORE_PASSWORD: ${{ secrets.BUTLER_KEYSTORE_PASSWORD }}
           BUTLER_KEY_ALIAS: ${{ secrets.BUTLER_KEY_ALIAS }}
           BUTLER_KEY_PASSWORD: ${{ secrets.BUTLER_KEY_PASSWORD }}
-        run: ./gradlew --no-configuration-cache :app:testDebugUnitTest :app:assembleRelease
+        run: ./gradlew --no-configuration-cache :app:assembleRelease
+
+      - name: Verify the release APK is signed with the release key
+        run: |
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -i "certificate DN"
+          mkdir dist && cp app/build/outputs/apk/release/app-release.apk "dist/Butler-$VERSION.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/*.apk
+          retention-days: 7
+
+  release:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: dist
 
       - uses: actions/download-artifact@v4
         with:
           name: windows-installer
           path: dist
 
-      - name: Name and checksum the files
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk "dist/Butler-$VERSION.apk"
-          cd dist && sha256sum "Butler-$VERSION.apk" "Butler-$VERSION.msi" > SHA256SUMS.txt && cat SHA256SUMS.txt
-
-      - name: Verify the release APK is signed with the release key
-        run: |
-          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
-          "$apksigner" verify --print-certs "dist/Butler-$VERSION.apk" | grep -i "certificate DN"
+      - name: Checksum the files
+        run: cd dist && sha256sum "Butler-$VERSION.apk" "Butler-$VERSION.msi" > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       # Both files go to VirusTotal as part of every release, so the scan links on the release
       # page are for exactly the files people download. A scan that can't be had (no key, an
       # outage, a slow queue) is noted, never a reason to hold the release. Files over 32 MB
       # (the installer) go through VirusTotal's upload URL for large files. The free API allows
-      # four requests a minute, so the two reports are asked for in turn, every 30 seconds.
-      - name: Scan on VirusTotal
+      # four requests a minute. The analysis ids are kept for the verdicts after publishing.
+      - name: Send to VirusTotal
         env:
           VT_KEY: ${{ secrets.VIRUSTOTAL_SECRET }}
         run: |
-          files=("Butler-$VERSION.apk" "Butler-$VERSION.msi")
-          declare -A analysis verdict
+          : > "$RUNNER_TEMP/analyses"
           if [ -z "$VT_KEY" ]; then
             echo "::warning::VIRUSTOTAL_SECRET isn't set; the release notes get no scan verdicts"
-          else
-            for f in "${files[@]}"; do
-              url="https://www.virustotal.com/api/v3/files"
-              if [ "$(stat -c %s "dist/$f")" -gt 33554432 ]; then
-                url=$(curl -sS https://www.virustotal.com/api/v3/files/upload_url -H "x-apikey: $VT_KEY" | jq -r '.data // empty') || true
-              fi
-              if [ -n "$url" ]; then
-                analysis[$f]=$(curl -sS --fail-with-body -X POST "$url" -H "x-apikey: $VT_KEY" -F "file=@dist/$f" | jq -r '.data.id // empty') || true
-              fi
-              [ -z "${analysis[$f]}" ] && echo "::warning::VirusTotal didn't take $f"
-              sleep 15
-            done
-            # Up to twenty minutes for the vendors; the links work as soon as the uploads are in.
-            for i in $(seq 1 40); do
-              waiting=0
-              for f in "${files[@]}"; do
-                id="${analysis[$f]}"
-                [ -z "$id" ] || [ -n "${verdict[$f]}" ] && continue
-                report=$(curl -sS "https://www.virustotal.com/api/v3/analyses/$id" -H "x-apikey: $VT_KEY") || true
-                if [ "$(echo "$report" | jq -r '.data.attributes.status // empty')" = "completed" ]; then
-                  flagged=$(echo "$report" | jq -r '.data.attributes.stats.malicious + .data.attributes.stats.suspicious')
-                  total=$(echo "$report" | jq -r '[.data.attributes.stats[]] | add')
-                  if [ "$flagged" = "0" ]; then verdict[$f]="no security vendor flags it ($total checked)"; else verdict[$f]="$flagged of $total vendors flagged it; read the report before installing"; fi
-                  echo "$f: ${verdict[$f]}"
-                else
-                  waiting=1
-                fi
-              done
-              [ "$waiting" = "0" ] && break
-              sleep 30
-            done
+            exit 0
           fi
-          {
-            cat ".github/release-notes/v$VERSION.md"
-            echo
-            echo "## Checked"
-            echo
-            for f in "${files[@]}"; do
-              sha=$(sha256sum "dist/$f" | cut -d' ' -f1)
-              link="https://www.virustotal.com/gui/file/$sha?nocache=1"
-              if [ -n "${verdict[$f]}" ]; then
-                scan="Scanned on [VirusTotal]($link) by the release workflow: ${verdict[$f]}."
-              elif [ -n "${analysis[$f]}" ]; then
-                scan="Scanned on [VirusTotal]($link) by the release workflow: the vendors were still working when this was written; the link has the result."
-              else
-                scan="VirusTotal: scan it yourself at [this link]($link) (the workflow couldn't this time)."
-              fi
-              echo "- **$f**, SHA-256: \`$sha\`. $scan"
-            done
-            echo "- Both checksums are also in SHA256SUMS.txt."
-          } > "$RUNNER_TEMP/release-body.md"
+          for f in "Butler-$VERSION.apk" "Butler-$VERSION.msi"; do
+            url="https://www.virustotal.com/api/v3/files"
+            if [ "$(stat -c %s "dist/$f")" -gt 33554432 ]; then
+              url=$(curl -sS https://www.virustotal.com/api/v3/files/upload_url -H "x-apikey: $VT_KEY" | jq -r '.data // empty') || true
+            fi
+            id=""
+            if [ -n "$url" ]; then
+              id=$(curl -sS --fail-with-body -X POST "$url" -H "x-apikey: $VT_KEY" -F "file=@dist/$f" | jq -r '.data.id // empty') || true
+            fi
+            if [ -n "$id" ]; then echo "$f $id" >> "$RUNNER_TEMP/analyses"; else echo "::warning::VirusTotal didn't take $f"; fi
+            sleep 15
+          done
+
+      # The release text: the hand-written notes, then a line per file with its checksum and scan.
+      # Written now with the scans in progress, and again with their verdicts.
+      - name: Release text, scans in progress
+        run: |
+          cat > "$RUNNER_TEMP/body.sh" <<'SH'
+          # $1: a file of "name verdict" lines (may be empty). Writes the release text to stdout.
+          verdicts="$1"
+          cat ".github/release-notes/v$VERSION.md"
+          echo
+          echo "## Checked"
+          echo
+          for f in "Butler-$VERSION.apk" "Butler-$VERSION.msi"; do
+            sha=$(sha256sum "dist/$f" | cut -d' ' -f1)
+            link="https://www.virustotal.com/gui/file/$sha?nocache=1"
+            verdict=$(grep "^$f " "$verdicts" 2>/dev/null | cut -d' ' -f2-)
+            if [ -n "$verdict" ]; then
+              scan="Scanned on [VirusTotal]($link) by the release workflow: $verdict."
+            elif grep -q "^$f " "$RUNNER_TEMP/analyses"; then
+              scan="Scanned on [VirusTotal]($link) by the release workflow: the vendors were still working when this was written; the link has the result."
+            else
+              scan="VirusTotal: scan it yourself at [this link]($link) (the workflow couldn't this time)."
+            fi
+            echo "- **$f**, SHA-256: \`$sha\`. $scan"
+          done
+          echo "- Both checksums are also in SHA256SUMS.txt."
+          SH
+          bash "$RUNNER_TEMP/body.sh" /dev/null > "$RUNNER_TEMP/release-body.md"
           cat "$RUNNER_TEMP/release-body.md"
 
       - uses: softprops/action-gh-release@v2
@@ -187,3 +199,38 @@ jobs:
             dist/Butler-${{ env.VERSION }}.apk
             dist/Butler-${{ env.VERSION }}.msi
             dist/SHA256SUMS.txt
+
+      # Up to twenty minutes for the vendors, asked in turn every 30 seconds. The release is
+      # already out; this only writes the verdicts in.
+      - name: Wait for the scans
+        env:
+          VT_KEY: ${{ secrets.VIRUSTOTAL_SECRET }}
+        run: |
+          : > "$RUNNER_TEMP/verdicts"
+          [ -s "$RUNNER_TEMP/analyses" ] || exit 0
+          for i in $(seq 1 40); do
+            waiting=0
+            while read -r f id; do
+              grep -q "^$f " "$RUNNER_TEMP/verdicts" && continue
+              report=$(curl -sS "https://www.virustotal.com/api/v3/analyses/$id" -H "x-apikey: $VT_KEY") || true
+              if [ "$(echo "$report" | jq -r '.data.attributes.status // empty')" = "completed" ]; then
+                flagged=$(echo "$report" | jq -r '.data.attributes.stats.malicious + .data.attributes.stats.suspicious')
+                total=$(echo "$report" | jq -r '[.data.attributes.stats[]] | add')
+                if [ "$flagged" = "0" ]; then v="no security vendor flags it ($total checked)"; else v="$flagged of $total vendors flagged it; read the report before installing"; fi
+                echo "$f $v" >> "$RUNNER_TEMP/verdicts"
+                echo "$f: $v"
+              else
+                waiting=1
+              fi
+            done < "$RUNNER_TEMP/analyses"
+            [ "$waiting" = "0" ] && break
+            sleep 30
+          done
+          bash "$RUNNER_TEMP/body.sh" "$RUNNER_TEMP/verdicts" > "$RUNNER_TEMP/release-body.md"
+          cat "$RUNNER_TEMP/release-body.md"
+
+      - name: Write the verdicts into the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Butler ${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/release-body.md
