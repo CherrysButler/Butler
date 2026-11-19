@@ -9,21 +9,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.ui.platform.LocalContext
-import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.config.JanitorEndpoint
-import com.cherry.butler.core.config.JanitorEndpointPrefs
-import com.cherry.butler.feature.settings.ChoiceRow
+import kotlinx.coroutines.launch
 
-val LocalEndpointRestart = staticCompositionLocalOf<() -> Boolean> { { false } }
+val LocalSelectEndpoint = staticCompositionLocalOf<suspend (JanitorEndpoint) -> Boolean> { { false } }
 
 @Composable
-fun JanitorEndpointPicker(row: @Composable (host: String, open: () -> Unit) -> Unit) {
-    val context = LocalContext.current
-    val restart = LocalEndpointRestart.current
-    val active = JanitorConfig.endpoint
+fun JanitorEndpointPicker(
+    active: JanitorEndpoint,
+    onSelect: suspend (JanitorEndpoint) -> Boolean,
+    row: @Composable (host: String, open: () -> Unit) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var switching by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<JanitorEndpoint?>(null) }
     var failed by remember { mutableStateOf(false) }
 
@@ -34,13 +35,16 @@ fun JanitorEndpointPicker(row: @Composable (host: String, open: () -> Unit) -> U
 
     selected?.let { choice ->
         AlertDialog(
-            onDismissRequest = { selected = null },
+            onDismissRequest = { if (!switching) selected = null },
             title = { Text("Janitor endpoint") },
             text = {
                 Column {
-                    JanitorEndpoint.entries.forEach { endpoint ->
-                        ChoiceRow(endpoint.host, null, choice == endpoint, onClick = { selected = endpoint })
-                    }
+                    val endpoints = JanitorEndpoint.entries
+                    SegmentedChoice(
+                        options = endpoints.map { it.host },
+                        selected = endpoints.indexOf(choice),
+                        onSelect = { if (!switching) selected = endpoints[it] },
+                    )
                     Text(
                         if (failed) "Couldn’t switch endpoints. Try again." else
                             "Butler will restart. Each endpoint keeps its own sign-in.",
@@ -48,17 +52,15 @@ fun JanitorEndpointPicker(row: @Composable (host: String, open: () -> Unit) -> U
                     )
                 }
             },
-            dismissButton = { TextButton(onClick = { selected = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(enabled = !switching, onClick = { selected = null }) { Text("Cancel") } },
             confirmButton = {
                 TextButton(
-                    enabled = choice != active,
+                    enabled = choice != active && !switching,
                     onClick = {
-                        val prefs = JanitorEndpointPrefs(context.applicationContext)
-                        if (prefs.save(choice) && restart()) {
-                            selected = null
-                        } else {
-                            prefs.save(active)
-                            failed = true
+                        switching = true
+                        scope.launch {
+                            if (onSelect(choice)) selected = null else failed = true
+                            switching = false
                         }
                     },
                 ) { Text("Switch and restart") }

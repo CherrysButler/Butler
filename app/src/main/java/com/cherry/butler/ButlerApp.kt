@@ -11,24 +11,16 @@ import coil.memory.MemoryCache
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.config.JanitorEndpointPrefs
 import com.cherry.butler.core.generation.SendPipeline
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
+import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
-import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import javax.inject.Inject
 
 @HiltAndroidApp
 class ButlerApp : Application(), ImageLoaderFactory {
 
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface AppServices {
-        fun sendPipeline(): SendPipeline
-        fun okHttpClient(): OkHttpClient
-    }
-
-    private val services by lazy { EntryPointAccessors.fromApplication(this, AppServices::class.java) }
+    @Inject lateinit var sendPipeline: Lazy<SendPipeline>
+    @Inject lateinit var okHttpClient: Lazy<OkHttpClient>
 
     override fun onCreate() {
         super.onCreate()
@@ -41,7 +33,7 @@ class ButlerApp : Application(), ImageLoaderFactory {
         // The last crash is kept for the diagnostics report; nothing is sent anywhere.
         com.cherry.butler.core.diagnostics.Diagnostics.installCrashKeeper(this)
         // Anything the outbox was doing when the process died picks up where it left off.
-        services.sendPipeline().resumeAll()
+        sendPipeline.get().resumeAll()
     }
 
     /**
@@ -50,7 +42,7 @@ class ButlerApp : Application(), ImageLoaderFactory {
      * between a list that glides and one that stutters on every revisit.
      */
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        .okHttpClient { services.okHttpClient().newBuilder().build() }
+        .okHttpClient { okHttpClient.get().newBuilder().build() }
         // Sized decodes keep each bitmap small; a tenth of the heap holds a few screens of
         // them, and anything older comes back from the disk cache in a few milliseconds.
         .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.10).build() }

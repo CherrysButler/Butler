@@ -45,7 +45,7 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.isLight
 import com.cherry.butler.ui.AuthGate
 import com.cherry.butler.ui.LockScreen
-import com.cherry.butler.ui.components.LocalEndpointRestart
+import com.cherry.butler.ui.components.LocalSelectEndpoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okio.Path.Companion.toOkioPath
@@ -58,7 +58,8 @@ import java.awt.event.WindowFocusListener
  */
 fun main(args: Array<String>) {
     val launchArgs = DesktopInstance.awaitPreviousProcess(args)
-    JanitorConfig.initialize(JanitorEndpointPrefs(DesktopContext))
+    val endpointPrefs = JanitorEndpointPrefs(DesktopContext)
+    JanitorConfig.initialize(endpointPrefs)
     FrameLog.startIfOn()
     linkLog("start", launchArgs.toList())
     // A second launch (a janitor: sign-in link from the browser) goes to the Butler already open.
@@ -171,10 +172,12 @@ fun main(args: Array<String>) {
             }
             CompositionLocalProvider(
                 LocalConfiguration provides config,
-                LocalEndpointRestart provides {
-                    quitButler?.let { quit ->
-                        DesktopInstance.startReplacement().also { if (it) quit() }
-                    } ?: false
+                LocalSelectEndpoint provides { endpoint ->
+                    endpointPrefs.switchTo(endpoint) {
+                        quitButler?.let { quit ->
+                            DesktopInstance.startReplacement().also { if (it) quit() }
+                        } ?: false
+                    }
                 },
             ) {
                 ButlerWindow(graph, onGround = { argb -> WindowFrame.paintBehind(window, argb) })

@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.LocalSelectEndpoint
+import com.cherry.butler.ui.components.JanitorEndpointPicker
+import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.Layers
 import com.cherry.butler.core.design.orDefaultFor
@@ -1946,7 +1949,7 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
     val activity = context as? androidx.fragment.app.FragmentActivity
 
     SettingsSection(title = "App", icon = Icons.Rounded.PhoneAndroid) {
-        com.cherry.butler.ui.components.JanitorEndpointPicker { host, open ->
+        JanitorEndpointPicker(JanitorConfig.endpoint, LocalSelectEndpoint.current) { host, open ->
             LinkRow(title = "Janitor endpoint", subtitle = host, onClick = open)
         }
         LinkRow(title = "Notifications", subtitle = null, onClick = onOpenNotifications, icon = Icons.Rounded.Notifications)

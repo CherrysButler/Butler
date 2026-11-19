@@ -23,7 +23,8 @@ import com.cherry.butler.core.data.ThemePrefs
 import com.cherry.butler.core.data.TextLookPrefs
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.ui.AuthGate
-import com.cherry.butler.ui.components.LocalEndpointRestart
+import com.cherry.butler.core.config.JanitorEndpointPrefs
+import com.cherry.butler.ui.components.LocalSelectEndpoint
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import com.cherry.butler.core.security.AppLock
@@ -98,6 +99,7 @@ class MainActivity : FragmentActivity() {
         // With no saved state of its own, the app was stopped outright: reopen where the user was.
         lastPlace.markColdStart(savedInstanceState == null)
         if (savedInstanceState == null) takeOpenChat(intent)
+        val endpointPrefs = JanitorEndpointPrefs(applicationContext)
         setContent {
             val theme by themePrefs.theme.collectAsState()
             val chatStyle by themePrefs.chatStyle.collectAsState()
@@ -138,7 +140,9 @@ class MainActivity : FragmentActivity() {
                     ) {
                         CompositionLocalProvider(
                             LocalLastPlace provides lastPlace,
-                            LocalEndpointRestart provides { EndpointRestartActivity.launch(this@MainActivity) },
+                            LocalSelectEndpoint provides { endpoint ->
+                                endpointPrefs.switchTo(endpoint) { EndpointRestartActivity.launch(this@MainActivity) }
+                            },
                         ) {
                             AuthGate()
                         }

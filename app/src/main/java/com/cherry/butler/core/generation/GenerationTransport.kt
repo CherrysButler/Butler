@@ -230,7 +230,7 @@ class HttpGenerationTransport(
             .header("Authorization", target.authorization())
             .header("Accept", "text/event-stream")
             // The headers the official client sends to a reverse proxy (docs/JANITOR_API.md §7.5).
-            .header("HTTP-Referer", JanitorConfig.endpoint.origin)
+            .header("HTTP-Referer", "https://janitorai.com")
             .header("X-Title", "janitor")
             .build()
         executeStreaming(request, direct = true) { response -> readOpenAiStream(response) }

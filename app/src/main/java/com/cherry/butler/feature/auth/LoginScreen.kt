@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.auth
 
+import com.cherry.butler.ui.components.LocalSelectEndpoint
+import com.cherry.butler.core.config.JanitorConfig
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -117,7 +119,7 @@ fun LoginScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
-            JanitorEndpointPicker { host, open ->
+            JanitorEndpointPicker(JanitorConfig.endpoint, LocalSelectEndpoint.current) { host, open ->
                 TextButton(onClick = open, enabled = !signingIn && !challenge, modifier = edge) {
                     Text("Janitor endpoint · $host")
                 }
