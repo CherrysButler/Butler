@@ -239,8 +239,14 @@ fun ButlerRoot() {
                 composable(
                     route = Routes.PERSONA,
                     arguments = listOf(navArgument("personaId") { type = NavType.StringType }),
-                ) {
-                    com.cherry.butler.feature.profile.PersonaEditorScreen(onBack = { navController.popBackStack() })
+                ) { entry ->
+                    val created by entry.savedStateHandle.getStateFlow<String?>(Routes.LOREBOOK_CREATED, null).collectAsStateWithLifecycle()
+                    com.cherry.butler.feature.profile.PersonaEditorScreen(
+                        onBack = { navController.popBackStack() },
+                        onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
+                        createdLorebookId = created,
+                        onLorebookCreatedHandled = { entry.savedStateHandle[Routes.LOREBOOK_CREATED] = null },
+                    )
                 }
                 composable(
                     route = Routes.BLOCKED,
@@ -266,7 +272,13 @@ fun ButlerRoot() {
                         bookId = entry.arguments?.getString(Routes.ARG_LOREBOOK_ID)?.takeUnless { it == "new" },
                         newBookScope = scope,
                         onBack = { navController.popBackStack() },
-                        onSaved = { _, _ -> navController.popBackStack() },
+                        onSaved = { id, created ->
+                            val previous = navController.previousBackStackEntry
+                            if (created && scope == null && previous?.destination?.route == Routes.PERSONA) {
+                                previous.savedStateHandle[Routes.LOREBOOK_CREATED] = id
+                            }
+                            navController.popBackStack()
+                        },
                     )
                 }
                 composable(
@@ -403,6 +415,7 @@ fun ButlerRoot() {
                             navController.navigate(Routes.chat(id)) { popUpTo(Routes.CHAT) { inclusive = true } }
                         },
                         onEditPersona = { navController.navigate(Routes.persona(it)) },
+                        onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
                     )
                 }
             }

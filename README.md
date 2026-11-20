@@ -102,6 +102,7 @@ Butler on Windows, built for a big screen and a keyboard, not a phone app stretc
 
 * Sign in with Google, Discord, or e-mail.
 * Export chats (Butler's own format or SillyTavern's) and import them back in.
+* **Local lorebooks.** Create, edit, and star books in Settings › Local Lorebooks. Import Janitor or SillyTavern JSON into an editable draft, or export a book to SillyTavern. Enable several books from the chat menu or attach them to a persona. Matching entries are added on the device before generation on JLLM and proxies. [Formats and matching rules](docs/LOREBOOKS.md).
 * Block characters, creators, tags and keywords.
 * Notifications, plus every notification setting Janitor has.
 * Published chats, with reactions and comments.
@@ -111,7 +112,6 @@ Butler on Windows, built for a big screen and a keyboard, not a phone app stretc
 ## Coming soon!
 
 * **CSS rendering in-chat**, for a more immersive (and honestly cooler) experience. (Creator profiles already render theirs.)
-* **Lorebooks that actually get used.**
 * (Possibly) Multiple characters together in one chat!
 
 ## Why was this made?

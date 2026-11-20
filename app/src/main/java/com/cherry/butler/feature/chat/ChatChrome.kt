@@ -39,8 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.cherry.butler.R
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Pill
 
@@ -50,6 +52,7 @@ fun ChatMenu(
     /** Null while the model chip is showing, which leads there itself. */
     onModelSettings: (() -> Unit)?,
     onMemory: () -> Unit,
+    onLorebooks: () -> Unit,
     onCustomize: () -> Unit,
     onCharacter: () -> Unit,
     onNewChat: () -> Unit,
@@ -73,6 +76,21 @@ fun ChatMenu(
         ) {
             onModelSettings?.let { go -> MenuItem(Icons.Outlined.AutoAwesome, "Model settings") { open = false; go() } }
             MenuItem(Icons.Outlined.AutoStories, if (hasSummary) "Chat memory" else "Chat memory (empty)") { open = false; onMemory() }
+            DropdownMenuItem(
+                text = { Text("Local Lorebooks", style = MaterialTheme.typography.titleSmall) },
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_chat_lorebooks),
+                        contentDescription = null,
+                        tint = ButlerTheme.colors.textMed,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+                onClick = {
+                    open = false
+                    onLorebooks()
+                },
+            )
             MenuItem(Icons.Outlined.Palette, "Customize text") { open = false; onCustomize() }
             MenuItem(Icons.Outlined.Wallpaper, "Background") { open = false; onBackground() }
             DropdownMenuItem(
