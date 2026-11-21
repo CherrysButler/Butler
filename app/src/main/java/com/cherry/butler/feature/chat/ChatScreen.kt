@@ -110,6 +110,7 @@ import com.cherry.butler.core.design.RpText
 import com.cherry.butler.core.generation.ChoicesService
 import com.cherry.butler.core.generation.MemoryService
 import com.cherry.butler.core.generation.SendPipeline
+import com.cherry.butler.core.lorebook.LorebookScope
 import com.cherry.butler.core.markdown.fillNames
 import com.cherry.butler.ui.components.Avatar
 import com.cherry.butler.ui.components.HairlineRule
@@ -147,6 +148,7 @@ fun ChatScreen(
     onOpenChat: (Long) -> Unit = {},
     /** A persona's id, or "default" for the profile. */
     onEditPersona: (String) -> Unit = {},
+    onEditLorebook: (String?, String?) -> Unit = { _, _ -> },
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     // Ctrl+R / F5 on the desktop.
@@ -178,6 +180,7 @@ fun ChatScreen(
     val compactMode by viewModel.compactMode.collectAsStateWithLifecycle()
     val memoryThought by viewModel.memoryThought.collectAsStateWithLifecycle()
     var memoryOpen by remember { mutableStateOf(false) }
+    var lorebooksOpen by remember { mutableStateOf(false) }
     var memoryThoughtOpen by remember { mutableStateOf(false) }
     val summarizing = memoryRun != null && !memoryRun!!.done && memoryRun!!.error == null
     val compacting = memoryRun?.kind == MemoryService.Kind.Compact
@@ -426,6 +429,19 @@ fun ChatScreen(
     if (backgroundOpen) {
         com.cherry.butler.feature.settings.BackgroundsSheet(chatId = viewModel.chatId, onDismiss = { backgroundOpen = false })
     }
+    if (lorebooksOpen) {
+        val scope = LorebookScope.chat(viewModel.chatId)
+        val personaId = if (activePersona != null) activePersona?.id else chat?.personaId
+        com.cherry.butler.feature.lorebook.LorebooksSheet(
+            scope = scope,
+            inheritedPersonaScope = LorebookScope.persona(personaId, chat?.userId),
+            onDismiss = { lorebooksOpen = false },
+            onEdit = { id ->
+                lorebooksOpen = false
+                onEditLorebook(id, scope)
+            },
+        )
+    }
 
     LocalTranscriptHost.current?.let { host -> LaunchedEffect(busy) { host.onBusy(busy) } }
     // On the PC the background may go across the window: handed to the window, none drawn here.
@@ -507,6 +523,7 @@ fun ChatScreen(
                     ChatMenu(
                         onModelSettings = if (providerLabel == null) onOpenModelSettings else null,
                         onMemory = { memoryOpen = true },
+                        onLorebooks = { lorebooksOpen = true },
                         onCustomize = onOpenCustomize,
                         onCharacter = openCharacter,
                         onNewChat = { viewModel.startNewChat(onOpenChat) },

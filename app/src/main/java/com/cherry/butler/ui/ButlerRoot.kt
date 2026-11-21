@@ -64,6 +64,7 @@ import com.cherry.butler.feature.chats.ChatsScreen
 import com.cherry.butler.feature.community.CommentsScreen
 import com.cherry.butler.feature.community.PublishedChatScreen
 import com.cherry.butler.feature.community.PublishedListScreen
+import com.cherry.butler.feature.lorebook.lorebookLibraryDestinations
 import com.cherry.butler.feature.notifications.NotificationsScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -206,6 +207,7 @@ fun ButlerRoot() {
                                 onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
                                 onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
                                 onOpenRouter = { navController.navigate(Routes.ROUTER) },
+                                onOpenLorebooks = { navController.navigate(Routes.LOREBOOKS) },
                                 onOpenPage = { navController.navigate(Routes.settingsPage(it.name)) },
                             )
                         }
@@ -228,6 +230,7 @@ fun ButlerRoot() {
                         onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
                         onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
                         onOpenRouter = { navController.navigate(Routes.ROUTER) },
+                        onOpenLorebooks = { navController.navigate(Routes.LOREBOOKS) },
                         onOpenPage = { navController.navigate(Routes.settingsPage(it.name)) },
                         page = page,
                         onBack = { navController.popBackStack() },
@@ -236,8 +239,14 @@ fun ButlerRoot() {
                 composable(
                     route = Routes.PERSONA,
                     arguments = listOf(navArgument("personaId") { type = NavType.StringType }),
-                ) {
-                    com.cherry.butler.feature.profile.PersonaEditorScreen(onBack = { navController.popBackStack() })
+                ) { entry ->
+                    val created by entry.savedStateHandle.getStateFlow<String?>(Routes.LOREBOOK_CREATED, null).collectAsStateWithLifecycle()
+                    com.cherry.butler.feature.profile.PersonaEditorScreen(
+                        onBack = { navController.popBackStack() },
+                        onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
+                        createdLorebookId = created,
+                        onLorebookCreatedHandled = { entry.savedStateHandle[Routes.LOREBOOK_CREATED] = null },
+                    )
                 }
                 composable(
                     route = Routes.BLOCKED,
@@ -249,6 +258,28 @@ fun ButlerRoot() {
                 }
                 composable(route = Routes.ROUTER) {
                     com.cherry.butler.feature.settings.RouterScreen(onBack = { navController.popBackStack() })
+                }
+                lorebookLibraryDestinations(navController)
+                composable(
+                    route = Routes.LOREBOOK_EDITOR,
+                    arguments = listOf(
+                        navArgument(Routes.ARG_LOREBOOK_ID) { type = NavType.StringType },
+                        navArgument(Routes.ARG_LOREBOOK_SCOPE) { type = NavType.StringType; nullable = true; defaultValue = null },
+                    ),
+                ) { entry ->
+                    val scope = entry.arguments?.getString(Routes.ARG_LOREBOOK_SCOPE)
+                    com.cherry.butler.feature.lorebook.LorebookEditorScreen(
+                        bookId = entry.arguments?.getString(Routes.ARG_LOREBOOK_ID)?.takeUnless { it == "new" },
+                        newBookScope = scope,
+                        onBack = { navController.popBackStack() },
+                        onSaved = { id, created ->
+                            val previous = navController.previousBackStackEntry
+                            if (created && scope == null && previous?.destination?.route == Routes.PERSONA) {
+                                previous.savedStateHandle[Routes.LOREBOOK_CREATED] = id
+                            }
+                            navController.popBackStack()
+                        },
+                    )
                 }
                 composable(
                     route = Routes.NOTIFICATION_PREFS,
@@ -384,6 +415,7 @@ fun ButlerRoot() {
                             navController.navigate(Routes.chat(id)) { popUpTo(Routes.CHAT) { inclusive = true } }
                         },
                         onEditPersona = { navController.navigate(Routes.persona(it)) },
+                        onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
                     )
                 }
             }

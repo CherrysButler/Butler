@@ -51,8 +51,15 @@ Two transports behind one interface (`GenerationTransport`):
 - **JLLM.** Janitor's own model over a WebSocket at `/mobile/generateAlpha`.
 
 Reasoning tags (`<think>`, `<thinking>`) are lifted out of the stream by an incremental
-parser and kept in their own column. Prompt assembly is entirely server-side; Butler never
-needs Janitor's system prompt.
+parser and kept in their own column. Janitor assembles its prompt server-side; Butler never
+needs Janitor's system prompt. `SendPipeline` and `SuggestionService` request local World
+Info from `LorebookStore` using the scene history. `GenerationEnvelope` adds the selected
+lore to a request-only copy of the latest user line (or a transient line before any draft
+if the character has spoken first and the player has yet to reply). The resulting envelope
+feeds both transports, including HTTP server-stream fallbacks.
+`LorebookStore` uses a separate Room database, `lorebooks.db`, shared across accounts on the
+device. Library and picker queries read book metadata and entry counts. The editor loads one
+book, and generation loads only books enabled for the chat and the active persona.
 
 ## The outbox, which is why this exists
 

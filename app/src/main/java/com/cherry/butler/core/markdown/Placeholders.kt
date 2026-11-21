@@ -13,6 +13,10 @@ private val USER_OR_CHAR = Regex("""\{\{\s*(user|char)\s*\}\}|\{\s*(user|char)\s
 /** `{{user}}` or `{user}`, any casing: what the persona's name fills. */
 val USER_PLACEHOLDER = Regex("""\{\{\s*user\s*\}\}|\{\s*user\s*\}""", RegexOption.IGNORE_CASE)
 
+/** The active name as it appears in the scene sent to Janitor. */
+fun String.fillUser(userName: String): String =
+    if (userName.isBlank() || '{' !in this) this else USER_PLACEHOLDER.replace(this) { userName }
+
 /**
  * Brackets the persona's name where it fills `{{user}}`, so the renderers can draw it in
  * Butler red. Private-use characters: they never occur in real text, survive markdown and

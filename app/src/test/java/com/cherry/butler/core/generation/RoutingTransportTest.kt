@@ -7,12 +7,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 
 class RoutingTransportTest {
 
-    private class Spy(val name: String, val calls: MutableList<String>) : GenerationTransport {
+    private class Spy : GenerationTransport {
+        val received = mutableListOf<JsonObject>()
+
         override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> {
-            calls += name
+            received += envelope
             return emptyFlow()
         }
     }
@@ -24,11 +27,18 @@ class RoutingTransportTest {
 
     @Test
     fun `janitor and a never-chosen provider go over the socket, a proxy over http`() {
-        val calls = mutableListOf<String>()
-        val router = RoutingTransport(proxyPath = Spy("http", calls), jllm = Spy("ws", calls))
-        router.generate(envelope("janitor"), null)
-        router.generate(envelope("openai"), null)
-        router.generate(envelope(null), null)
-        assertEquals(listOf("ws", "http", "ws"), calls)
+        val ws = Spy()
+        val http = Spy()
+        val router = RoutingTransport(proxyPath = http, jllm = ws)
+        val janitor = envelope("janitor")
+        val openai = envelope("openai")
+        val fresh = envelope(null)
+        router.generate(janitor, null)
+        router.generate(openai, null)
+        router.generate(fresh, null)
+        assertEquals(2, ws.received.size)
+        assertSame(janitor, ws.received.first())
+        assertSame(fresh, ws.received.last())
+        assertSame(openai, http.received.single())
     }
 }

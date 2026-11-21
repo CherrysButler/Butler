@@ -137,6 +137,7 @@ fun SettingsScreen(
     onOpenBlocked: () -> Unit = {},
     onOpenDiagnostics: () -> Unit = {},
     onOpenRouter: () -> Unit = {},
+    onOpenLorebooks: () -> Unit = {},
     /** Opens one of the pages listed on the main page. */
     onOpenPage: (SettingsPage) -> Unit = {},
     /** Which page: the main list on the tab, or one page with a back arrow. */
@@ -238,6 +239,7 @@ fun SettingsScreen(
                     onOpenBlocked = onOpenBlocked,
                     onOpenDiagnostics = onOpenDiagnostics,
                     onOpenRouter = onOpenRouter,
+                    onOpenLorebooks = onOpenLorebooks,
                     onOpenPage = onOpenPage,
                     page = page,
                 )
@@ -271,13 +273,14 @@ private fun SettingsBody(
     onOpenBlocked: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenRouter: () -> Unit,
+    onOpenLorebooks: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
     page: SettingsPage,
 ) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp + com.cherry.butler.ui.components.bottomChrome())) {
         when (page) {
             SettingsPage.Main -> {
-                SettingsHome(onOpenPage)
+                SettingsHome(onOpenPage, onOpenLorebooks)
                 AccountSection(viewModel)
             }
             SettingsPage.Model -> settings?.let { s ->
@@ -301,7 +304,7 @@ private fun SettingsBody(
 
 /** The main page: each settings page as a row with its own mark, a title and a line on what's inside. */
 @Composable
-private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
+private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit, onOpenLorebooks: () -> Unit) {
     val pages = SettingsPage.entries.filter { it.listed && (it != SettingsPage.Debug || com.cherry.butler.BuildConfig.DEBUG) }
     Column(
         modifier = Modifier
@@ -310,29 +313,43 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit) {
             .card(color = ButlerTheme.colors.surfaceHigh),
     ) {
         pages.forEachIndexed { i, p ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenPage(p) }
-                    .heightIn(min = 64.dp)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource(p.icon),
-                    contentDescription = null,
-                    tint = androidx.compose.ui.graphics.Color.Unspecified,
-                    modifier = Modifier.size(30.dp),
+            SettingsHomeRow(p.title, p.blurb, p.icon) { onOpenPage(p) }
+            if (p == SettingsPage.Chat) {
+                RowDivider()
+                SettingsHomeRow(
+                    title = "Local Lorebooks",
+                    blurb = "Create and edit your world information",
+                    onClick = onOpenLorebooks,
+                    icon = com.cherry.butler.R.drawable.ic_set_lorebooks,
                 )
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(p.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Text(p.blurb, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-                Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = ButlerTheme.colors.textLow)
             }
             if (i < pages.lastIndex) RowDivider()
         }
+    }
+}
+
+@Composable
+private fun SettingsHomeRow(title: String, blurb: String, icon: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = androidx.compose.ui.res.painterResource(icon),
+            contentDescription = null,
+            tint = androidx.compose.ui.graphics.Color.Unspecified,
+            modifier = Modifier.size(30.dp),
+        )
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(blurb, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = ButlerTheme.colors.textLow)
     }
 }
 

@@ -44,6 +44,8 @@ import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.PronounSet
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Pill
+import com.cherry.butler.core.lorebook.LorebookScope
+import com.cherry.butler.core.lorebook.LorebookStore
 import com.cherry.butler.core.network.ApiError
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
 import com.cherry.butler.feature.settings.EditorMenuItem
@@ -72,6 +74,7 @@ data class PersonaForm(
     val pictureUrl: String? = null,
     /** Chosen on the phone, not yet uploaded. */
     val newPicture: Uri? = null,
+    val defaultProfileId: String? = null,
     val loaded: Boolean = false,
     val saving: Boolean = false,
     val error: String? = null,
@@ -90,7 +93,11 @@ class PersonaEditorViewModel @Inject constructor(
     private val writer: com.cherry.butler.core.generation.DescriptionWriter,
     private val transfer: com.cherry.butler.core.data.PersonaTransfer,
     private val pictures: com.cherry.butler.core.data.PictureUpload,
+    private val lorebooks: LorebookStore,
 ) : ViewModel() {
+    private val editorState = savedStateHandle
+    val draftLorebooks = savedStateHandle.getStateFlow<List<String>>("lorebookIds", emptyList())
+    fun selectLorebooks(ids: Set<String>) { editorState["lorebookIds"] = ids.toList() }
 
     /** A picture for the bio, from the media library once Janitor approves it. */
     suspend fun uploadBioPicture(uri: Uri, onStage: (com.cherry.butler.core.data.PictureUpload.MediaStage) -> Unit) = pictures.uploadMedia(uri, onStage)
@@ -161,7 +168,7 @@ class PersonaEditorViewModel @Inject constructor(
     private val arg: String = savedStateHandle.get<String>(ARG) ?: NEW
     val isNew: Boolean = arg == NEW
     val isDefault: Boolean = arg == DEFAULT
-    private val personaId: String? = arg.takeUnless { isNew || isDefault }
+    val personaId: String? = arg.takeUnless { isNew || isDefault }
 
     private val _form = MutableStateFlow(PersonaForm(loaded = isNew))
     val form: StateFlow<PersonaForm> = _form.asStateFlow()
@@ -179,6 +186,7 @@ class PersonaEditorViewModel @Inject constructor(
                         aboutMe = p.aboutMe.orEmpty(),
                         style = com.cherry.butler.core.data.ProfileStyle.of(p.style),
                         pictureUrl = personas.options.value.firstOrNull { it.id == null }?.avatarUrl ?: p.avatar,
+                        defaultProfileId = p.id,
                         loaded = true,
                     )
                 } else {
@@ -213,7 +221,11 @@ class PersonaEditorViewModel @Inject constructor(
             _form.update { it.copy(saving = true, error = null) }
             runCatching {
                 when {
-                    isNew -> editing.create(draft)
+                    isNew -> {
+                        val id = editing.create(draft)
+                        val selected = draftLorebooks.value.toSet()
+                        if (selected.isNotEmpty()) lorebooks.setPersonaBooks(id, selected)
+                    }
                     isDefault -> editing.updateProfile(draft)
                     else -> editing.update(personaId!!, draft)
                 }
@@ -235,8 +247,10 @@ class PersonaEditorViewModel @Inject constructor(
         val id = personaId ?: return
         viewModelScope.launch {
             _form.update { it.copy(saving = true, error = null) }
-            runCatching { editing.delete(id) }
-                .onSuccess { onDone() }
+            runCatching {
+                editing.delete(id)
+                lorebooks.clearPersona(id)
+            }.onSuccess { onDone() }
                 .onFailure { e -> _form.update { it.copy(saving = false, error = "Not deleted. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") } }
         }
     }
@@ -249,8 +263,35 @@ class PersonaEditorViewModel @Inject constructor(
 }
 
 @Composable
-fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = hiltViewModel()) {
+fun PersonaEditorScreen(
+    onBack: () -> Unit,
+    onEditLorebook: (String?, String?) -> Unit = { _, _ -> },
+    createdLorebookId: String? = null,
+    onLorebookCreatedHandled: () -> Unit = {},
+    viewModel: PersonaEditorViewModel = hiltViewModel(),
+) {
+    var lorebooksOpen by remember { mutableStateOf(false) }
+    val draftLorebooks by viewModel.draftLorebooks.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
+    val lorebookScope = LorebookScope.persona(viewModel.personaId, form.defaultProfileId)
+    androidx.compose.runtime.LaunchedEffect(createdLorebookId) {
+        if (createdLorebookId != null) {
+            if (viewModel.isNew) viewModel.selectLorebooks(viewModel.draftLorebooks.value.toSet() + createdLorebookId)
+            onLorebookCreatedHandled()
+        }
+    }
+    if (lorebooksOpen) {
+        com.cherry.butler.feature.lorebook.LorebooksSheet(
+            scope = lorebookScope,
+            selection = if (viewModel.isNew) draftLorebooks.toSet() else null,
+            onSelectionChange = if (viewModel.isNew) viewModel::selectLorebooks else null,
+            onDismiss = { lorebooksOpen = false },
+            onEdit = { id ->
+                lorebooksOpen = false
+                onEditLorebook(id, lorebookScope)
+            },
+        )
+    }
     var confirmDelete by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
     val saveFile = com.cherry.butler.ui.components.rememberFileSaver(onError = viewModel::reportTransfer)
@@ -328,6 +369,11 @@ fun PersonaEditorScreen(onBack: () -> Unit, viewModel: PersonaEditorViewModel = 
             )
         }
         FieldBlock("Name", form.name, { v -> viewModel.update { it.copy(name = v) } })
+        androidx.compose.material3.TextButton(
+            onClick = { lorebooksOpen = true },
+            enabled = !form.saving && (viewModel.isNew || lorebookScope != null),
+            modifier = Modifier.padding(horizontal = 8.dp),
+        ) { Text("Local Lorebooks") }
         if (!viewModel.isDefault) {
             Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(

@@ -3,6 +3,7 @@ package com.cherry.butler.core.generation
 import com.cherry.butler.core.data.local.MessageEntity
 import com.cherry.butler.core.data.remote.dto.PersonaDto
 import com.cherry.butler.core.data.remote.dto.PronounsDto
+import com.cherry.butler.core.markdown.fillUser
 import com.cherry.butler.core.util.IsoTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -82,6 +83,8 @@ object GenerationEnvelope {
          * is put down to the profile.
          */
         knownPersonas: List<PersonaDto> = emptyList(),
+        /** Local world info selected for a character reply or the player's next line. */
+        loreContext: String? = null,
     ): JsonObject = sortedLikeTheWebsite(buildJsonObject {
         val userLines = history.filter { !it.isBot && it.serverId != null }
         val usedIds = userLines.mapNotNullTo(LinkedHashSet()) { it.personaId }.apply { persona?.let { add(it.id) } }
@@ -98,8 +101,8 @@ object GenerationEnvelope {
         })
         // The website fills `{{user}}` in the history itself, with the name being played; Butler
         // fills the single-brace `{user}` some formats use as well.
-        val userName = (persona?.name ?: profile.name).takeIf { it.isNotBlank() }
-        fun filled(text: String) = userName?.let { USER_MACRO.replace(text, Regex.escapeReplacement(it)) } ?: text
+        val userName = persona?.name ?: profile.name
+        val lastUserId = userLines.lastOrNull()?.serverId
         put("chatMessages", buildJsonArray {
             for (m in history) {
                 // Only server-confirmed rows have ids the server can resolve.
@@ -112,22 +115,21 @@ object GenerationEnvelope {
                     put("created_at", IsoTime.format(m.createdAt))
                     put("is_bot", m.isBot)
                     put("is_main", m.isMain)
-                    put("message", filled(m.text))
+                    val text = m.text.fillUser(userName)
+                    put("message", if (loreContext != null && serverId == lastUserId) "$text\n\n$loreContext" else text)
                     if (!m.isBot && m.personaId != null) put("persona_id", m.personaId)
                 })
             }
-            if (extraUserLine != null) add(buildJsonObject {
-                put("chat_id", chatId)
-                put("is_bot", false)
-                put("is_main", true)
-                put("message", extraUserLine)
-            })
-            if (draft != null) add(buildJsonObject {
-                put("chat_id", chatId)
-                put("is_bot", false)
-                put("is_main", true)
-                put("message", draft)
-            })
+            // With a bot-only opening, lore gets its own line before the suggestion draft.
+            val openingLore = loreContext.takeIf { lastUserId == null }
+            for (line in listOfNotNull(openingLore, extraUserLine, draft)) {
+                add(buildJsonObject {
+                    put("chat_id", chatId)
+                    put("is_bot", false)
+                    put("is_main", true)
+                    put("message", line)
+                })
+            }
         })
         put("profile", buildJsonObject {
             put("id", profile.id)
@@ -169,7 +171,7 @@ object GenerationEnvelope {
         if (draft != null) put("suggestionMode", "write")
         put("clientPlatform", clientPlatform)
         put("forcedPromptGenerationCacheRefetch", buildJsonObject {
-            for (k in listOf("character", "chat", "profile", "script")) put(k, k in forceRefetch)
+            for (k in listOf("character", "chat", "profile", "script")) put(k, k in forceRefetch || (k == "chat" && loreContext != null))
         })
         if (memoryReplacesHistory != null) put("memoryReplacesHistory", memoryReplacesHistory)
     }) as JsonObject
@@ -189,14 +191,6 @@ object GenerationEnvelope {
     }
 
     /**
-     * The keys of the profile's `config` the website sends to `/generateAlpha` (captured
-     * 2026-10-06). Everything else stays home: the full config carried every saved proxy's
-     * key and the reader's colours, and that larger body was turned away by Janitor's
-     * firewall where the website's was not.
-     */
-    private val USER_MACRO = com.cherry.butler.core.markdown.USER_PLACEHOLDER
-
-    /**
      * The `generation_settings` the website sends when the account has saved none of them
      * (captured 2026-10-07, a test account that had changed only `enable_short_responses`).
      * Saved values go on top. Settings shows these same values as the defaults.
@@ -213,6 +207,12 @@ object GenerationEnvelope {
         put("temperature", 1)
     }
 
+    /**
+     * The keys of the profile's `config` the website sends to `/generateAlpha` (captured
+     * 2026-10-06). Everything else stays home: the full config carried every saved proxy's
+     * key and the reader's colours, and that larger body was turned away by Janitor's
+     * firewall where the website's was not.
+     */
     private val SENT_CONFIG_KEYS = setOf(
         "allow_mobile_nsfw", "api", "bad_words", "claude_jailbreak_prompt", "claudeModel",
         "generation_settings", "llm_prompt", "open_ai_jailbreak_prompt", "open_ai_mode",

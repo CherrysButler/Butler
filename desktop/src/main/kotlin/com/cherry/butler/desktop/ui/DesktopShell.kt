@@ -68,6 +68,7 @@ import com.cherry.butler.feature.chats.ChatsScreen
 import com.cherry.butler.feature.community.CommentsScreen
 import com.cherry.butler.feature.community.PublishedChatScreen
 import com.cherry.butler.feature.community.PublishedListScreen
+import com.cherry.butler.feature.lorebook.lorebookLibraryDestinations
 import com.cherry.butler.feature.notifications.NotificationsScreen
 import com.cherry.butler.feature.profile.ProfileScreen
 import com.cherry.butler.feature.settings.CustomizeScreen
@@ -413,12 +414,37 @@ private fun PaneNav(
             val page = entry.arguments?.getString("page")?.let { name -> SettingsPage.entries.firstOrNull { it.name == name } } ?: SettingsPage.Main
             settingsScreen(navController, page = page, onBack = { navController.popBackStack() })
         }
-        composable(Routes.PERSONA, arguments = listOf(navArgument("personaId") { type = NavType.StringType })) {
-            com.cherry.butler.feature.profile.PersonaEditorScreen(onBack = { navController.popBackStack() })
+        composable(Routes.PERSONA, arguments = listOf(navArgument("personaId") { type = NavType.StringType })) { entry ->
+            val created by entry.savedStateHandle.getStateFlow<String?>(Routes.LOREBOOK_CREATED, null).collectAsState()
+            com.cherry.butler.feature.profile.PersonaEditorScreen(
+                onBack = { navController.popBackStack() },
+                onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
+                createdLorebookId = created,
+                onLorebookCreatedHandled = { entry.savedStateHandle[Routes.LOREBOOK_CREATED] = null },
+            )
         }
         composable(Routes.BLOCKED) { com.cherry.butler.feature.settings.BlockedScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.DIAGNOSTICS) { com.cherry.butler.feature.settings.DiagnosticsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.ROUTER) { com.cherry.butler.feature.settings.RouterScreen(onBack = { navController.popBackStack() }) }
+        lorebookLibraryDestinations(navController)
+        composable(Routes.LOREBOOK_EDITOR, arguments = listOf(
+            navArgument(Routes.ARG_LOREBOOK_ID) { type = NavType.StringType },
+            navArgument(Routes.ARG_LOREBOOK_SCOPE) { type = NavType.StringType; nullable = true; defaultValue = null },
+        )) { entry ->
+            val scope = entry.arguments?.getString(Routes.ARG_LOREBOOK_SCOPE)
+            com.cherry.butler.feature.lorebook.LorebookEditorScreen(
+                bookId = entry.arguments?.getString(Routes.ARG_LOREBOOK_ID)?.takeUnless { it == "new" },
+                newBookScope = scope,
+                onBack = { navController.popBackStack() },
+                onSaved = { id, created ->
+                    val previous = navController.previousBackStackEntry
+                    if (created && scope == null && previous?.destination?.route == Routes.PERSONA) {
+                        previous.savedStateHandle[Routes.LOREBOOK_CREATED] = id
+                    }
+                    navController.popBackStack()
+                },
+            )
+        }
         composable(Routes.NOTIFICATION_PREFS) {
             com.cherry.butler.feature.notifications.NotificationPrefsScreen(onBack = { navController.popBackStack() })
         }
@@ -522,6 +548,7 @@ private fun PaneNav(
                     onOpenCharacter = onCharacter,
                     onOpenChat = { id -> navController.navigate(Routes.chat(id)) { popUpTo(Routes.CHAT) { inclusive = true } } },
                     onEditPersona = { navController.navigate(Routes.persona(it)) },
+                    onEditLorebook = { id, scope -> navController.navigate(Routes.lorebookEditor(id, scope)) },
                 )
             }
         }
@@ -545,6 +572,7 @@ private fun settingsScreen(
     onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
     onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
     onOpenRouter = { navController.navigate(Routes.ROUTER) },
+    onOpenLorebooks = { navController.navigate(Routes.LOREBOOKS) },
     onOpenPage = onOpenPage,
     page = page,
     onBack = onBack,
