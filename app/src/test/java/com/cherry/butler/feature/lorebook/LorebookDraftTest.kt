@@ -1,5 +1,7 @@
 package com.cherry.butler.feature.lorebook
 
+import com.cherry.butler.core.data.EditableLoreEntry
+import com.cherry.butler.core.data.LorebookDraft
 import com.cherry.butler.core.lorebook.LoreEntry
 import com.cherry.butler.core.lorebook.Lorebook
 import com.cherry.butler.core.lorebook.LorebookJson

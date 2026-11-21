@@ -61,8 +61,8 @@ import kotlinx.coroutines.withContext
 fun LorebooksLibraryScreen(
     onBack: () -> Unit,
     onEdit: (String?) -> Unit,
-    onEditImport: () -> Unit,
-    viewModel: LorebooksViewModel = hiltViewModel(),
+    onEditImport: (draftId: String) -> Unit,
+    viewModel: LorebooksLibraryViewModel = hiltViewModel(),
 ) {
     val books by viewModel.books.collectAsStateWithLifecycle(initialValue = emptyList())
     val limit by viewModel.contextCharLimit.collectAsStateWithLifecycle(initialValue = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT)
@@ -131,9 +131,14 @@ fun LorebooksLibraryScreen(
     if (importing) {
         ImportLorebookDialog(
             onImport = viewModel::prepareImport,
-            onPrepared = {
+            onPrepared = { draftId ->
+                try {
+                    onEditImport(draftId)
+                } catch (e: Exception) {
+                    viewModel.discardImport(draftId)
+                    throw e
+                }
                 importing = false
-                onEditImport()
             },
             onDismiss = { importing = false },
         )
@@ -142,8 +147,8 @@ fun LorebooksLibraryScreen(
 
 @Composable
 private fun ImportLorebookDialog(
-    onImport: suspend (String, String) -> Unit,
-    onPrepared: () -> Unit,
+    onImport: suspend (String, String) -> String,
+    onPrepared: (draftId: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -152,14 +157,14 @@ private fun ImportLorebookDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
-    fun runImport(action: suspend () -> Unit) {
+    fun runImport(action: suspend () -> String) {
         if (busy) return
         busy = true
         error = null
         coroutineScope.launch {
             try {
-                action()
-                onPrepared()
+                val draftId = action()
+                onPrepared(draftId)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -80,8 +80,8 @@ fun LorebookEditorScreen(
     newBookScope: String?,
     onBack: () -> Unit,
     onSaved: (String, Boolean) -> Unit,
-    viewModel: LorebooksViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
-    takeImportedDraft: (() -> LorebookDraft?)? = null,
+    viewModel: LorebookEditorViewModel = androidx.hilt.navigation.compose.hiltViewModel(),
+    importDraftId: String? = null,
 ) {
     val draft by viewModel.editor.collectAsStateWithLifecycle()
     val book = draft
@@ -95,7 +95,7 @@ fun LorebookEditorScreen(
     var deleting by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val saveFile = rememberFileSaver(onError = viewModel::reportError)
-    LaunchedEffect(bookId, viewModel) { viewModel.loadEditor(bookId, takeImportedDraft) }
+    LaunchedEffect(bookId, importDraftId, viewModel) { viewModel.loadEditor(bookId, importDraftId) }
     if (book == null) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -1,10 +1,10 @@
 package com.cherry.butler.feature.lorebook
 
-import androidx.compose.runtime.remember
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.cherry.butler.ui.navigation.Routes
 
 internal fun NavGraphBuilder.lorebookLibraryDestinations(navController: NavHostController) {
@@ -12,20 +12,19 @@ internal fun NavGraphBuilder.lorebookLibraryDestinations(navController: NavHostC
         LorebooksLibraryScreen(
             onBack = { navController.popBackStack() },
             onEdit = { navController.navigate(Routes.lorebookEditor(it)) },
-            onEditImport = { navController.navigate(Routes.IMPORT_LOREBOOK) },
+            onEditImport = { draftId -> navController.navigate(Routes.importLorebook(draftId)) },
         )
     }
-    composable(Routes.IMPORT_LOREBOOK) { entry ->
-        val libraryEntry = remember(entry) {
-            navController.previousBackStackEntry?.takeIf { it.destination.route == Routes.LOREBOOKS }
-        }
-        val libraryModel = libraryEntry?.let { hiltViewModel<LorebooksViewModel>(it) }
+    composable(
+        route = Routes.IMPORT_LOREBOOK,
+        arguments = listOf(navArgument(Routes.ARG_LOREBOOK_DRAFT_ID) { type = NavType.StringType }),
+    ) { entry ->
         LorebookEditorScreen(
             bookId = null,
             newBookScope = null,
             onBack = { navController.popBackStack() },
             onSaved = { _, _ -> navController.popBackStack() },
-            takeImportedDraft = { libraryModel?.takeImportedDraft() },
+            importDraftId = requireNotNull(entry.arguments?.getString(Routes.ARG_LOREBOOK_DRAFT_ID)),
         )
     }
 }

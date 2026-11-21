@@ -28,7 +28,8 @@ object Routes {
     const val DIAGNOSTICS = "settings/diagnostics"
     const val ROUTER = "settings/router"
     const val LOREBOOKS = "settings/lorebooks"
-    const val IMPORT_LOREBOOK = "settings/lorebooks/import"
+    const val ARG_LOREBOOK_DRAFT_ID = "draftId"
+    const val IMPORT_LOREBOOK = "$LOREBOOKS/import/{$ARG_LOREBOOK_DRAFT_ID}"
     const val ARG_LOREBOOK_ID = "lorebookId"
     const val ARG_LOREBOOK_SCOPE = "enableIn"
     const val LOREBOOK_EDITOR = "lorebook/edit/{$ARG_LOREBOOK_ID}?$ARG_LOREBOOK_SCOPE={$ARG_LOREBOOK_SCOPE}"
@@ -46,6 +47,7 @@ object Routes {
     fun proxy(id: String?) = "settings/proxy/${id ?: "new"}"
     fun prompt(id: String?) = "settings/prompt/${id ?: "new"}"
     fun persona(id: String) = "persona/$id"
+    fun importLorebook(draftId: String) = "$LOREBOOKS/import/$draftId"
     fun lorebookEditor(id: String?, enableIn: String? = null): String =
         "lorebook/edit/${android.net.Uri.encode(id ?: "new")}" +
             (enableIn?.let { "?$ARG_LOREBOOK_SCOPE=${android.net.Uri.encode(it)}" } ?: "")
