@@ -1,8 +1,17 @@
 package com.cherry.butler.feature.lorebook
 
-import com.cherry.butler.core.lorebook.*
+import com.cherry.butler.core.lorebook.LoreEntry
+import com.cherry.butler.core.lorebook.Lorebook
+import com.cherry.butler.core.lorebook.LorebookJson
+import com.cherry.butler.core.lorebook.LorebookMatcher
 import kotlinx.serialization.json.Json
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class LorebookDraftTest {
     private val entry = LoreEntry("The castle is red.", keys = listOf("castle"), name = "Castle")

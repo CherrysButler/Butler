@@ -1,6 +1,7 @@
 package com.cherry.butler.feature.lorebook
 
-import com.cherry.butler.core.lorebook.*
+import com.cherry.butler.core.lorebook.LoreEntry
+import com.cherry.butler.core.lorebook.Lorebook
 import java.util.UUID
 
 data class EditableLoreEntry(val id: String = UUID.randomUUID().toString(), val entry: LoreEntry)
