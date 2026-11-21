@@ -10,9 +10,16 @@ object LorebookRequest {
         charLimit: Int,
         userName: String,
         history: List<MessageEntity>,
+    ): String? = instructionFor(LorebookSelection.from(books), charLimit, userName, history)
+
+    internal fun instructionFor(
+        selection: LorebookSelection,
+        charLimit: Int,
+        userName: String,
+        history: List<MessageEntity>,
     ): String? {
         val messages = history.filter { it.serverId != null }.map { it.text.fillUser(userName) }
-        val lore = LorebookMatcher.context(books, messages, charLimit)
+        val lore = LorebookMatcher.context(selection, messages, charLimit)
         if (lore.isEmpty()) return null
         return "(OOC: Use the following world information as context for this scene.\n<lorebook>\n${lore.fillUser(userName)}\n</lorebook>)"
     }

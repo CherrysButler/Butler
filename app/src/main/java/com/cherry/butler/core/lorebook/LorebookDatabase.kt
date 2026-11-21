@@ -45,8 +45,6 @@ class LoreKeywordConverter {
     @TypeConverter fun decode(keys: String): List<String> = Json.decodeFromString(keys)
 }
 
-data class ActiveLoreEntry(@Embedded(prefix = "book_") val book: LorebookRow, @Embedded val row: LoreEntryRow)
-
 /** Device library shared across accounts. Signing out clears the separate chat database. */
 @Database(entities = [LorebookRow::class, LoreEntryRow::class, LoreBindingRow::class, LoreSettingsRow::class], version = 1)
 @TypeConverters(LoreKeywordConverter::class, SecondaryKeywordRuleMapper::class)

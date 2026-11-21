@@ -50,12 +50,16 @@ object LorebookMatcher {
         messages: List<String>,
         charLimit: Int = DEFAULT_CONTEXT_CHAR_LIMIT,
         roll: () -> Int = { Random.nextInt(100) },
+    ): String = context(LorebookSelection.from(books), messages, charLimit, roll)
+
+    internal fun context(
+        selection: LorebookSelection,
+        messages: List<String>,
+        charLimit: Int,
+        roll: () -> Int = { Random.nextInt(100) },
     ): String {
         require(charLimit >= 0) { "Lore character limit cannot be negative." }
-        var pending = books.flatMap { book ->
-            book.entries.filter { it.enabled && it.content.isNotBlank() && it.probability > 0 }
-                .map { Candidate(it, it.scanDepth ?: book.scanDepth) }
-        }.sortedWith(compareByDescending<Candidate> { it.entry.constant }.thenByDescending { it.entry.order })
+        var pending = selection.candidates
         val history = pending.map { it.scanDepth }.distinct()
             .associateWith { messages.takeLast(it).joinToString("\n") }
         val selected = ArrayList<LoreEntry>()
@@ -79,24 +83,23 @@ object LorebookMatcher {
         return selected.sortedBy { it.order }.joinToString("\n\n") { it.content }
     }
 
-    private data class Candidate(val entry: LoreEntry, val scanDepth: Int)
-    private data class Round(val pending: List<Candidate>, val activated: List<LoreEntry>, val remainingChars: Int)
+    private data class Round(val pending: List<LorebookCandidate>, val activated: List<LoreEntry>, val remainingChars: Int)
 
     /** Consumes matched candidates once, even when their probability or budget check fails. */
     private fun activateRound(
-        pending: List<Candidate>,
-        textFor: (Candidate) -> String,
+        pending: List<LorebookCandidate>,
+        textFor: (LorebookCandidate) -> String,
         charLimit: Int,
         remainingChars: Int,
         hasSelected: Boolean,
         roll: () -> Int,
     ): Round {
-        val next = ArrayList<Candidate>()
+        val next = ArrayList<LorebookCandidate>()
         val activated = ArrayList<LoreEntry>()
         var remaining = remainingChars
         for (candidate in pending) {
             val entry = candidate.entry
-            if (!triggered(entry, textFor(candidate))) {
+            if (!triggered(candidate, textFor(candidate))) {
                 next += candidate
                 continue
             }
@@ -110,22 +113,23 @@ object LorebookMatcher {
         return Round(next, activated, remaining)
     }
 
-    private fun triggered(entry: LoreEntry, text: String): Boolean {
+    private fun triggered(candidate: LorebookCandidate, text: String): Boolean {
+        val entry = candidate.entry
         // Constants seed the first round without keyword conditions.
         if (entry.constant) return true
-        if (entry.keys.none { matches(text, it, entry) }) return false
+        fun matches(keyword: String): Boolean = if (entry.wholeWords) {
+            candidate.patterns.getValue(keyword).containsMatchIn(text)
+        } else {
+            text.contains(keyword, ignoreCase = !entry.caseSensitive)
+        }
+
+        if (entry.keys.none(::matches)) return false
         if (!entry.selective || entry.secondaryKeys.isEmpty()) return true
         return when (entry.selectiveLogic) {
-            SecondaryKeywordRule.MatchAny -> entry.secondaryKeys.any { matches(text, it, entry) }
-            SecondaryKeywordRule.NotAll -> !entry.secondaryKeys.all { matches(text, it, entry) }
-            SecondaryKeywordRule.MatchNone -> entry.secondaryKeys.none { matches(text, it, entry) }
-            SecondaryKeywordRule.MatchAll -> entry.secondaryKeys.all { matches(text, it, entry) }
+            SecondaryKeywordRule.MatchAny -> entry.secondaryKeys.any(::matches)
+            SecondaryKeywordRule.NotAll -> !entry.secondaryKeys.all(::matches)
+            SecondaryKeywordRule.MatchNone -> entry.secondaryKeys.none(::matches)
+            SecondaryKeywordRule.MatchAll -> entry.secondaryKeys.all(::matches)
         }
-    }
-
-    private fun matches(text: String, key: String, entry: LoreEntry): Boolean {
-        if (!entry.wholeWords) return text.contains(key, ignoreCase = !entry.caseSensitive)
-        val options = if (entry.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-        return Regex("(?<![\\p{L}\\p{N}_])${Regex.escape(key)}(?![\\p{L}\\p{N}_])", options).containsMatchIn(text)
     }
 }

@@ -17,6 +17,8 @@ import com.cherry.butler.core.data.Provider
 import com.cherry.butler.core.data.SettingsRepository
 import com.cherry.butler.core.generation.MemoryService
 import com.cherry.butler.core.generation.SendPipeline
+import com.cherry.butler.core.lorebook.LorebookScope
+import com.cherry.butler.core.lorebook.LorebookStore
 import com.cherry.butler.core.network.ApiError
 import com.cherry.butler.core.generation.userSummary
 import com.cherry.butler.ui.components.userMessage
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -74,6 +77,7 @@ class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val profile: ProfileRepository,
     private val pipeline: SendPipeline,
+    private val lorebooks: LorebookStore,
     private val memory: MemoryService,
     private val memoryPrefs: MemoryPrefs,
     private val lastPlace: LastPlace,
@@ -405,6 +409,12 @@ class ChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { runCatching { aiSettings.load() } }
+        viewModelScope.launch {
+            val scopes = combine(chat.filterNotNull(), activePersona, profile.profile) { chat, persona, owner ->
+                LorebookScope.persona(persona?.id, chat.userId.ifEmpty { owner?.id.orEmpty() })
+            }
+            lorebooks.keepChatOpen(chatId, scopes)
+        }
         // The chip's list: a chat can be the first screen after a cold start.
         viewModelScope.launch { runCatching { personas.load() } }
     }

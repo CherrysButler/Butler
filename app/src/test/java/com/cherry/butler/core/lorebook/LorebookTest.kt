@@ -10,6 +10,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotSame
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class LorebookTest {
@@ -87,6 +89,40 @@ class LorebookTest {
         assertEquals("", LorebookMatcher.context(listOf(book(e)), listOf("кот", "nothing")))
         assertEquals("", LorebookMatcher.context(listOf(book(e)), listOf("котик КОТ")))
         assertEquals("Fact", LorebookMatcher.context(listOf(book(e)), listOf("Вот кот!")))
+    }
+
+    @Test fun `shared whole word patterns live until their last distinct entry releases them`() {
+        val pool = WholeWordPatterns()
+        val entry = LoreEntry("Weather", listOf("rain", "rain"), listOf("rain"), selective = true, wholeWords = true)
+        fun prepare(e: LoreEntry) = requireNotNull(pool.prepare(e, 4))
+        val weather = prepare(entry)
+        val rain = weather.patterns.getValue("rain")
+        val pedestrian = prepare(entry.copy(content = "Umbrella"))
+        val fighter = prepare(entry.copy(keys = listOf("Rain"), selective = false, caseSensitive = true))
+        val properName = fighter.patterns.getValue("Rain")
+        assertNotSame(rain, properName)
+        assertSame(rain, pedestrian.patterns.getValue("rain"))
+
+        val large = prepare(entry.copy(keys = List(20_000) { "word$it" }, selective = false))
+        pool.release(weather)
+        val again = prepare(entry)
+        assertSame(rain, again.patterns.getValue("rain"))
+        pool.release(pedestrian)
+        pool.release(again)
+        assertNotSame(rain, prepare(entry).patterns.getValue("rain"))
+        assertSame(properName, prepare(fighter.entry).patterns.getValue("Rain"))
+        pool.release(large)
+    }
+
+    @Test fun `primary and secondary whole word keys are literal and respect each entry's case mode`() {
+        val primary = LoreEntry("Primary", keys = listOf("a+b"), wholeWords = true)
+        val secondary = primary.copy(
+            content = "Secondary", keys = listOf("gate"), secondaryKeys = listOf("a+b"), selective = true, caseSensitive = true,
+        )
+        val books = listOf(book(primary, secondary))
+        assertEquals("Primary\n\nSecondary", LorebookMatcher.context(books, listOf("gate [a+b]")))
+        assertEquals("Primary", LorebookMatcher.context(books, listOf("gate [A+B]")))
+        assertEquals("", LorebookMatcher.context(books, listOf("gate aaab _a+b a+b9 Жa+b")))
     }
 
     @Test fun `secondary keyword rules keep their numeric JSON codes`() {

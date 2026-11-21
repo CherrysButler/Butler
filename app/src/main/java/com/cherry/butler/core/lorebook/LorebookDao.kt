@@ -34,15 +34,17 @@ abstract class LorebookDao {
         metadata(id)?.toBook(entries(id).map { it.entry })
 
     @Query("""
-        SELECT b.id AS book_id, b.name AS book_name, b.scanDepth AS book_scanDepth, b.favorite AS book_favorite, e.*
-        FROM lorebooks b JOIN lore_entries e ON e.bookId = b.id
+        SELECT b.* FROM lorebooks b
         WHERE b.id IN (
             SELECT bookId FROM lore_bindings WHERE scope IN (:chatScope, :personaScope) AND enabled = 1
             EXCEPT SELECT bookId FROM lore_bindings WHERE scope = :chatScope AND enabled = 0
-        ) AND e.enabled = 1
-        ORDER BY b.rowid, e.position
+        )
+        ORDER BY b.rowid
     """)
-    abstract suspend fun activeEntries(chatScope: String, personaScope: String?): List<ActiveLoreEntry>
+    abstract suspend fun activeBooks(chatScope: String, personaScope: String?): List<LorebookRow>
+
+    @Query("SELECT * FROM lore_entries WHERE bookId = :id AND enabled = 1 ORDER BY position")
+    abstract suspend fun enabledEntries(id: String): List<LoreEntryRow>
 
     @Query("UPDATE lorebooks SET favorite = NOT favorite WHERE id = :id")
     abstract suspend fun toggleFavorite(id: String)

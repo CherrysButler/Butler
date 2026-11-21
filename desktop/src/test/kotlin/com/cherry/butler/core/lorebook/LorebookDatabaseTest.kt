@@ -8,7 +8,13 @@ import com.cherry.butler.core.data.local.ButlerDatabase
 import com.cherry.butler.core.data.local.ChatEntity
 import com.cherry.butler.core.data.local.MessageEntity
 import com.cherry.butler.core.data.remote.dto.ProfileDto
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -17,7 +23,9 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class LorebookDatabaseTest {
@@ -26,6 +34,9 @@ class LorebookDatabaseTest {
     private fun database(): LorebookDatabase =
         Room.databaseBuilder<LorebookDatabase>(folder.root.resolve(LorebookDatabase.NAME).path)
             .setDriver(BundledSQLiteDriver()).build()
+
+    private suspend fun LorebookDao.activeEntries(chatScope: String, personaScope: String?) =
+        activeBooks(chatScope, personaScope).flatMap { enabledEntries(it.id) }
 
     private val first = LoreEntry("Castle", keys = listOf("rain\nfall", "a,b", "\"gate\""), secondaryKeys = listOf("城"), name = "Gate")
     private val second = LoreEntry("Cellar", constant = true)
@@ -51,7 +62,7 @@ class LorebookDatabaseTest {
             val store = LorebookStore(reopened)
             assertEquals(0, store.contextCharLimit.first())
             assertEquals(world.copy(favorite = true), store.book(world.id))
-            assertEquals(listOf(first, second), reopened.lorebooks().activeEntries("chat:1", "persona:default:owner").map { it.row.entry })
+            assertEquals(listOf(first, second), reopened.lorebooks().activeEntries("chat:1", "persona:default:owner").map { it.entry })
             assertTrue(reopened.lorebooks().activeEntries("chat:1", "persona:default:other").isEmpty())
         } finally { reopened.close() }
     }
@@ -94,7 +105,7 @@ class LorebookDatabaseTest {
             assertFalse(summaries.first().selected)
             store.setEnabled("chat:1", world.id, true)
             val dao = db.lorebooks()
-            assertEquals(listOf(first), dao.activeEntries("chat:1", "persona:p").map { it.row.entry })
+            assertEquals(listOf(first), dao.activeEntries("chat:1", "persona:p").map { it.entry })
             store.setEnabled("chat:1", world.id, false)
             val overridden = store.books("chat:1", "persona:p").first().last()
             assertTrue(overridden.inherited)
@@ -156,6 +167,102 @@ class LorebookDatabaseTest {
             assertFalse("lives here" in context())
             store.setContextCharLimit(0)
             assertContains(context(), "Alice lives here.")
+        } finally { db.close() }
+    }
+
+    @Test fun `active books share patterns across sends and edit or release only their own entries`() = runBlocking {
+        val db = database()
+        try {
+            val store = LorebookStore(db)
+            val ready = CompletableDeferred<Unit>()
+            val screen = launch {
+                store.keepChatOpen(1, flow {
+                    emit("persona:p")
+                    ready.complete(Unit)
+                    awaitCancellation()
+                })
+            }
+            ready.await()
+            val weather = LoreEntry("Weather", keys = listOf("rain"), wholeWords = true)
+            val pedestrian = weather.copy(content = "Umbrella")
+            val fighter = weather.copy(content = "Fighter", keys = listOf("Rain"), caseSensitive = true)
+            val weatherBook = world.copy(entries = listOf(weather))
+            val street = world.copy(id = "street", entries = listOf(pedestrian, fighter))
+            store.save(weatherBook, true, "persona:p")
+            store.save(street, true, "chat:1")
+            suspend fun snapshot(chat: Long = 1, persona: String = "persona:p") = store.withSelection(chat, persona) { it }
+            fun LorebookSelection.pattern(content: String, key: String) =
+                candidates.single { it.entry.content == content }.patterns.getValue(key)
+
+            val original = snapshot()
+            val rain = original.pattern("Weather", "rain")
+            val properName = original.pattern("Fighter", "Rain")
+            assertSame(rain, original.pattern("Umbrella", "rain"))
+            assertSame(original, snapshot())
+            assertNotSame(rain, snapshot(2).pattern("Weather", "rain"))
+            assertSame(rain, snapshot(persona = "persona:other").pattern("Umbrella", "rain"))
+
+            store.setEnabled("chat:1", weatherBook.id, true)
+            store.clearPersona("p") // Direct binding keeps Weather active.
+            assertSame(rain, snapshot().pattern("Weather", "rain"))
+            store.setEnabled("chat:1", weatherBook.id, false)
+            assertEquals(listOf("Umbrella", "Fighter"), snapshot().candidates.map { it.entry.content })
+            assertSame(rain, snapshot().pattern("Umbrella", "rain"))
+            store.save(street.copy(entries = listOf(fighter, pedestrian.copy(content = "Coat"))), false, null)
+            assertSame(rain, snapshot().pattern("Coat", "rain"))
+            assertSame(properName, snapshot().pattern("Fighter", "Rain"))
+            store.save(street.copy(entries = listOf(fighter, pedestrian.copy(enabled = false))), false, null)
+            store.setEnabled("chat:1", weatherBook.id, true)
+            assertNotSame(rain, snapshot().pattern("Weather", "rain"))
+            assertSame(properName, snapshot().pattern("Fighter", "Rain"))
+            store.delete(weatherBook.id)
+            assertEquals(listOf("Fighter"), snapshot().candidates.map { it.entry.content })
+
+            screen.cancelAndJoin()
+            assertNotSame(properName, snapshot().pattern("Fighter", "Rain"))
+        } finally { db.close() }
+    }
+
+    @Test fun `a running match keeps its snapshot through a persona switch and deletion`() = runBlocking {
+        val db = database()
+        try {
+            val store = LorebookStore(db)
+            val rain = LoreEntry("Drizzle", keys = listOf("rain"), wholeWords = true)
+            store.save(world.copy(entries = listOf(rain)), true, "persona:p")
+            val switch = CompletableDeferred<Unit>()
+            val opened = CompletableDeferred<Unit>()
+            val switched = CompletableDeferred<Unit>()
+            val screen = launch {
+                store.keepChatOpen(1, flow {
+                    emit("persona:p")
+                    opened.complete(Unit)
+                    switch.await()
+                    emit("persona:q")
+                    switched.complete(Unit)
+                    awaitCancellation()
+                })
+            }
+            opened.await()
+            val started = CompletableDeferred<Unit>()
+            val resume = CompletableDeferred<Unit>()
+            val send = async {
+                store.withSelection(1, "persona:p") { selection ->
+                    started.complete(Unit)
+                    resume.await()
+                    LorebookMatcher.context(selection, listOf("rain"), 100)
+                }
+            }
+            started.await()
+            switch.complete(Unit)
+            switched.await()
+            assertTrue(store.withSelection(1, "persona:q") { it.candidates.isEmpty() })
+            store.setPersonaBooks("q", setOf(world.id))
+            assertEquals("Drizzle", store.withSelection(1, "persona:q") { LorebookMatcher.context(it, listOf("rain"), 100) })
+            screen.cancelAndJoin()
+            store.delete(world.id)
+            assertTrue(store.withSelection(1, "persona:p") { it.candidates.isEmpty() })
+            resume.complete(Unit)
+            assertEquals("Drizzle", send.await())
         } finally { db.close() }
     }
 
