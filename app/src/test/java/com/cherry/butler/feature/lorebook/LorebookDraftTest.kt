@@ -58,6 +58,19 @@ class LorebookDraftTest {
         assertEquals(imported.copy(name = "Edited import"), saved)
     }
 
+    @Test fun `import and save accept exactly the entry limit and reject one more`() {
+        fun importBook(count: Int): Lorebook {
+            val json = (1..count).joinToString(prefix = "[", postfix = "]") { """{"content":"Fact"}""" }
+            return LorebookJson.parse(json, fallbackName = "World")
+        }
+
+        val draft = LorebookDraft.fromImport(importBook(Lorebook.MAX_ENTRIES))
+        assertEquals(Lorebook.MAX_ENTRIES, draft.toBook().entries.size)
+        assertFailsWith<IllegalArgumentException> { importBook(Lorebook.MAX_ENTRIES + 1) }
+        val extra = EditableLoreEntry(entry = entry)
+        assertFailsWith<IllegalArgumentException> { draft.copy(entries = draft.entries + extra).toBook() }
+    }
+
     @Test fun `unnamed pasted lorebook requires a name before saving`() {
         val imported = LorebookJson.parse("""[{"content":"Janitor fact","key":["castle"]}]""")
         val draft = LorebookDraft.fromImport(imported)

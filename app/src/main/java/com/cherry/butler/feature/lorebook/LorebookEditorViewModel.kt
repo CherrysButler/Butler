@@ -5,6 +5,7 @@ import com.cherry.butler.core.data.EditableLoreEntry
 import com.cherry.butler.core.data.LorebookDraft
 import com.cherry.butler.core.data.LorebookDraftRepository
 import com.cherry.butler.core.lorebook.LoreEntry
+import com.cherry.butler.core.lorebook.Lorebook
 import com.cherry.butler.core.lorebook.LorebookStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -57,7 +58,10 @@ class LorebookEditorViewModel @Inject constructor(
 
     fun editEntry(id: String? = null) {
         val draft = _editor.value ?: return
-        if (id == null && draft.entries.size >= 5000) { _error.value = "A lorebook can contain up to 5000 entries."; return }
+        if (id == null && draft.entries.size >= Lorebook.MAX_ENTRIES) {
+            _error.value = "A lorebook can contain up to ${Lorebook.MAX_ENTRIES} entries."
+            return
+        }
         val value = if (id == null) LoreEntry(content = "") else draft.entries.firstOrNull { it.id == id }?.entry ?: return
         _entry.value = LoreEntrySession(id, LoreEntryForm(value))
         _error.value = null
@@ -82,7 +86,10 @@ class LorebookEditorViewModel @Inject constructor(
     }
 
     fun duplicateEntry(id: String) {
-        if ((_editor.value?.entries?.size ?: 0) >= 5000) { _error.value = "A lorebook can contain up to 5000 entries."; return }
+        if ((_editor.value?.entries?.size ?: 0) >= Lorebook.MAX_ENTRIES) {
+            _error.value = "A lorebook can contain up to ${Lorebook.MAX_ENTRIES} entries."
+            return
+        }
         updateEditor { draft ->
             val index = draft.entries.indexOfFirst { it.id == id }
             if (index < 0) draft else draft.copy(entries = draft.entries.toMutableList().apply {

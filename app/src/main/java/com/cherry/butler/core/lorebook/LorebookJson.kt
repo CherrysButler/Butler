@@ -85,7 +85,7 @@ internal fun parseLorebookEntries(
     entries: List<JsonElement>,
     parseEntry: (JsonObject, String) -> LoreEntry,
 ): List<LoreEntry> {
-    require(entries.size in 1..5000) { "A lorebook must contain 1 to 5000 entries." }
+    require(entries.size in 1..Lorebook.MAX_ENTRIES) { "A lorebook must contain 1 to ${Lorebook.MAX_ENTRIES} entries." }
     val parsed = entries.mapIndexed { index, value ->
         val label = "Entry ${index + 1}"
         val entry = value as? JsonObject ?: throw IllegalArgumentException("$label must be an object.")

@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cherry.butler.core.design.ButlerTheme
+import com.cherry.butler.core.lorebook.Lorebook
 import com.cherry.butler.core.lorebook.LorebookJson
 import com.cherry.butler.core.lorebook.LorebookMatcher
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
@@ -187,7 +188,7 @@ fun LorebookEditorScreen(
                             )
                             Text("Entries (${book.entries.size})", style = MaterialTheme.typography.titleMedium)
                             Text("Edit entries below, then save the lorebook to apply your changes.", style = MaterialTheme.typography.bodySmall)
-                            FilledTonalButton(enabled = !busy && book.entries.size < 5000, onClick = { viewModel.editEntry() }) {
+                            FilledTonalButton(enabled = !busy && book.entries.size < Lorebook.MAX_ENTRIES, onClick = { viewModel.editEntry() }) {
                                 Icon(Icons.Outlined.Add, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Add entry")
@@ -219,7 +220,7 @@ fun LorebookEditorScreen(
                                         IconButton(enabled = !busy, onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Entry ${index + 1} actions") }
                                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                             DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; viewModel.editEntry(row.id) })
-                                            DropdownMenuItem(text = { Text("Duplicate") }, enabled = book.entries.size < 5000, onClick = { menu = false; viewModel.duplicateEntry(row.id) })
+                                            DropdownMenuItem(text = { Text("Duplicate") }, enabled = book.entries.size < Lorebook.MAX_ENTRIES, onClick = { menu = false; viewModel.duplicateEntry(row.id) })
                                             DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; deleting = row.id })
                                         }
                                     }

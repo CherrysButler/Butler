@@ -22,7 +22,7 @@ data class LorebookDraft(
         require(name.trim().length <= 200) { "Use at most 200 characters for the name." }
         val depth = scanDepth.toIntOrNull()
         require(depth != null && depth in 0..100) { "Scan depth must be between 0 and 100 messages." }
-        require(entries.isNotEmpty() && entries.size <= 5000) { "Add 1 to 5000 entries." }
+        require(entries.size in 1..Lorebook.MAX_ENTRIES) { "Add 1 to ${Lorebook.MAX_ENTRIES} entries." }
         require(entries.any { it.entry.content.isNotBlank() }) { "Add text content to at least one entry." }
         return Lorebook(id, name.trim(), entries.map { it.entry }, original?.favorite ?: false, depth)
     }

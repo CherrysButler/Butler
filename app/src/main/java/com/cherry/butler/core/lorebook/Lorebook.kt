@@ -10,7 +10,11 @@ data class Lorebook(
     val entries: List<LoreEntry>,
     val favorite: Boolean = false,
     val scanDepth: Int = 4,
-)
+) {
+    companion object {
+        const val MAX_ENTRIES = 5_000
+    }
+}
 
 @Serializable
 data class LoreEntry(
