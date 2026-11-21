@@ -20,8 +20,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,15 +103,11 @@ fun LorebooksLibraryScreen(
                     headlineContent = { Text(book.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     supportingContent = { Text("${book.entryCount} entries") },
                     leadingContent = {
-                        IconButton(onClick = {
-                            viewModel.toggleFavorite(book.id)
-                        }) {
-                            Icon(
-                                if (book.favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                contentDescription = if (book.favorite) "Remove ${book.name} from favorites" else "Favorite ${book.name}",
-                                tint = if (book.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        LorebookFavoriteButton(
+                            isFavorite = book.favorite,
+                            bookName = book.name,
+                            onClick = { viewModel.toggleFavorite(book.id) },
+                        )
                     },
                 )
             }
