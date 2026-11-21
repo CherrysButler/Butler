@@ -63,7 +63,7 @@ class JanitorLorebookImportTest {
         assertEquals(2, renata.scanDepth)
         assertEquals(75, renata.probability)
         assertTrue(renata.selective)
-        assertEquals(3, renata.selectiveLogic)
+        assertEquals(SecondaryKeywordRule.MatchAll, renata.selectiveLogic)
         assertEquals("Marcus is the band's drummer.", LorebookMatcher.context(listOf(book), listOf("MARCUS")))
         assertEquals("", LorebookMatcher.context(listOf(book), listOf("Marcusville")))
         assertEquals("", LorebookMatcher.context(listOf(book), listOf("renata manager")) { 0 })

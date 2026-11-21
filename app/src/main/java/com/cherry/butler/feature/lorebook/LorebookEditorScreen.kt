@@ -63,6 +63,7 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.lorebook.Lorebook
 import com.cherry.butler.core.lorebook.LorebookJson
 import com.cherry.butler.core.lorebook.LorebookMatcher
+import com.cherry.butler.core.lorebook.SecondaryKeywordRule
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
 import com.cherry.butler.feature.chats.KeyButton
 import com.cherry.butler.feature.settings.DropItem
@@ -285,9 +286,14 @@ private fun EntryFields(form: LoreEntryForm, charLimit: Int, update: ((LoreEntry
         if (form.value.selective) {
             OutlinedTextField(value = form.secondaryKeys, onValueChange = { text -> update { it.copy(secondaryKeys = text) } },
                 label = { Text("Secondary keywords") }, supportingText = { Text("One keyword or phrase per line.") }, minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth())
-            val conditions = listOf("Match any secondary keyword", "Not all secondary keywords", "Match no secondary keywords", "Match all secondary keywords")
-            DropRow(title = "Secondary condition", value = conditions.getOrNull(form.value.selectiveLogic) ?: conditions[0]) { close ->
-                conditions.forEachIndexed { index, title -> DropItem(title, selected = index == form.value.selectiveLogic, onClick = { close(); update { it.copy(value = it.value.copy(selectiveLogic = index)) } }) }
+            val selectedRule = form.value.selectiveLogic
+            DropRow(title = "Secondary condition", value = selectedRule.label) { close ->
+                SecondaryKeywordRule.entries.forEach { rule ->
+                    DropItem(rule.label, selected = rule == selectedRule, onClick = {
+                        close()
+                        update { it.copy(value = it.value.copy(selectiveLogic = rule)) }
+                    })
+                }
             }
         }
         EditorSwitch("Case sensitive", "Match uppercase and lowercase exactly.", form.value.caseSensitive) { on -> update { it.copy(value = it.value.copy(caseSensitive = on)) } }
@@ -298,6 +304,14 @@ private fun EntryFields(form: LoreEntryForm, charLimit: Int, update: ((LoreEntry
         Spacer(Modifier.height(32.dp))
     }
 }
+
+private val SecondaryKeywordRule.label: String
+    get() = when (this) {
+        SecondaryKeywordRule.MatchAny -> "Match any secondary keyword"
+        SecondaryKeywordRule.NotAll -> "Not all secondary keywords"
+        SecondaryKeywordRule.MatchNone -> "Match no secondary keywords"
+        SecondaryKeywordRule.MatchAll -> "Match all secondary keywords"
+    }
 
 @Composable
 private fun NumberField(label: String, value: String, hint: String, enabled: Boolean = true, onChange: (String) -> Unit) {

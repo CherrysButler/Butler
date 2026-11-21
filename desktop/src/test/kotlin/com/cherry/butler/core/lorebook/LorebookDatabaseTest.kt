@@ -56,6 +56,29 @@ class LorebookDatabaseTest {
         } finally { reopened.close() }
     }
 
+    @Test fun `Room stores secondary keyword rules as the original integer codes`() = runBlocking {
+        val db = database()
+        try {
+            val store = LorebookStore(db)
+            val rules = listOf(SecondaryKeywordRule.MatchAny, SecondaryKeywordRule.NotAll, SecondaryKeywordRule.MatchNone, SecondaryKeywordRule.MatchAll)
+            store.save(world.copy(entries = rules.map { first.copy(selectiveLogic = it) }), true, null)
+            db.useWriterConnection { conn ->
+                conn.usePrepared("SELECT selectiveLogic, typeof(selectiveLogic) FROM lore_entries ORDER BY position") { row ->
+                    val codes = buildList {
+                        while (row.step()) {
+                            assertEquals("integer", row.getText(1))
+                            add(row.getLong(0))
+                        }
+                    }
+                    assertEquals(listOf(0L, 1L, 2L, 3L), codes)
+                }
+            }
+            assertEquals(rules, store.book(world.id)?.entries?.map { it.selectiveLogic })
+        } finally {
+            db.close()
+        }
+    }
+
     @Test fun `list and generation never decode entries from unselected books`() = runBlocking {
         val db = database()
         try {

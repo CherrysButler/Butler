@@ -23,7 +23,7 @@ internal object JanitorLorebookImporter {
             constant = entry.bool("constant") ?: false,
             enabled = entry.bool("enabled") != false && standard,
             selective = secondaryKeys.isNotEmpty(),
-            selectiveLogic = entry.int("selectiveLogic") ?: 0,
+            selectiveLogic = SecondaryKeywordRuleMapper.fromCode(entry.int("selectiveLogic")),
             caseSensitive = entry.bool("case_sensitive") ?: false,
             wholeWords = entry.bool("matchWholeWords") ?: false,
             order = entry.int("insertion_order") ?: 100,

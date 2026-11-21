@@ -1,6 +1,7 @@
 package com.cherry.butler.core.lorebook
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -48,7 +49,7 @@ class LorebookTest {
                 keys = listOf("gate", "ключ"),
                 secondaryKeys = listOf("locked"),
                 selective = true,
-                selectiveLogic = 2,
+                selectiveLogic = SecondaryKeywordRule.MatchNone,
                 caseSensitive = true,
                 wholeWords = true,
                 order = 250,
@@ -88,18 +89,45 @@ class LorebookTest {
         assertEquals("Fact", LorebookMatcher.context(listOf(book(e)), listOf("Вот кот!")))
     }
 
-    @Test fun `all four secondary keyword conditions match SillyTavern values`() {
+    @Test fun `secondary keyword rules keep their numeric JSON codes`() {
+        val localJson = Json { encodeDefaults = true }
+        fun exportedCode(value: LoreEntry): JsonPrimitive {
+            val json = Json.parseToJsonElement(LorebookJson.export(book(value)))
+            val exportedEntry = json.jsonObject.getValue("entries").jsonObject.getValue("0").jsonObject
+            return exportedEntry.getValue("selectiveLogic").jsonPrimitive
+        }
+        for ((code, rule) in listOf(
+            0 to SecondaryKeywordRule.MatchAny, 1 to SecondaryKeywordRule.NotAll,
+            2 to SecondaryKeywordRule.MatchNone, 3 to SecondaryKeywordRule.MatchAll,
+        )) {
+            val imported = LorebookJson.parse("""{"entries":[{"content":"Fact","extensions":{"selectiveLogic":$code}}]}""")
+            val entry = LoreEntry("Fact", selectiveLogic = rule)
+            assertEquals(entry, imported.entries.single())
+            assertEquals(JsonPrimitive(code), exportedCode(entry))
+            val legacy = """{"content":"Fact","selectiveLogic":$code}"""
+            assertEquals(entry, localJson.decodeFromString(LoreEntry.serializer(), legacy))
+            val encoded = localJson.encodeToJsonElement(LoreEntry.serializer(), entry)
+            assertEquals(JsonPrimitive(code), encoded.jsonObject.getValue("selectiveLogic"))
+        }
+
+        val unknown = LorebookJson.parse("""[{"content":"Fact","selectiveLogic":42}]""").entries.single()
+        assertEquals(SecondaryKeywordRule.MatchAny, unknown.selectiveLogic)
+        assertEquals(JsonPrimitive(0), exportedCode(unknown))
+    }
+
+    @Test fun `all four secondary keyword conditions match their named rules`() {
         val e = LoreEntry("Fact", keys = listOf("door"), secondaryKeys = listOf("red", "key"), selective = true)
-        fun matches(logic: Int, text: String) = LorebookMatcher.context(listOf(book(e.copy(selectiveLogic = logic))), listOf(text)).isNotEmpty()
-        assertTrue(matches(0, "door red"))
-        assertFalse(matches(0, "door"))
-        assertTrue(matches(1, "door red"))
-        assertFalse(matches(1, "door red key"))
-        assertTrue(matches(2, "door"))
-        assertFalse(matches(2, "door red"))
-        assertTrue(matches(3, "door red key"))
-        assertFalse(matches(3, "door red"))
-        assertFalse(matches(2, "unrelated"))
+        fun matches(rule: SecondaryKeywordRule, text: String) =
+            LorebookMatcher.context(listOf(book(e.copy(selectiveLogic = rule))), listOf(text)).isNotEmpty()
+        assertTrue(matches(SecondaryKeywordRule.MatchAny, "door red"))
+        assertFalse(matches(SecondaryKeywordRule.MatchAny, "door"))
+        assertTrue(matches(SecondaryKeywordRule.NotAll, "door red"))
+        assertFalse(matches(SecondaryKeywordRule.NotAll, "door red key"))
+        assertTrue(matches(SecondaryKeywordRule.MatchNone, "door"))
+        assertFalse(matches(SecondaryKeywordRule.MatchNone, "door red"))
+        assertTrue(matches(SecondaryKeywordRule.MatchAll, "door red key"))
+        assertFalse(matches(SecondaryKeywordRule.MatchAll, "door red"))
+        assertFalse(matches(SecondaryKeywordRule.MatchNone, "unrelated"))
     }
 
     @Test fun `probability and disabled flags apply to constants too`() {

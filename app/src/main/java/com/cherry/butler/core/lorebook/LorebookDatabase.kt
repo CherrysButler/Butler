@@ -49,7 +49,7 @@ data class ActiveLoreEntry(@Embedded(prefix = "book_") val book: LorebookRow, @E
 
 /** Device library shared across accounts. Signing out clears the separate chat database. */
 @Database(entities = [LorebookRow::class, LoreEntryRow::class, LoreBindingRow::class, LoreSettingsRow::class], version = 1)
-@TypeConverters(LoreKeywordConverter::class)
+@TypeConverters(LoreKeywordConverter::class, SecondaryKeywordRuleMapper::class)
 abstract class LorebookDatabase : RoomDatabase() {
     abstract fun lorebooks(): LorebookDao
 

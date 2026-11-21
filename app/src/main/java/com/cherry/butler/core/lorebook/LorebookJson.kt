@@ -59,7 +59,7 @@ object LorebookJson {
                         put("constant", entry.constant)
                         put("disable", !entry.enabled)
                         put("selective", entry.selective)
-                        put("selectiveLogic", entry.selectiveLogic)
+                        put("selectiveLogic", SecondaryKeywordRuleMapper.toCode(entry.selectiveLogic))
                         put("order", entry.order)
                         put("position", 0)
                         put("caseSensitive", entry.caseSensitive)

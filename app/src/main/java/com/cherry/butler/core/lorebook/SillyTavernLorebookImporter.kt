@@ -33,7 +33,7 @@ internal object SillyTavernLorebookImporter {
             constant = entry.bool("constant") ?: false,
             enabled = entry.bool("enabled") != false && entry.bool("disable") != true,
             selective = entry.bool("selective") ?: secondaryKeys.isNotEmpty(),
-            selectiveLogic = entry.int("selectiveLogic") ?: extensions?.int("selectiveLogic") ?: 0,
+            selectiveLogic = SecondaryKeywordRuleMapper.fromCode(entry.int("selectiveLogic") ?: extensions?.int("selectiveLogic")),
             caseSensitive = entry.bool("caseSensitive") ?: entry.bool("case_sensitive") ?: extensions?.bool("case_sensitive") ?: false,
             wholeWords = entry.bool("matchWholeWords") ?: extensions?.bool("match_whole_words") ?: false,
             order = entry.int("order") ?: entry.int("insertion_order") ?: 100,

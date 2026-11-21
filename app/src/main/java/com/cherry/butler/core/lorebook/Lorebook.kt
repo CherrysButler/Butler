@@ -24,7 +24,8 @@ data class LoreEntry(
     val constant: Boolean = false,
     val enabled: Boolean = true,
     val selective: Boolean = false,
-    val selectiveLogic: Int = 0,
+    @Serializable(with = SecondaryKeywordRuleMapper::class)
+    val selectiveLogic: SecondaryKeywordRule = SecondaryKeywordRule.MatchAny,
     val caseSensitive: Boolean = false,
     val wholeWords: Boolean = false,
     val order: Int = 100,
@@ -115,10 +116,10 @@ object LorebookMatcher {
         if (entry.keys.none { matches(text, it, entry) }) return false
         if (!entry.selective || entry.secondaryKeys.isEmpty()) return true
         return when (entry.selectiveLogic) {
-            1 -> !entry.secondaryKeys.all { matches(text, it, entry) }
-            2 -> entry.secondaryKeys.none { matches(text, it, entry) }
-            3 -> entry.secondaryKeys.all { matches(text, it, entry) }
-            else -> entry.secondaryKeys.any { matches(text, it, entry) }
+            SecondaryKeywordRule.MatchAny -> entry.secondaryKeys.any { matches(text, it, entry) }
+            SecondaryKeywordRule.NotAll -> !entry.secondaryKeys.all { matches(text, it, entry) }
+            SecondaryKeywordRule.MatchNone -> entry.secondaryKeys.none { matches(text, it, entry) }
+            SecondaryKeywordRule.MatchAll -> entry.secondaryKeys.all { matches(text, it, entry) }
         }
     }
 

@@ -79,17 +79,17 @@ class LorebookRecursionTest {
             ))
             assertEquals(text + if (expected) "\n\nFact" else "", LorebookMatcher.context(books, emptyList()), text)
         }
-        for ((logic, text, expected) in listOf(
-            Triple(0, "door red", true), Triple(0, "door", false),
-            Triple(1, "door red", true), Triple(1, "door red key", false),
-            Triple(2, "door", true), Triple(2, "door red", false),
-            Triple(3, "door red key", true), Triple(3, "door red", false),
+        for ((rule, text, expected) in listOf(
+            Triple(SecondaryKeywordRule.MatchAny, "door red", true), Triple(SecondaryKeywordRule.MatchAny, "door", false),
+            Triple(SecondaryKeywordRule.NotAll, "door red", true), Triple(SecondaryKeywordRule.NotAll, "door red key", false),
+            Triple(SecondaryKeywordRule.MatchNone, "door", true), Triple(SecondaryKeywordRule.MatchNone, "door red", false),
+            Triple(SecondaryKeywordRule.MatchAll, "door red key", true), Triple(SecondaryKeywordRule.MatchAll, "door red", false),
         )) {
             val books = listOf(book(
                 LoreEntry(text, constant = true),
-                LoreEntry("Fact", keys = listOf("door"), secondaryKeys = listOf("red", "key"), selective = true, selectiveLogic = logic),
+                LoreEntry("Fact", keys = listOf("door"), secondaryKeys = listOf("red", "key"), selective = true, selectiveLogic = rule),
             ))
-            assertEquals(text + if (expected) "\n\nFact" else "", LorebookMatcher.context(books, emptyList()), "logic=$logic text=$text")
+            assertEquals(text + if (expected) "\n\nFact" else "", LorebookMatcher.context(books, emptyList()), "rule=$rule text=$text")
         }
     }
 
