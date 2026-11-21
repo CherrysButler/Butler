@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.lorebook.LorebookJson
+import com.cherry.butler.core.lorebook.LorebookMatcher
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
 import com.cherry.butler.feature.chats.KeyButton
 import com.cherry.butler.feature.settings.DropItem
@@ -49,7 +50,7 @@ fun LorebookEditorScreen(
     val session by viewModel.entry.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    val library by viewModel.library.collectAsStateWithLifecycle()
+    val limit by viewModel.contextCharLimit.collectAsStateWithLifecycle(initialValue = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT)
     var discard by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDeleteBook by remember { mutableStateOf(false) }
@@ -134,7 +135,7 @@ fun LorebookEditorScreen(
         ) { padding ->
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (session != null) {
-                    item { EntryFields(session!!.form, library.contextCharLimit, viewModel::updateEntry) }
+                    item { EntryFields(session!!.form, limit, viewModel::updateEntry) }
                 } else {
                     item {
                         Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

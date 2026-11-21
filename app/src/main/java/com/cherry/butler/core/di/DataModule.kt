@@ -5,6 +5,7 @@ import com.cherry.butler.core.auth.SessionKeeper
 import android.content.Context
 import androidx.room.Room
 import com.cherry.butler.core.data.local.ButlerDatabase
+import com.cherry.butler.core.lorebook.LorebookDatabase
 import com.cherry.butler.core.network.ApiCall
 import com.cherry.butler.core.network.AuthInterceptor
 import com.cherry.butler.core.network.ButlerUserAgent
@@ -75,5 +76,11 @@ object DataModule {
         // No destructive fallback: from schema v2 the database holds the outbox, which is
         // user-authored text. Every version bump ships a migration (see ButlerDatabase).
         Room.databaseBuilder(context, ButlerDatabase::class.java, ButlerDatabase.NAME)
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideLorebookDatabase(@ApplicationContext context: Context): LorebookDatabase =
+        Room.databaseBuilder(context, LorebookDatabase::class.java, LorebookDatabase.NAME)
             .build()
 }

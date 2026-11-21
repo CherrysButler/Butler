@@ -29,34 +29,11 @@ data class LoreEntry(
     val name: String = "",
 )
 
-/** One library on the device. Favorites never imply activation. */
-@Serializable
-data class LorebookLibrary(
-    val books: List<Lorebook> = emptyList(),
-    val bindings: Map<String, Set<String>> = emptyMap(),
-    val excluded: Map<String, Set<String>> = emptyMap(),
-    val contextCharLimit: Int = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT,
-) {
-    fun enabled(scope: String, personaScope: String? = null): Set<String> =
-        (bindings[scope].orEmpty() + bindings[personaScope].orEmpty()) - excluded[scope].orEmpty()
-
-    fun toggle(scope: String, id: String, on: Boolean): LorebookLibrary = copy(
-        bindings = bindings + (scope to if (on) bindings[scope].orEmpty() + id else bindings[scope].orEmpty() - id),
-        excluded = excluded + (scope to if (on) excluded[scope].orEmpty() - id else excluded[scope].orEmpty() + id),
-    )
-
-    fun delete(id: String): LorebookLibrary = copy(
-        books = books.filterNot { it.id == id },
-        bindings = bindings.mapValues { (_, ids) -> ids - id },
-        excluded = excluded.mapValues { (_, ids) -> ids - id },
-    )
-
-    companion object {
-        fun chat(id: Long) = "chat:$id"
-        fun persona(id: String) = "persona:$id"
-        fun persona(id: String?, defaultOwnerId: String?): String? =
-            id?.let(::persona) ?: defaultOwnerId?.takeIf { it.isNotBlank() }?.let { "persona:default:$it" }
-    }
+object LorebookScope {
+    fun chat(id: Long) = "chat:$id"
+    fun persona(id: String) = "persona:$id"
+    fun persona(id: String?, defaultOwnerId: String?): String? =
+        id?.let(::persona) ?: defaultOwnerId?.takeIf { it.isNotBlank() }?.let { "persona:default:$it" }
 }
 
 object LorebookMatcher {

@@ -57,8 +57,9 @@ Info from `LorebookStore` using the scene history. `GenerationEnvelope` adds the
 lore to a request-only copy of the latest user line (or a transient line before any draft
 if the character has spoken first and the player has yet to reply). The resulting envelope
 feeds both transports, including HTTP server-stream fallbacks.
-`LorebookStore` keeps the device library, favorites, persona bindings and chat overrides
-in device preferences. The library opens without making a profile request.
+`LorebookStore` uses a separate Room database, `lorebooks.db`, shared across accounts on the
+device. Library and picker queries read book metadata and entry counts. The editor loads one
+book, and generation loads only books enabled for the chat and the active persona.
 
 ## The outbox, which is why this exists
 

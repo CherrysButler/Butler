@@ -297,6 +297,7 @@ dependencies {
     implementation(libs.room.paging.desktop)
     implementation(libs.sqlite.bundled)
     ksp(libs.room.compiler.desktop)
+    testImplementation(libs.kotlin.test.junit)
     implementation(libs.paging.common)
 
     implementation(libs.coil3.compose)

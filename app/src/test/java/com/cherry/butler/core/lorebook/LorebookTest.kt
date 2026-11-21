@@ -119,7 +119,7 @@ class LorebookTest {
     }
 
     @Test fun `default budget is 24000 and includes entries exactly at the limit`() {
-        assertEquals(24_000, LorebookLibrary().contextCharLimit)
+        assertEquals(24_000, LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT)
         val exact = "x".repeat(24_000)
         assertEquals(exact, LorebookMatcher.context(listOf(book(LoreEntry(exact, constant = true))), emptyList()))
         assertEquals("", LorebookMatcher.context(listOf(book(LoreEntry(exact + "x", constant = true))), emptyList()))
@@ -134,38 +134,5 @@ class LorebookTest {
         val unlimited = books + book(LoreEntry(huge, constant = true, order = 3), LoreEntry("disabled", constant = true, enabled = false))
         assertEquals("aaaa\n\nbbbb\n\n$huge", LorebookMatcher.context(unlimited, emptyList(), charLimit = 0))
         assertFailsWith<IllegalArgumentException> { LorebookMatcher.context(books, emptyList(), charLimit = -1) }
-    }
-
-    @Test fun `old libraries adopt new default and custom and unlimited settings survive persistence`() {
-        assertEquals(24_000, Json.decodeFromString(LorebookLibrary.serializer(), "{}").contextCharLimit)
-        for (limit in listOf(0, 12345, 24000)) {
-            val library = LorebookLibrary(books = listOf(book(LoreEntry("Fact", constant = true))), contextCharLimit = limit)
-                .toggle("persona:p", "book", true)
-            val stored = Json.encodeToString(LorebookLibrary.serializer(), library)
-            val restored = Json.decodeFromString(LorebookLibrary.serializer(), stored)
-            assertEquals(library, restored)
-            assertEquals(limit, restored.delete("book").contextCharLimit)
-        }
-    }
-
-    @Test fun `persona and chat selections union once with explicit chat opt out`() {
-        val scope = LorebookLibrary.chat(1)
-        val persona = LorebookLibrary.persona("p")
-        val lib = LorebookLibrary(books = listOf(book(LoreEntry("x"))), bindings = mapOf(scope to setOf("book"), persona to setOf("book", "other")))
-        assertEquals(setOf("book", "other"), lib.enabled(scope, persona))
-        val disabled = lib.toggle(scope, "other", false)
-        assertEquals(setOf("book"), disabled.enabled(scope, persona))
-        assertEquals(setOf("book", "other"), disabled.enabled(LorebookLibrary.chat(2), persona))
-        assertEquals(setOf("book", "other"), disabled.toggle(scope, "other", true).enabled(scope, persona))
-        assertTrue(lib.delete("book").bindings.values.none { "book" in it })
-        assertTrue(disabled.delete("other").excluded.values.none { "other" in it })
-    }
-
-    @Test fun `local library round trip preserves favorites selections and exclusions`() {
-        val lib = LorebookLibrary(books = listOf(book(LoreEntry("Fact", constant = true)).copy(favorite = true)))
-            .toggle("persona:p", "book", true).toggle("chat:1", "book", false)
-        val encoded = Json.encodeToString(LorebookLibrary.serializer(), lib)
-        assertEquals(lib, Json.decodeFromString(LorebookLibrary.serializer(), encoded))
-        assertTrue(lib.enabled("chat:2").isEmpty()) // Favorite is not activation.
     }
 }

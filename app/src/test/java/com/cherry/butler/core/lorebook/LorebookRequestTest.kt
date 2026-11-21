@@ -27,7 +27,6 @@ import kotlin.test.assertTrue
 
 class LorebookRequestTest {
     private val world = Lorebook("world", "World", listOf(LoreEntry("{{user}} owns a castle.", keys = listOf("castle"))))
-    private val library = LorebookLibrary(books = listOf(world), bindings = mapOf("persona:p" to setOf("world")))
     private val user = MessageEntity(
         serverId = 10, chatId = 1, isBot = false, isMain = true, text = "Go to the castle",
         createdAt = 0, rating = null, personaId = "p", generationRequestIds = emptyList(),
@@ -37,12 +36,11 @@ class LorebookRequestTest {
     private val scene = listOf(user, bot)
 
     private fun instruction(
-        lib: LorebookLibrary = library,
+        books: List<Lorebook> = listOf(world),
         history: List<MessageEntity> = scene,
-        persona: String? = "p",
-        owner: String = "owner",
+        limit: Int = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT,
         name: String = "Alice",
-    ) = LorebookRequest.instructionFor(lib, 1, owner, persona, name, history)
+    ) = LorebookRequest.instructionFor(books, limit, name, history)
 
     private fun envelope(
         mode: GenerateMode,
@@ -81,7 +79,7 @@ class LorebookRequestTest {
     @Test
     fun `highlights choices and summary omit lore even when a reply in the same chat activates a constant`() {
         val constant = world.copy(entries = listOf(LoreEntry("Always active", constant = true)))
-        val lore = assertNotNull(instruction(library.copy(books = listOf(constant))))
+        val lore = assertNotNull(instruction(listOf(constant)))
         val reply = envelope(GenerateMode.New, lore = lore)
         assertContains(reply.lines().first(), "Always active")
         assertTrue(reply.refetch("chat"))
@@ -104,8 +102,8 @@ class LorebookRequestTest {
     @Test
     fun `butter guidance and draft keywords are outside the scene scan`() {
         val entries = listOf(LoreEntry("Rain lore", keys = listOf("rain")), LoreEntry("Moon lore", keys = listOf("moon")))
-        val lib = library.copy(books = listOf(world.copy(entries = entries)))
-        val lore = instruction(lib)
+        val books = listOf(world.copy(entries = entries))
+        val lore = instruction(books)
         assertNull(lore)
         val guided = GuidedRetry.apply(scene, "Look at the moon")
         val reply = envelope(GenerateMode.New, PromptAddons.intoHistory(guided, PromptAddons.BUTTER), lore)
@@ -139,46 +137,29 @@ class LorebookRequestTest {
     }
 
     @Test
-    fun `selection respects exclusions chat and default persona ownership`() {
-        val both = library.toggle("chat:1", "world", true)
-        assertEquals(instruction(), instruction(both))
-        assertNull(instruction(both.toggle("chat:1", "world", false)))
-        assertNull(instruction(LorebookLibrary()))
-        assertNull(instruction(library.copy(bindings = emptyMap())))
-
-        val default = library.copy(bindings = mapOf("persona:default:owner" to setOf("world")))
-        assertContains(assertNotNull(instruction(default, persona = null, name = "Default")), "Default owns a castle.")
-        assertNull(instruction(default, persona = null, owner = "another"))
-        assertNotNull(instruction(both, persona = null, owner = ""))
-    }
-
-    @Test
     fun `scan fills the active name and ignores unconfirmed messages`() {
         val book = world.copy(entries = listOf(LoreEntry("Met {{USER}}.", keys = listOf("Alice"))))
-        val lib = library.copy(books = listOf(book))
-        assertNull(instruction(lib, history = scene + user.copy(serverId = null, text = "Alice")))
+        val books = listOf(book)
+        assertNull(instruction(books, history = scene + user.copy(serverId = null, text = "Alice")))
         val greeting = bot.copy(text = "Greetings, {user}.")
-        assertContains(assertNotNull(instruction(lib, history = listOf(greeting))), "Met Alice.")
+        assertContains(assertNotNull(instruction(books, history = listOf(greeting))), "Met Alice.")
         assertEquals("Greetings, {user}.", greeting.text)
     }
 
     @Test
     fun `uses the saved device limit and zero removes the cap`() {
         val large = "x".repeat(30_000)
-        val lib = library.copy(books = listOf(world.copy(entries = listOf(LoreEntry(large, constant = true)))))
-        for (limit in listOf(1, 24_000, 29_999)) assertNull(instruction(lib.copy(contextCharLimit = limit)))
-        for (limit in listOf(0, 30_000)) assertContains(assertNotNull(instruction(lib.copy(contextCharLimit = limit))), large)
+        val books = listOf(world.copy(entries = listOf(LoreEntry(large, constant = true))))
+        for (limit in listOf(1, 24_000, 29_999)) assertNull(instruction(books, limit = limit))
+        for (limit in listOf(0, 30_000)) assertContains(assertNotNull(instruction(books, limit = limit)), large)
     }
 
     @Test
     fun `recursive matching considers only enabled books and the scene`() {
         val first = world.copy(entries = listOf(LoreEntry("bridge", keys = listOf("castle"))))
         val second = Lorebook("second", "Second", listOf(LoreEntry("{{user}} returns.", keys = listOf("bridge"))))
-        val unselected = Lorebook("unselected", "Unselected", listOf(LoreEntry("Forbidden", keys = listOf("bridge"))))
         val metadataOnly = Lorebook("metadata", "Metadata", listOf(LoreEntry("Profile leaked", keys = listOf("Alice"))))
-        val lib = library.copy(books = listOf(first, second, unselected, metadataOnly))
-            .toggle("chat:1", "second", true).toggle("chat:1", "metadata", true)
-        val lore = assertNotNull(instruction(lib))
+        val lore = assertNotNull(instruction(listOf(first, second, metadataOnly)))
         assertEquals("bridge\n\nAlice returns.", lore.substringAfter("<lorebook>\n").substringBefore("\n</lorebook>"))
     }
 }

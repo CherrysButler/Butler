@@ -40,15 +40,21 @@ import javax.inject.Inject
 class LorebooksViewModel @Inject constructor(
     private val store: LorebookStore,
 ) : ViewModel() {
-    val library = store.library
+    val books = store.books()
+    val contextCharLimit = store.contextCharLimit
 
-    fun change(update: (LorebookLibrary) -> LorebookLibrary) {
-        viewModelScope.launch(Dispatchers.IO) { store.update(update) }
+    fun booksFor(scope: String?, personaScope: String?) = store.books(scope, personaScope)
+
+    fun toggleFavorite(id: String) {
+        viewModelScope.launch { store.toggleFavorite(id) }
+    }
+
+    fun setEnabled(scope: String, id: String, enabled: Boolean) {
+        viewModelScope.launch { store.setEnabled(scope, id, enabled) }
     }
 
     fun setContextCharLimit(limit: Int) {
-        require(limit >= 0) { "Lore character limit cannot be negative." }
-        change { it.copy(contextCharLimit = limit) }
+        viewModelScope.launch { store.setContextCharLimit(limit) }
     }
 
     private val _editor = MutableStateFlow<LorebookDraft?>(null)
@@ -61,7 +67,7 @@ class LorebooksViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
-    fun loadEditor(id: String?, takeImportedDraft: (() -> LorebookDraft?)? = null) {
+    suspend fun loadEditor(id: String?, takeImportedDraft: (() -> LorebookDraft?)? = null) {
         if (_editor.value != null) return
         _error.value = null
         if (takeImportedDraft != null) {
@@ -69,12 +75,13 @@ class LorebooksViewModel @Inject constructor(
             if (_editor.value == null) _error.value = "This import draft is unavailable. Go back and import it again."
             return
         }
-        val book = id?.let { bookId -> library.value.books.firstOrNull { it.id == bookId } }
-        if (id != null && book == null) {
-            _error.value = "That lorebook no longer exists."
-            return
-        }
-        _editor.value = LorebookDraft(book)
+        try {
+            _editor.value = withContext(Dispatchers.IO) {
+                val book = id?.let { checkNotNull(store.book(it)) { "That lorebook no longer exists." } }
+                LorebookDraft(book)
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { _error.value = e.message ?: "Couldn't load this lorebook." }
     }
 
     fun closeEditor() { _editor.value = null; _entry.value = null; _error.value = null }
@@ -140,7 +147,7 @@ class LorebooksViewModel @Inject constructor(
         _busy.value = true
         _error.value = null
         return try {
-            withContext(Dispatchers.IO) { store.update { it.delete(draft.id) } }
+            store.delete(draft.id)
             closeEditor()
             true
         } catch (e: CancellationException) {
@@ -159,7 +166,7 @@ class LorebooksViewModel @Inject constructor(
         _busy.value = true
         _error.value = null
         return try {
-            withContext(Dispatchers.IO) { store.update { draft.saveInto(it, enableInScope) } }
+            withContext(Dispatchers.IO) { store.save(draft.toBook(), isNew = draft.original == null, enableInScope = enableInScope) }
             closeEditor()
             draft.id to (draft.original == null)
         } catch (e: CancellationException) { throw e }
@@ -180,15 +187,15 @@ fun LorebooksSheet(
     onSelectionChange: ((Set<String>) -> Unit)? = null,
     viewModel: LorebooksViewModel = hiltViewModel(),
 ) {
-    val library by viewModel.library.collectAsStateWithLifecycle()
-    val inherited = library.bindings[inheritedPersonaScope].orEmpty()
-    val selected = selection ?: scope?.let { library.enabled(it, inheritedPersonaScope) }.orEmpty()
+    val booksFlow = remember(viewModel, scope, inheritedPersonaScope) { viewModel.booksFor(scope, inheritedPersonaScope) }
+    val allBooks by booksFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
-    val books = library.books.filter { !favoritesOnly || it.favorite }
-        .sortedWith(compareByDescending<Lorebook> { it.favorite }.thenBy { it.name.lowercase() })
+    val books = allBooks.filter { !favoritesOnly || it.favorite }
     fun toggle(id: String, on: Boolean) {
-        if (onSelectionChange != null) onSelectionChange(if (on) selected + id else selected - id)
-        else if (scope != null) viewModel.change { it.toggle(scope, id, on) }
+        if (onSelectionChange != null) {
+            val selected = selection.orEmpty()
+            onSelectionChange(if (on) selected + id else selected - id)
+        } else if (scope != null) viewModel.setEnabled(scope, id, on)
     }
 
     ModalBottomSheet(
@@ -228,11 +235,11 @@ fun LorebooksSheet(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         headlineContent = { Text(book.name) },
                         supportingContent = {
-                            Text("${book.entries.size} entries" + if (book.id in inherited) " · From persona" else "")
+                            Text("${book.entryCount} entries" + if (book.inherited) " · From persona" else "")
                         },
                         leadingContent = {
                             IconButton(onClick = {
-                                viewModel.change { lib -> lib.copy(books = lib.books.map { if (it.id == book.id) it.copy(favorite = !it.favorite) else it }) }
+                                viewModel.toggleFavorite(book.id)
                             }) {
                                 Icon(
                                     if (book.favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
@@ -243,7 +250,7 @@ fun LorebooksSheet(
                         },
                         trailingContent = {
                             Switch(
-                                checked = book.id in selected,
+                                checked = selection?.contains(book.id) ?: book.selected,
                                 onCheckedChange = { toggle(book.id, it) },
                                 modifier = Modifier.semantics { contentDescription = "Use ${book.name}" },
                             )

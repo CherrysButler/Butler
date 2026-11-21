@@ -16,18 +16,14 @@ data class LorebookDraft(
     val dirty: Boolean get() = if (original == null) name.isNotEmpty() || scanDepth != "4" || entries.isNotEmpty()
         else name != original.name || scanDepth != original.scanDepth.toString() || entries.map { it.entry } != original.entries
 
-    fun saveInto(library: LorebookLibrary, enableInScope: String? = null): LorebookLibrary {
+    fun toBook(): Lorebook {
         require(name.isNotBlank()) { "Give the lorebook a name." }
         require(name.trim().length <= 200) { "Use at most 200 characters for the name." }
         val depth = scanDepth.toIntOrNull()
         require(depth != null && depth in 0..100) { "Scan depth must be between 0 and 100 messages." }
         require(entries.isNotEmpty() && entries.size <= 5000) { "Add 1 to 5000 entries." }
         require(entries.any { it.entry.content.isNotBlank() }) { "Add text content to at least one entry." }
-        val saved = library.books.firstOrNull { it.id == id }
-        check(original == null || saved != null) { "This lorebook was deleted. Close the editor and create a new one." }
-        val book = Lorebook(id, name.trim(), entries.map { it.entry }, saved?.favorite ?: false, depth)
-        val updated = library.copy(books = if (saved == null) library.books + book else library.books.map { if (it.id == id) book else it })
-        return if (original == null && enableInScope != null) updated.toggle(enableInScope, id, true) else updated
+        return Lorebook(id, name.trim(), entries.map { it.entry }, original?.favorite ?: false, depth)
     }
 
     companion object {

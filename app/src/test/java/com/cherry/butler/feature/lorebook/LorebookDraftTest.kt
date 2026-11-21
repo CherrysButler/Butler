@@ -7,37 +7,29 @@ import kotlin.test.*
 class LorebookDraftTest {
     private val entry = LoreEntry("The castle is red.", keys = listOf("castle"), name = "Castle")
     private val book = Lorebook("world", "World", listOf(entry), favorite = true)
-    private val library = LorebookLibrary(
-        books = listOf(book), bindings = mapOf("persona:p" to setOf("world"), "chat:1" to setOf("world")),
-        excluded = mapOf("chat:2" to setOf("world")),
-    )
 
     @Test fun `editing a draft does not affect generation until Save`() {
         val original = LorebookDraft(book)
         val draft = original.copy(name = "Updated", entries = listOf(EditableLoreEntry(entry = entry.copy(content = "The castle is blue."))))
         assertFalse(original.dirty)
         assertTrue(draft.dirty)
-        assertEquals("The castle is red.", LorebookMatcher.context(library.books, listOf("castle")))
-        val saved = draft.saveInto(library)
-        assertEquals("The castle is blue.", LorebookMatcher.context(saved.books, listOf("castle")))
-        assertEquals("The castle is red.", library.books.single().entries.single().content)
-        assertEquals("world", saved.books.single().id)
-        assertEquals("Updated", saved.books.single().name)
-        assertTrue(saved.books.single().favorite)
-        assertEquals(library.bindings, saved.bindings)
-        assertEquals(library.excluded, saved.excluded)
+        assertEquals("The castle is red.", LorebookMatcher.context(listOf(book), listOf("castle")))
+        val saved = draft.toBook()
+        assertEquals("The castle is blue.", LorebookMatcher.context(listOf(saved), listOf("castle")))
+        assertEquals("The castle is red.", book.entries.single().content)
+        assertEquals("world", saved.id)
+        assertEquals("Updated", saved.name)
+        assertTrue(saved.favorite)
     }
 
     @Test fun `a new draft saves a new independent book`() {
         val blank = LorebookDraft(null)
         assertFalse(blank.dirty)
         val created = blank.copy(name = " My world ", entries = listOf(EditableLoreEntry(entry = entry)))
-        val saved = created.saveInto(library)
-        assertEquals(2, saved.books.size)
-        assertEquals("My world", saved.books.last().name)
-        assertNotEquals("world", saved.books.last().id)
-        assertFalse(saved.books.last().favorite)
-        assertEquals(library.bindings, saved.bindings)
+        val saved = created.toBook()
+        assertEquals("My world", saved.name)
+        assertNotEquals("world", saved.id)
+        assertFalse(saved.favorite)
     }
 
     @Test fun `import opens a dirty new draft and saves the edited version beside existing books`() {
@@ -50,42 +42,25 @@ class LorebookDraftTest {
         assertEquals("World", draft.name)
         assertEquals("8", draft.scanDepth)
         assertEquals(imported.entries, draft.entries.map { it.entry })
-        assertEquals(listOf(book), library.books)
 
-        val saved = draft.copy(name = "Edited import").saveInto(library)
-        assertEquals(listOf(book, imported.copy(name = "Edited import")), saved.books)
-        assertEquals(library.bindings, saved.bindings)
-        assertEquals(library.excluded, saved.excluded)
+        val saved = draft.copy(name = "Edited import").toBook()
+        assertEquals(imported.copy(name = "Edited import"), saved)
     }
 
     @Test fun `unnamed pasted lorebook requires a name before saving`() {
         val imported = LorebookJson.parse("""[{"content":"Janitor fact","key":["castle"]}]""")
         val draft = LorebookDraft.fromImport(imported)
         assertEquals("", draft.name)
-        assertFailsWith<IllegalArgumentException> { draft.saveInto(library) }
-        assertEquals("Castle", draft.copy(name = "Castle").saveInto(library).books.last().name)
-    }
-
-    @Test fun `deleted books cannot be resurrected by an old editor draft`() {
-        assertFailsWith<IllegalStateException> { LorebookDraft(book).saveInto(library.delete("world")) }
-    }
-
-    @Test fun `new book save enables it atomically but editing does not turn a disabled book on`() {
-        val created = LorebookDraft(null).copy(name = "New", entries = listOf(EditableLoreEntry(entry = entry)))
-        val saved = created.saveInto(library, "chat:2")
-        assertEquals(setOf(created.id), saved.enabled("chat:2"))
-        assertEquals(created.id, saved.books.last().id)
-        val edited = LorebookDraft(book).copy(name = "Edited").saveInto(library, "chat:2")
-        assertTrue(edited.enabled("chat:2").isEmpty())
+        assertFailsWith<IllegalArgumentException> { draft.toBook() }
+        assertEquals("Castle", draft.copy(name = "Castle").toBook().name)
     }
 
     @Test fun `invalid draft settings fail without mutating saved books`() {
         val draft = LorebookDraft(book)
         for (invalid in listOf(draft.copy(name = " "), draft.copy(name = "x".repeat(201)), draft.copy(scanDepth = "101"), draft.copy(scanDepth = "-1"), draft.copy(scanDepth = ""), draft.copy(entries = emptyList()))) {
-            assertFailsWith<IllegalArgumentException> { invalid.saveInto(library) }
+            assertFailsWith<IllegalArgumentException> { invalid.toBook() }
         }
-        assertEquals(book, library.books.single())
-        assertEquals(0, draft.copy(scanDepth = "0").saveInto(library).books.single().scanDepth)
+        assertEquals(0, draft.copy(scanDepth = "0").toBook().scanDepth)
     }
 
     @Test fun `entry edits validate activation and preserve numeric settings`() {

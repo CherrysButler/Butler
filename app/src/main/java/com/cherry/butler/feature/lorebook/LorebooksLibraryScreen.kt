@@ -26,7 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
-import com.cherry.butler.core.lorebook.Lorebook
+import com.cherry.butler.core.lorebook.LorebookMatcher
 import com.cherry.butler.core.lorebook.LorebookJson
 import com.cherry.butler.feature.chats.KeyButton
 import com.cherry.butler.feature.settings.NumberRow
@@ -43,9 +43,9 @@ fun LorebooksLibraryScreen(
     onEditImport: () -> Unit,
     viewModel: LorebooksViewModel = hiltViewModel(),
 ) {
-    val library by viewModel.library.collectAsStateWithLifecycle()
+    val books by viewModel.books.collectAsStateWithLifecycle(initialValue = emptyList())
+    val limit by viewModel.contextCharLimit.collectAsStateWithLifecycle(initialValue = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT)
     var importing by rememberSaveable { mutableStateOf(false) }
-    val books = library.books.sortedWith(compareByDescending<Lorebook> { it.favorite }.thenBy { it.name.lowercase() })
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -57,7 +57,7 @@ fun LorebooksLibraryScreen(
                 NumberRow(
                     title = "Lore character limit",
                     subtitle = "0 = unlimited",
-                    value = library.contextCharLimit,
+                    value = limit,
                     onCommit = viewModel::setContextCharLimit,
                     range = 0..Int.MAX_VALUE,
                 )
@@ -82,10 +82,10 @@ fun LorebooksLibraryScreen(
                 ListItem(
                     modifier = Modifier.clickable { onEdit(book.id) },
                     headlineContent = { Text(book.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = { Text("${book.entries.size} entries") },
+                    supportingContent = { Text("${book.entryCount} entries") },
                     leadingContent = {
                         IconButton(onClick = {
-                            viewModel.change { lib -> lib.copy(books = lib.books.map { if (it.id == book.id) it.copy(favorite = !it.favorite) else it }) }
+                            viewModel.toggleFavorite(book.id)
                         }) {
                             Icon(
                                 if (book.favorite) Icons.Filled.Star else Icons.Outlined.StarBorder,

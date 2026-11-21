@@ -44,7 +44,7 @@ import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.PronounSet
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Pill
-import com.cherry.butler.core.lorebook.LorebookLibrary
+import com.cherry.butler.core.lorebook.LorebookScope
 import com.cherry.butler.core.lorebook.LorebookStore
 import com.cherry.butler.core.network.ApiError
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
@@ -55,13 +55,11 @@ import com.cherry.butler.ui.components.Avatar
 import com.cherry.butler.ui.components.SegmentedChoice
 import com.cherry.butler.ui.components.userMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class PersonaForm(
@@ -226,12 +224,7 @@ class PersonaEditorViewModel @Inject constructor(
                     isNew -> {
                         val id = editing.create(draft)
                         val selected = draftLorebooks.value.toSet()
-                        if (selected.isNotEmpty()) withContext(Dispatchers.IO) {
-                            lorebooks.update { lib ->
-                                val existing = selected.intersect(lib.books.map { it.id }.toSet())
-                                lib.copy(bindings = lib.bindings + (LorebookLibrary.persona(id) to existing))
-                            }
-                        }
+                        if (selected.isNotEmpty()) lorebooks.setPersonaBooks(id, selected)
                     }
                     isDefault -> editing.updateProfile(draft)
                     else -> editing.update(personaId!!, draft)
@@ -256,12 +249,7 @@ class PersonaEditorViewModel @Inject constructor(
             _form.update { it.copy(saving = true, error = null) }
             runCatching {
                 editing.delete(id)
-                withContext(Dispatchers.IO) {
-                    lorebooks.update { lib ->
-                        val scope = LorebookLibrary.persona(id)
-                        lib.copy(bindings = lib.bindings - scope, excluded = lib.excluded - scope)
-                    }
-                }
+                lorebooks.clearPersona(id)
             }.onSuccess { onDone() }
                 .onFailure { e -> _form.update { it.copy(saving = false, error = "Not deleted. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") } }
         }
@@ -285,7 +273,7 @@ fun PersonaEditorScreen(
     var lorebooksOpen by remember { mutableStateOf(false) }
     val draftLorebooks by viewModel.draftLorebooks.collectAsStateWithLifecycle()
     val form by viewModel.form.collectAsStateWithLifecycle()
-    val lorebookScope = LorebookLibrary.persona(viewModel.personaId, form.defaultProfileId)
+    val lorebookScope = LorebookScope.persona(viewModel.personaId, form.defaultProfileId)
     androidx.compose.runtime.LaunchedEffect(createdLorebookId) {
         if (createdLorebookId != null) {
             if (viewModel.isNew) viewModel.selectLorebooks(viewModel.draftLorebooks.value.toSet() + createdLorebookId)

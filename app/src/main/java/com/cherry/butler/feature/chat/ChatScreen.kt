@@ -110,7 +110,7 @@ import com.cherry.butler.core.design.RpText
 import com.cherry.butler.core.generation.ChoicesService
 import com.cherry.butler.core.generation.MemoryService
 import com.cherry.butler.core.generation.SendPipeline
-import com.cherry.butler.core.lorebook.LorebookLibrary
+import com.cherry.butler.core.lorebook.LorebookScope
 import com.cherry.butler.core.markdown.fillNames
 import com.cherry.butler.ui.components.Avatar
 import com.cherry.butler.ui.components.HairlineRule
@@ -430,11 +430,11 @@ fun ChatScreen(
         com.cherry.butler.feature.settings.BackgroundsSheet(chatId = viewModel.chatId, onDismiss = { backgroundOpen = false })
     }
     if (lorebooksOpen) {
-        val scope = LorebookLibrary.chat(viewModel.chatId)
+        val scope = LorebookScope.chat(viewModel.chatId)
         val personaId = if (activePersona != null) activePersona?.id else chat?.personaId
         com.cherry.butler.feature.lorebook.LorebooksSheet(
             scope = scope,
-            inheritedPersonaScope = LorebookLibrary.persona(personaId, chat?.userId),
+            inheritedPersonaScope = LorebookScope.persona(personaId, chat?.userId),
             onDismiss = { lorebooksOpen = false },
             onEdit = { id ->
                 lorebooksOpen = false

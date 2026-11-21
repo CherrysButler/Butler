@@ -11,6 +11,7 @@ import com.cherry.butler.core.auth.SecureSessionStore
 import com.cherry.butler.core.auth.SessionKeeper
 import com.cherry.butler.core.config.JanitorConfig
 import com.cherry.butler.core.data.local.ButlerDatabase
+import com.cherry.butler.core.lorebook.LorebookDatabase
 import com.cherry.butler.core.generation.AgentLoop
 import com.cherry.butler.core.generation.GenerationTransport
 import com.cherry.butler.core.generation.HttpGenerationTransport
@@ -99,6 +100,14 @@ object DesktopModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ButlerDatabase =
         Room.databaseBuilder<ButlerDatabase>(name = File(context.filesDir, ButlerDatabase.NAME).path)
+            .setDriver(BundledSQLiteDriver())
+            .setQueryCoroutineContext(Dispatchers.IO)
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideLorebookDatabase(@ApplicationContext context: Context): LorebookDatabase =
+        Room.databaseBuilder<LorebookDatabase>(name = File(context.filesDir, LorebookDatabase.NAME).path)
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(Dispatchers.IO)
             .build()

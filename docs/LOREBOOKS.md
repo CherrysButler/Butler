@@ -46,7 +46,8 @@ The chat sheet labels them “From persona”; its switches can disable them for
 Switching a book back on removes that chat override. A book selected through both the chat
 and persona is processed once.
 
-The library opens from device storage without loading a Janitor profile. The same books,
+The library list reads book names, favorites, and entry counts from the local database.
+Opening a book loads its entries. Neither operation requires a Janitor profile. The same books,
 favorites, and character limit are available across accounts on the device. Bindings stay
 with the selected chats and personas, including each account's default persona. The library
 and bindings survive app restarts. Activated content is sent to
