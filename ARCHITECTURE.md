@@ -52,9 +52,11 @@ Two transports behind one interface (`GenerationTransport`):
 
 Reasoning tags (`<think>`, `<thinking>`) are lifted out of the stream by an incremental
 parser and kept in their own column. Janitor assembles its prompt server-side; Butler never
-needs Janitor's system prompt. Immediately before routing, `LorebookRequest` selects local
-World Info entries and appends them to a request-only copy of the latest user line (or a
-transient user line when there is none). This also covers HTTP server-stream fallbacks.
+needs Janitor's system prompt. `SendPipeline` and `SuggestionService` request local World
+Info from `LorebookStore` using the scene history. `GenerationEnvelope` adds the selected
+lore to a request-only copy of the latest user line (or a transient line before any draft
+if the character has spoken first and the player has yet to reply). The resulting envelope
+feeds both transports, including HTTP server-stream fallbacks.
 `LorebookStore` keeps the device library, favorites, persona bindings and chat overrides
 in device preferences. The library opens without making a profile request.
 

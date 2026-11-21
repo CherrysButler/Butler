@@ -85,10 +85,13 @@ The implementation follows the basic activation rules in
   displacing earlier entries. This is a character budget, not an exact model token budget.
 - `{{user}}` is filled with the active persona's name. Other macros remain for Janitor.
 
-Matching happens before transport dispatch for new replies, alternatives, regeneration,
-Continue and Write for me. Lore is appended to an ephemeral user-message copy, never stored
-in the transcript, outbox or profile. The chat prompt cache is refreshed for those requests.
-Summarization requests remain unchanged.
+New replies, alternatives, regeneration, Continue, and Write for me / Enhance match against
+the scene's chat history. Butler's instructions and the suggestion draft are excluded from
+that scan. When entries activate, the outgoing request carries their text on a copy of the
+latest user message and asks Janitor to refresh the chat prompt cache. With a bot-only
+opening, lore gets its own temporary user line. The suggestion draft stays last in either
+case. Injected lore is never saved to the transcript, outbox, or profile. Highlights,
+Choices, and summaries do not request local lore.
 
 This is a basic importer, not full SillyTavern emulation. Regex keys,
 insertion positions/depth/roles, vector activation, inclusion groups, timed effects, scripts,

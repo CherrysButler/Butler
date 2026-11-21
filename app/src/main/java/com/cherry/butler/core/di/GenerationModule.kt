@@ -28,10 +28,8 @@ object GenerationModule {
         json: Json,
         auth: Provider<AuthRepository>,
         agent: com.cherry.butler.core.generation.AgentLoop,
-        lorebooks: com.cherry.butler.core.lorebook.LorebookStore,
     ): GenerationTransport = RoutingTransport(
         proxyPath = HttpGenerationTransport(client, apiCall, json, agent),
         jllm = JllmTransport(client, apiCall, json) { auth.get().currentAccessToken },
-        prepare = lorebooks::prepare,
     )
 }

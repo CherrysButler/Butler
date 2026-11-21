@@ -180,12 +180,10 @@ class JllmTransport(
 class RoutingTransport(
     private val proxyPath: GenerationTransport,
     private val jllm: GenerationTransport,
-    private val prepare: (JsonObject) -> JsonObject = { it },
 ) : GenerationTransport {
     override fun generate(envelope: JsonObject, proxy: ProxyTarget?): Flow<GenerationEvent> {
-        val prepared = prepare(envelope)
-        val api = runCatching { prepared["userConfig"]?.jsonObject?.get("api")?.jsonPrimitive?.contentOrNull }.getOrNull()
+        val api = runCatching { envelope["userConfig"]?.jsonObject?.get("api")?.jsonPrimitive?.contentOrNull }.getOrNull()
         // No `api` at all is a fresh account that never chose: JLLM, as on the website.
-        return if (api == null || api == "janitor") jllm.generate(prepared, proxy) else proxyPath.generate(prepared, proxy)
+        return if (api == null || api == "janitor") jllm.generate(envelope, proxy) else proxyPath.generate(envelope, proxy)
     }
 }

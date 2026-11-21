@@ -14,6 +14,7 @@ import com.cherry.butler.core.data.local.SendJobEntity
 import com.cherry.butler.core.data.local.SendJobState
 import com.cherry.butler.core.data.remote.ChatRemoteSource
 import com.cherry.butler.core.data.remote.dto.PostMessageRequest
+import com.cherry.butler.core.lorebook.LorebookStore
 import com.cherry.butler.core.network.ApiError
 import com.cherry.butler.core.stream.ThinkSplitter
 import com.cherry.butler.core.util.IsoTime
@@ -72,6 +73,7 @@ class SendPipeline @Inject constructor(
     private val chatRepository: ChatRepository,
     private val profileRepository: ProfileRepository,
     private val transport: GenerationTransport,
+    private val lorebooks: LorebookStore,
     private val memoryPrefs: MemoryPrefs,
     private val memory: MemoryService,
     private val background: BackgroundReplies,
@@ -457,14 +459,15 @@ class SendPipeline @Inject constructor(
         }
         val chatNow = chatDao.get(job.chatId) ?: chat
 
-        val baseHistory = GuidedRetry.apply(historyFor(job.chatId, mode, existing), job.guidance)
+        val sceneHistory = historyFor(job.chatId, mode, existing)
         // Butler's specials (reply length, Butter mode): on JLLM in the latest user line, on a
         // proxy in the system prompt (below). Never stored.
         // Lessons (beta): the player's standing notes, with every reply that's written anew.
         val standing = if (mode == GenerateMode.New || mode == GenerateMode.Alternative) lessons.instructionFor(chat.characterId) else null
         val addon = listOfNotNull(addons.instruction(mode), standing).joinToString("\n\n").takeIf { it.isNotEmpty() }
-        val userConfigNow = profileRepository.userConfig(profileRepository.profile())
-        val jllm = userConfigNow["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
+        val profile = profileRepository.profile()
+        val userConfig = profileRepository.userConfig(profile)
+        val jllm = userConfig["api"]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }.let { it == null || it == "janitor" }
         // A character whose creator switched proxies off: Janitor would turn the message away,
         // again and again behind Cloudflare's check. Said once, plainly, and not sent.
         if (!jllm && com.cherry.butler.core.data.ProxyPolicy.allows(chat.characterId) == false) {
@@ -475,9 +478,10 @@ class SendPipeline @Inject constructor(
                 retryable = false,
             )
         }
-        val history = if (addon != null && jllm) PromptAddons.intoHistory(baseHistory, addon) else baseHistory
-        val profile = profileRepository.profile()
-        val played = profileRepository.playedPersona(chat, history)
+        val played = profileRepository.playedPersona(chat, sceneHistory)
+        val loreContext = lorebooks.instructionFor(chat, profile, played.persona, sceneHistory)
+        val guidedHistory = GuidedRetry.apply(sceneHistory, job.guidance)
+        val history = if (addon != null && jllm) PromptAddons.intoHistory(guidedHistory, addon) else guidedHistory
 
         val envelope = GenerationEnvelope.build(
             chatId = chat.id,
@@ -487,7 +491,7 @@ class SendPipeline @Inject constructor(
             summaryChatId = chatNow.summaryChatId,
             history = history,
             profile = EnvelopeProfile(id = profile.id, name = profile.name, userName = profile.userName, userAppearance = played.appearance, defaultAppearance = chat.defaultPersonaAppearance ?: profile.appearance.orEmpty()),
-            userConfig = profileRepository.userConfig(profile),
+            userConfig = userConfig,
             mode = mode,
             clientPlatform = JanitorConfig.GENERATION_CLIENT_PLATFORM,
             // Sent on every request while the switch is on and the chat has a summary, as
@@ -496,6 +500,7 @@ class SendPipeline @Inject constructor(
             memoryReplacesHistory = (memoryPrefs.replacesHistory.value && !chatNow.summary.isNullOrBlank()).takeIf { it },
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
+            loreContext = loreContext,
         )
         val proxy = profileRepository.proxyTarget(profile).let { target ->
             if (addon != null && !jllm) target?.then { payload -> PromptAddons.intoPayload(payload, addon) } else target

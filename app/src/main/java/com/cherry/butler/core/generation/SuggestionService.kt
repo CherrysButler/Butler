@@ -8,6 +8,7 @@ import com.cherry.butler.core.data.Perspective
 import com.cherry.butler.core.data.ProfileRepository
 import com.cherry.butler.core.data.Variants
 import com.cherry.butler.core.data.local.ButlerDatabase
+import com.cherry.butler.core.lorebook.LorebookStore
 import com.cherry.butler.core.network.ApiError
 import com.cherry.butler.core.stream.ThinkSplitter
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,7 @@ class SuggestionService @Inject constructor(
     db: ButlerDatabase,
     private val profileRepository: ProfileRepository,
     private val transport: GenerationTransport,
+    private val lorebooks: LorebookStore,
     private val memoryPrefs: MemoryPrefs,
     private val writerPrefs: WriterPrefs,
     private val aiSettings: com.cherry.butler.core.data.SettingsRepository,
@@ -239,6 +241,7 @@ class SuggestionService @Inject constructor(
             ).let { line -> if (libraryPrompt != null && viaJllm) "$line\n\n(Also follow: $libraryPrompt)" else line },
             persona = played.persona,
             knownPersonas = profileRepository.personas(),
+            loreContext = lorebooks.instructionFor(chat, profile, played.persona, history),
         )
 
         // A thinking model's reasoning is not part of the line; it is kept apart, to be read. The
