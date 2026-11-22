@@ -103,7 +103,7 @@ fun PromptsScreen(onBack: () -> Unit, onOpen: (String?) -> Unit, viewModel: Prom
                 Column(modifier = Modifier.padding(horizontal = 12.dp)) { repeat(4) { SkeletonRosterRow(withMargin = false) } }
             } else if (prompts.isEmpty()) {
                 Text(
-                    "No prompts yet. A prompt is the instruction a proxy sends ahead of the chat.",
+                    "No prompts yet",
                     style = MaterialTheme.typography.bodyMedium,
                     color = ButlerTheme.colors.textMed,
                     modifier = Modifier.padding(16.dp),
@@ -120,7 +120,7 @@ fun PromptsScreen(onBack: () -> Unit, onOpen: (String?) -> Unit, viewModel: Prom
                     prompts.forEach { p ->
                         LinkRow(
                             title = p.name.ifBlank { "Untitled" },
-                            subtitle = (if (p.kind == "prefill") "Prefill · " else "") + p.content.lines().joinToString(" ").take(90),
+                            subtitle = if (p.kind == "prefill") "Prefill" else null,
                             onClick = { onOpen(p.id) },
                         )
                     }

@@ -153,7 +153,7 @@ private fun Working(what: String) {
 private fun Review(s: LessonsLearner.State.Review, onKeep: (List<LessonChange>) -> Unit, onCancel: () -> Unit) {
     var ticked by remember(s) { mutableStateOf(s.changes.indices.toSet()) }
     Text(
-        "From ${s.corrections} correction${if (s.corrections == 1) "" else "s"}. Untick anything that was only for one moment.",
+        "From ${s.corrections} correction${if (s.corrections == 1) "" else "s"}",
         style = MaterialTheme.typography.bodySmall,
         color = ButlerTheme.colors.textLow,
     )
@@ -230,7 +230,6 @@ fun LessonsSection(viewModel: LessonsViewModel = androidx.hilt.navigation.compos
         title = "Lessons",
         icon = Icons.Rounded.School,
         beta = true,
-        footnote = "Type /learn in a chat (or /learn and what to focus on) and Butler reads your OOC notes and retry asks since last time, then proposes notes for you to keep. Only your words are learned from. The notes go with every reply: in the system prompt on a proxy, as an OOC note on JLLM. Learning needs a proxy (the one for summaries). Kept on this device only.",
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

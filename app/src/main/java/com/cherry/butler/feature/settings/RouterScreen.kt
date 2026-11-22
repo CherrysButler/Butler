@@ -171,14 +171,6 @@ fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel(
                     }
                     SettingsSection(
                         title = "Wallet",
-                        footnote = wallet?.let { w ->
-                            when {
-                                !w.walletAvailable -> "This account has no router wallet."
-                                !w.canGenerate -> "Nothing to spend yet: the router can't answer until the wallet holds something."
-                                w.lowBalance -> "Running low."
-                                else -> null
-                            }
-                        },
                     ) {
                         val w = wallet
                         Row(modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -199,7 +191,7 @@ fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel(
                     SettingsSection(title = "Router") {
                         SwitchRow(
                             title = "Answer with Janitor Router",
-                            subtitle = if (c.enabled) "Billed to your wallet" else null,
+                            subtitle = null,
                             checked = c.enabled,
                             onChange = viewModel::setEnabled,
                             enabled = !busy,
@@ -218,12 +210,6 @@ fun RouterScreen(onBack: () -> Unit, viewModel: RouterViewModel = hiltViewModel(
                             enabled = !busy,
                         )
                     }
-                    Text(
-                        text = "Janitor Router is Janitor's own paid service: models it hosts, billed per token from a wallet on your account. It needs Janitor Plus. Your own proxy is unaffected by anything here.\n\nUntested: turning the router on, choosing a model and the favourites were built against Janitor's error messages, not a Plus account. If one misbehaves, Settings › Report a problem will show what Janitor answered.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = ButlerTheme.colors.textLow,
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
-                    )
                 }
             }
         }

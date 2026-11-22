@@ -145,7 +145,7 @@ fun Composer(
     /** Rich typing on; [richDefault] is what typing opens on its own (null: plain). */
     rich: Boolean = false,
     richDefault: Mark? = Mark.Action,
-    /** A picture in the draft (beta), and its keys; [onAddPicture] null hides the picture key. */
+    /** A picture in the draft, and its keys; [onAddPicture] null hides the picture key. */
     picture: ChatViewModel.Picture? = null,
     /** Called with the caret's place in the draft, so the picture lands where the user is. */
     onAddPicture: ((cursor: Int) -> Unit)? = null,
@@ -416,7 +416,7 @@ private fun WriteKey(rewrite: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** The picture key (beta): a picture goes into the draft as `[pic]` and is written in. */
+/** The picture key (a Butler special): a picture goes into the draft as `[pic]` and is written in. */
 @Composable
 private fun PictureKey(attached: Boolean, onClick: () -> Unit) {
     Box(
@@ -439,7 +439,7 @@ private fun PictureKey(attached: Boolean, onClick: () -> Unit) {
 /**
  * The picture over the field: its thumbnail, what is happening to it, and its keys. While
  * the model writes it the line says so; written in, the user reads the draft and sends it
- * themselves. "Beta" is said right here, because it is.
+ * themselves.
  */
 @Composable
 private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onAgain: () -> Unit, onRemove: () -> Unit) {
@@ -466,8 +466,6 @@ private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onA
             )
         }
         Spacer(Modifier.width(8.dp))
-        com.cherry.butler.feature.settings.BetaTag()
-        Spacer(Modifier.width(4.dp))
         if (picture.status == ChatViewModel.PictureStatus.Described) StateAction(label = "Undo", onClick = onUndo)
         when (picture.status) {
             ChatViewModel.PictureStatus.Attached -> StateAction(label = "Write it in", onClick = onAgain, emphasis = true)

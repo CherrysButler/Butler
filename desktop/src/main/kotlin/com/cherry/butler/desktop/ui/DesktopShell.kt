@@ -566,6 +566,7 @@ private fun settingsScreen(
     contentPadding = PaddingValues(),
     onEditProxy = { navController.navigate(Routes.proxy(it)) },
     onOpenPrompts = { navController.navigate(Routes.SETTINGS_PROMPTS) },
+    onOpenPrompt = { navController.navigate(Routes.prompt(it)) },
     onOpenCustomize = { navController.navigate(Routes.CUSTOMIZE) },
     onOpenGeneration = { navController.navigate(Routes.GENERATION) },
     onOpenNotifications = { navController.navigate(Routes.NOTIFICATION_PREFS) },

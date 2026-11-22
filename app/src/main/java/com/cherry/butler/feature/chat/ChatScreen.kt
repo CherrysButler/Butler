@@ -192,7 +192,7 @@ fun ChatScreen(
         onPauseOrDispose { viewModel.onHidden() }
     }
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    // A picture for the draft (beta): the phone's own picker, one picture, no permission needed.
+    // A picture for the draft: the phone's own picker, one picture, no permission needed.
     var pictureCursor by remember { mutableStateOf<Int?>(null) }
     val pickPicture = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { viewModel.attachPicture(it, pictureCursor) } }
     val picture by viewModel.picture.collectAsStateWithLifecycle()

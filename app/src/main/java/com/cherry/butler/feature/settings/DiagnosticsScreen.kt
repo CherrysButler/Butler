@@ -64,12 +64,6 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
             }
             Text("Report a problem", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
         }
-        Text(
-            text = "Butler doesn't send anything on its own. This is what it knows about recent failures, with keys, tokens and addresses taken out. Read it, then copy it or share it with whoever is helping you.",
-            style = MaterialTheme.typography.bodySmall,
-            color = ButlerTheme.colors.textMed,
-            modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 10.dp),
-        )
         Row(modifier = Modifier.padding(horizontal = 16.dp)) {
             KeyButton(
                 label = if (copied) "Copied" else "Copy",

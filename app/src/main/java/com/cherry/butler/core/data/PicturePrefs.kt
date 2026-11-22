@@ -9,7 +9,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Which model looks at a picture put into a message and writes it into the line (beta).
+ * Which model looks at a picture put into a message and writes it into the line (a Butler special).
  * Null means the one Write for me uses. Only a proxy can see pictures, so the choice is a
  * saved proxy preset with, optionally, another model than the one saved in it.
  */

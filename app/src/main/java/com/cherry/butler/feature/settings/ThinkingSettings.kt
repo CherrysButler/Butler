@@ -42,18 +42,18 @@ import com.cherry.butler.feature.chat.ThinkingLine
 internal fun ThinkingSection(viewModel: SettingsViewModel) {
     val thinking by viewModel.thinkingLook.collectAsStateWithLifecycle()
     val thought by viewModel.thoughtLook.collectAsStateWithLifecycle()
-    SettingsSection(title = "While thinking", footnote = "What the line shows while the model thinks a reply out.") {
+    SettingsSection(title = "While thinking") {
         ThinkingLook.entries.forEach { look ->
-            LookChoice(title = look.label, subtitle = look.blurb, selected = look == thinking, onClick = { viewModel.setThinkingLook(look) }) {
+            LookChoice(title = look.label, subtitle = null, selected = look == thinking, onClick = { viewModel.setThinkingLook(look) }) {
                 CompositionLocalProvider(LocalThinkingLook provides look) {
                     ThinkingLine(text = LIVE_THOUGHT, streaming = true, onOpen = { viewModel.setThinkingLook(look) })
                 }
             }
         }
     }
-    SettingsSection(title = "After thinking", footnote = "What a finished thought folds to above the reply. A tap on it opens the whole thought.") {
+    SettingsSection(title = "After thinking") {
         ThoughtLook.entries.forEach { look ->
-            LookChoice(title = look.label, subtitle = look.blurb, selected = look == thought, onClick = { viewModel.setThoughtLook(look) }) {
+            LookChoice(title = look.label, subtitle = null, selected = look == thought, onClick = { viewModel.setThoughtLook(look) }) {
                 CompositionLocalProvider(LocalThoughtLook provides look, LocalThinkingLook provides thinking) {
                     ThinkingLine(text = SAMPLE_THOUGHT, streaming = false, onOpen = { viewModel.setThoughtLook(look) }, durationMs = 12_300L)
                 }
@@ -64,7 +64,7 @@ internal fun ThinkingSection(viewModel: SettingsViewModel) {
 
 /** A choice with its preview underneath: the radio and words, then the thing itself. */
 @Composable
-private fun LookChoice(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit, preview: @Composable () -> Unit) {
+private fun LookChoice(title: String, subtitle: String?, selected: Boolean, onClick: () -> Unit, preview: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
@@ -87,7 +87,7 @@ private fun LookChoice(title: String, subtitle: String, selected: Boolean, onCli
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
+                if (subtitle != null) Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow)
             }
         }
         Box(modifier = Modifier.fillMaxWidth().padding(start = 52.dp, end = 16.dp, bottom = 14.dp)) { preview() }

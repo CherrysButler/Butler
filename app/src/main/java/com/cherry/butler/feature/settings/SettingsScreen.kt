@@ -23,7 +23,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -81,6 +86,14 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.FormatColorText
+import androidx.compose.material.icons.rounded.FactCheck
+import androidx.compose.material.icons.outlined.Info
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cherry.butler.core.data.AiSettings
@@ -101,6 +114,7 @@ import com.cherry.butler.core.design.tones
 import com.cherry.butler.feature.chats.KeyButton
 import com.cherry.butler.feature.chats.ScreenHead
 import com.cherry.butler.ui.components.CenteredMessage
+import com.cherry.butler.ui.components.HairlineRule
 import com.cherry.butler.ui.components.SegmentedChoice
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontWeight
@@ -131,6 +145,8 @@ fun SettingsScreen(
     contentPadding: PaddingValues,
     onEditProxy: (String?) -> Unit,
     onOpenPrompts: () -> Unit,
+    /** Opens one prompt in the editor, or a new one (null). */
+    onOpenPrompt: (String?) -> Unit = {},
     onOpenCustomize: () -> Unit = {},
     onOpenGeneration: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
@@ -214,7 +230,7 @@ fun SettingsScreen(
             }
             val s = settings
             // Only the model pages wait on Janitor's settings; the rest are the phone's own.
-            val needsJanitor = page == SettingsPage.Model || page == SettingsPage.Generation
+            val needsJanitor = page == SettingsPage.Model || page == SettingsPage.Generation || page == SettingsPage.Writers || page == SettingsPage.Prompts
             when {
                 needsJanitor && s == null && loading -> Column { repeat(5) { SkeletonRosterRow(withMargin = false) } }
                 needsJanitor && s == null && loadError != null -> CenteredMessage(
@@ -233,6 +249,7 @@ fun SettingsScreen(
                     viewModel = viewModel,
                     onEditProxy = onEditProxy,
                     onOpenPrompts = onOpenPrompts,
+                    onOpenPrompt = onOpenPrompt,
                     onOpenCustomize = onOpenCustomize,
                     onOpenGeneration = onOpenGeneration,
                     onOpenNotifications = onOpenNotifications,
@@ -267,6 +284,7 @@ private fun SettingsBody(
     viewModel: SettingsViewModel,
     onEditProxy: (String?) -> Unit,
     onOpenPrompts: () -> Unit,
+    onOpenPrompt: (String?) -> Unit,
     onOpenCustomize: () -> Unit,
     onOpenGeneration: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -284,18 +302,20 @@ private fun SettingsBody(
                 AccountSection(viewModel)
             }
             SettingsPage.Model -> settings?.let { s ->
-                ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter)
+                ModelSection(s, saving, viewModel, onEditProxy, onOpenPrompts, onOpenGeneration = null, onOpenRouter = onOpenRouter, onOpenPage = onOpenPage)
                 AgentSection(viewModel, onProxy = s.provider == Provider.Proxy, settings = s)
                 GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor)
             }
+            SettingsPage.Writers -> settings?.let { s -> WhoWritesWhat(s, viewModel) }
+            SettingsPage.Prompts -> settings?.let { s -> PromptsPage(s, viewModel, onOpenPrompt) }
             SettingsPage.Generation -> settings?.let { s -> GenerationSections(s.generation, saving, viewModel, jllm = s.provider == Provider.Janitor) }
             SettingsPage.Chat -> ChatSection(viewModel)
             SettingsPage.Look -> LookSection(viewModel, onOpenCustomize, onOpenThinking = { onOpenPage(SettingsPage.Thinking) }, onOpenProfiles = { onOpenPage(SettingsPage.Profiles) })
             SettingsPage.Profiles -> ProfilesSection(viewModel)
             SettingsPage.Thinking -> ThinkingSection(viewModel)
             SettingsPage.RichTyping -> RichTypingSection(viewModel)
-            SettingsPage.Specials -> SpecialsSection(viewModel)
-            SettingsPage.App -> AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics)
+            SettingsPage.Specials -> { SpecialsSection(viewModel); RichTypingSection(viewModel) }
+            SettingsPage.App -> { AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics); UpdatesSection(viewModel) }
             SettingsPage.Updates -> UpdatesSection(viewModel)
             SettingsPage.Debug -> DebugSection()
         }
@@ -334,7 +354,7 @@ private fun SettingsHomeRow(title: String, blurb: String, icon: Int, onClick: ()
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .heightIn(min = 64.dp)
+            .heightIn(min = 56.dp)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -347,7 +367,6 @@ private fun SettingsHomeRow(title: String, blurb: String, icon: Int, onClick: ()
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
-            Text(blurb, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = ButlerTheme.colors.textLow)
     }
@@ -387,8 +406,8 @@ private fun ChatSection(viewModel: SettingsViewModel) {
         if (com.cherry.butler.feature.chat.LocalEnterSends.current) {
             val shiftSends by viewModel.shiftEnterSends.collectAsStateWithLifecycle()
             DropRow(title = "Send with", value = if (shiftSends) "Shift+Enter" else "Enter", icon = Icons.Rounded.Keyboard) { close ->
-                DropItem(title = "Enter", subtitle = "Shift+Enter starts a new line", selected = !shiftSends, onClick = { close(); viewModel.setShiftEnterSends(false) })
-                DropItem(title = "Shift+Enter", subtitle = "Enter starts a new line", selected = shiftSends, onClick = { close(); viewModel.setShiftEnterSends(true) })
+                DropItem(title = "Enter", subtitle = null, selected = !shiftSends, onClick = { close(); viewModel.setShiftEnterSends(false) })
+                DropItem(title = "Shift+Enter", subtitle = null, selected = shiftSends, onClick = { close(); viewModel.setShiftEnterSends(true) })
             }
         }
     }
@@ -397,9 +416,9 @@ private fun ChatSection(viewModel: SettingsViewModel) {
     CompactSection(viewModel)
     val picturesOn by viewModel.picturesOn.collectAsStateWithLifecycle()
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
-    SettingsSection(title = "Pictures", beta = true, icon = Icons.Rounded.Image, footnote = "A picture in your message, written into the line by a model that can see (Settings › Model › Pictures use).") {
+    SettingsSection(title = "Pictures", special = true, icon = Icons.Rounded.Image) {
         SwitchRow("Picture key in the chat", null, picturesOn, viewModel::setPicturesOn, icon = Icons.Rounded.Image)
-        if (picturesOn) Branch { SwitchRow("Write it in right away", "Off: a key does it when you say", picturesAuto, viewModel::setPicturesAuto) }
+        if (picturesOn) Branch { SwitchRow("Write it in right away", null, picturesAuto, viewModel::setPicturesAuto) }
     }
     ThinkingListsSection(viewModel)
 }
@@ -418,7 +437,7 @@ private fun CompactSection(viewModel: SettingsViewModel) {
     SettingsSection(title = "Memory", icon = Icons.Rounded.History) {
         SwitchRow(
             "Compact mode",
-            "Long chats keep their thread",
+            null,
             compact,
             { on -> if (on) asking = true else viewModel.setCompact(false) },
             icon = Icons.Rounded.History,
@@ -426,7 +445,7 @@ private fun CompactSection(viewModel: SettingsViewModel) {
         )
         if (compact) {
             Branch(last = false) {
-                NumberRow("Keep the last messages", "Left word for word", keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
+                NumberRow("Keep the last messages", null, keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
             }
             Branch {
                 SliderRow(
@@ -470,7 +489,6 @@ internal fun WriteForMeSection(viewModel: SettingsViewModel) {
     SettingsSection(
         title = "Write for me",
         icon = Icons.Rounded.AutoAwesome,
-        footnote = "Third person uses your persona's pronouns, or their name and they/them when it has none. Enhance keeps your draft's own voice unless you pick one in its panel.",
     ) {
         Text(
             "Writes in",
@@ -506,7 +524,7 @@ private fun ThinkingListsSection(viewModel: SettingsViewModel) {
     val lists by viewModel.thinkingLists.collectAsStateWithLifecycle()
     // null: closed; a list to edit; a blank new one (id empty); or Claude's (id CLAUDE_LIST).
     var editing by remember { mutableStateOf<com.cherry.butler.core.data.ChatPrefs.WordList?>(null) }
-    SettingsSection(title = "Thinking words", icon = Icons.Rounded.Psychology, footnote = "What the thinking line says while a reply is on its way. Every list that is on is used.") {
+    SettingsSection(title = "Thinking words", icon = Icons.Rounded.Psychology) {
         WordListRow(
             name = CLAUDE_LIST_NAME,
             words = claudeWords,
@@ -656,14 +674,16 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     Main("Settings", "", 0, listed = false),
     Model("Model", "Where replies come from, prompts, generation", com.cherry.butler.R.drawable.ic_set_model),
     Generation("Generation", "Length, sampling, replies", com.cherry.butler.R.drawable.ic_set_model, listed = false),
+    Writers("Who writes what", "Write for me, summaries, pictures", com.cherry.butler.R.drawable.ic_set_model, listed = false),
+    Prompts("Prompts", "The prompts each one follows", com.cherry.butler.R.drawable.ic_set_model, listed = false),
     Chat("Chat", "Keyboard, Write for me, memory, pictures, thinking words",com.cherry.butler.R.drawable.ic_set_chat),
     Look("Look", "Theme, fonts, layout, background", com.cherry.butler.R.drawable.ic_set_look),
     Thinking("Thinking line", "While a reply is thought out, and after", com.cherry.butler.R.drawable.ic_set_look, listed = false),
     Profiles("Look profiles", "Saved looks, to put on in a tap or share", com.cherry.butler.R.drawable.ic_set_look, listed = false),
-    RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich),
+    RichTyping("Rich typing", "Speech, action and bold as you type", com.cherry.butler.R.drawable.ic_set_rich, listed = false),
     Specials("Butler specials", "Butter mode, highlights", com.cherry.butler.R.drawable.ic_set_specials),
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
-    Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates),
+    Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates, listed = false),
     Debug("Debug", "Proxy for Burp or mitmproxy", com.cherry.butler.R.drawable.ic_set_debug),
 }
 
@@ -680,6 +700,7 @@ private fun ModelSection(
     onOpenPrompts: () -> Unit,
     onOpenGeneration: (() -> Unit)?,
     onOpenRouter: () -> Unit = {},
+    onOpenPage: (SettingsPage) -> Unit = {},
 ) {
     SettingsSection(title = "Model", icon = Icons.Rounded.SmartToy) {
         Box(modifier = Modifier.padding(vertical = 12.dp)) {
@@ -694,25 +715,8 @@ private fun ModelSection(
         }
         RowDivider()
         if (settings.provider == Provider.Proxy) ProxyPicker(settings, saving, viewModel, onEditProxy)
-        if (settings.provider == Provider.Janitor) JllmPromptRow(settings, viewModel)
         val writer by viewModel.writer.collectAsStateWithLifecycle()
-        WriterPicker(
-            title = "Write for me uses",
-            icon = Icons.Rounded.AutoAwesome,
-            writer = writer,
-            settings = settings,
-            onSet = viewModel::setWriter,
-        )
-        WritePromptRow(settings, viewModel)
         val memoryWriter by viewModel.memoryWriter.collectAsStateWithLifecycle()
-        WriterPicker(
-            title = "Summaries use",
-            icon = androidx.compose.material.icons.Icons.Rounded.Psychology,
-            writer = memoryWriter,
-            settings = settings,
-            onSet = viewModel::setMemoryWriter,
-        )
-        PicturePicker(settings, viewModel)
         // Janitor's own models read it (it keeps JLLM from refusing); a proxy is the user's model and doesn't.
         // So it shows while anything here is written by JLLM: the chat, Write for me, or summaries.
         val jllm = com.cherry.butler.core.data.Writer.Jllm
@@ -727,7 +731,123 @@ private fun ModelSection(
             )
         }
         if (onOpenGeneration != null) LinkRow(title = "Generation", subtitle = generationSummary(settings.generation), onClick = onOpenGeneration, icon = Icons.Rounded.Tune)
-        LinkRow(title = "Prompts", subtitle = "${settings.prompts.size} saved", onClick = onOpenPrompts, icon = Icons.Rounded.Description)
+        LinkRow(
+            title = "Who writes what",
+            subtitle = null,
+            onClick = { onOpenPage(SettingsPage.Writers) },
+            icon = Icons.Rounded.AutoAwesome,
+        )
+        LinkRow(
+            title = "Prompts",
+            subtitle = null,
+            onClick = { onOpenPage(SettingsPage.Prompts) },
+            icon = Icons.Rounded.Description,
+        )
+    }
+}
+
+/**
+ * Who writes what, besides the character (who answers from the Model page's choice): your lines,
+ * the chat's memory, and pictures. One card each, with what it uses; a tap opens the choices.
+ */
+@Composable
+private fun WhoWritesWhat(settings: AiSettings, viewModel: SettingsViewModel) {
+    val writer by viewModel.writer.collectAsStateWithLifecycle()
+    val memoryWriter by viewModel.memoryWriter.collectAsStateWithLifecycle()
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        WriterCard("Write for me", Icons.Rounded.AutoAwesome, writer, settings, viewModel::setWriter)
+        WriterCard("Summaries", androidx.compose.material.icons.Icons.Rounded.Psychology, memoryWriter, settings, viewModel::setMemoryWriter)
+        PictureCard(settings, viewModel)
+    }
+}
+
+/** The prompts at work (JLLM's, Write for me's) as cards, then the library. */
+@Composable
+private fun PromptsPage(settings: AiSettings, viewModel: SettingsViewModel, onOpenPrompt: (String?) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (settings.provider == Provider.Janitor) JllmPromptCard(settings, viewModel)
+        WritePromptCard(settings, viewModel)
+    }
+    SettingsSection(title = "Your prompts", icon = Icons.Rounded.Description) {
+        settings.prompts.forEach { p ->
+            LinkRow(title = p.name.ifBlank { "Untitled" }, subtitle = null, onClick = { onOpenPrompt(p.id) })
+        }
+        LinkRow(title = "New prompt", subtitle = null, onClick = { onOpenPrompt(null) }, icon = Icons.Rounded.Add)
+    }
+}
+
+/**
+ * One job's card: its icon in a soft accent circle, its name and what it does, then what it uses.
+ * A tap opens [menu] under the card, or runs [onClick].
+ */
+@Composable
+private fun JobCard(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    uses: String,
+    model: String?,
+    special: Boolean = false,
+    warning: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    menu: (@Composable ColumnScope.(close: () -> Unit) -> Unit)? = null,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .card(shape = MaterialTheme.shapes.large)
+                .clickable { if (onClick != null) onClick() else open = true }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (special) {
+                        Spacer(Modifier.width(8.dp))
+                        ButlerSpecialTag()
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    uses,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (warning) ButlerTheme.colors.danger else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (model != null) {
+                    Text(model, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textMed, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                if (onClick != null) Icons.AutoMirrored.Rounded.KeyboardArrowRight else Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                tint = ButlerTheme.colors.textMed,
+            )
+        }
+        if (menu != null) {
+            DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                shape = MaterialTheme.shapes.medium,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                offset = DpOffset(12.dp, 0.dp),
+                modifier = Modifier.widthIn(min = 260.dp),
+            ) { menu { open = false } }
+        }
     }
 }
 
@@ -736,14 +856,15 @@ private fun ModelSection(
  * or none. Saved with the rest of the page.
  */
 @Composable
-private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
+private fun JllmPromptCard(settings: AiSettings, viewModel: SettingsViewModel) {
     var picking by remember { mutableStateOf(false) }
     val systemPrompts = settings.prompts.filter { it.kind == "system" }
     val name = settings.jllmPromptName ?: settings.jllmPromptId?.let { "Linked prompt" }
-    LinkRow(
-        title = "JLLM prompt",
-        icon = Icons.Rounded.Notes,
-        subtitle = name ?: if (systemPrompts.isEmpty()) "None · add one under Prompts" else "None",
+    JobCard(
+        title = "JLLM",
+        icon = Icons.Rounded.SmartToy,
+        uses = name ?: if (systemPrompts.isEmpty()) "None · add one to the library" else "None",
+        model = null,
         onClick = { picking = true },
     )
     if (picking) {
@@ -762,15 +883,17 @@ private fun JllmPromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
  * should read (length, style, rules). Any prompt, system or jailbreak; kept on this device.
  */
 @Composable
-private fun WritePromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
+private fun WritePromptCard(settings: AiSettings, viewModel: SettingsViewModel) {
     var picking by remember { mutableStateOf(false) }
     val id by viewModel.writePrompt.collectAsStateWithLifecycle()
     val picked = settings.prompts.firstOrNull { it.id == id }
-    LinkRow(
-        title = "Write for me prompt",
-        icon = Icons.Rounded.Notes,
-        subtitle = picked?.name?.ifBlank { "Untitled prompt" }
-            ?: if (id != null) "None (that prompt is gone)" else if (settings.prompts.isEmpty()) "None · add one under Prompts" else "None",
+    JobCard(
+        title = "Write for me",
+        icon = Icons.Rounded.AutoAwesome,
+        uses = picked?.name?.ifBlank { "Untitled prompt" }
+            ?: if (id != null) "None (that prompt is gone)" else if (settings.prompts.isEmpty()) "None · add one to the library" else "None",
+        model = null,
+        warning = id != null && picked == null,
         onClick = { picking = true },
     )
     if (picking) {
@@ -791,7 +914,7 @@ private fun WritePromptRow(settings: AiSettings, viewModel: SettingsViewModel) {
  * character keeps answering from the choice above.
  */
 @Composable
-private fun WriterPicker(
+private fun WriterCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     writer: com.cherry.butler.core.data.Writer,
@@ -807,7 +930,18 @@ private fun WriterPicker(
         asProxy != null -> "Same as the chat (that proxy is gone)"
         else -> "Same as the chat"
     }
-    DropRow(title = title, value = value, icon = icon) { close ->
+    JobCard(
+        title = title,
+        icon = icon,
+        uses = when {
+            writer == com.cherry.butler.core.data.Writer.Jllm -> "JLLM"
+            preset != null -> preset.name.ifBlank { "Untitled" }
+            asProxy != null -> "Same as chat · proxy gone"
+            else -> "Same as chat"
+        },
+        model = if (asProxy != null && preset != null) asProxy.model ?: preset.model.ifBlank { "no model" } else null,
+        warning = asProxy != null && preset == null,
+    ) { close ->
         DropItem(
             title = "Same as the chat",
             subtitle = null,
@@ -842,7 +976,7 @@ private fun WriterPicker(
 }
 
 /**
- * Agent mode (beta): a reply is drafted, checked against goals strictly, fixed with exact
+ * Agent mode (a Butler special): a reply is drafted, checked against goals strictly, fixed with exact
  * edits (or rewritten), and only then delivered. Proxies only, meant for reasoning models.
  */
 @Composable
@@ -850,27 +984,68 @@ private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean, setting
     val on by viewModel.agentOn.collectAsStateWithLifecycle()
     val effort by viewModel.agentEffort.collectAsStateWithLifecycle()
     val goals by viewModel.agentGoals.collectAsStateWithLifecycle()
+    var showSteps by remember { mutableStateOf(false) }
     SettingsSection(
         title = "Agent mode",
-        beta = true,
+        special = true,
         icon = Icons.Rounded.Loop,
-        footnote = when {
-            !onProxy -> "Works on a proxy only; the chat is on JLLM right now."
-            else -> "Each reply drafts, checks itself against the goals (and your Lessons notes), fixes what fails, then delivers. Repeated phrases are found on this device and handed to the check. A check reads the character and the last few turns, not the whole chat. Stop mid-check delivers the reply as it stands. Hold a reply and pick Check this reply to run it on one already written."
-        },
+        info = { InfoMark(open = showSteps) { showSteps = !showSteps } },
     ) {
-        SwitchRow("Agent mode", "Draft, check, fix, deliver", on, viewModel::setAgentOn, icon = Icons.Rounded.Loop)
+        androidx.compose.animation.AnimatedVisibility(visible = showSteps) { AgentSteps() }
+        SwitchRow("Agent mode", null, on, viewModel::setAgentOn, icon = Icons.Rounded.Loop)
         if (on) {
             Branch(last = false) {
                 DropRow(title = "Effort", value = effort.label) { close ->
                     com.cherry.butler.core.data.AgentPrefs.Effort.entries.forEach { e ->
-                        DropItem(title = e.label, subtitle = e.blurb, selected = e == effort, onClick = { close(); viewModel.setAgentEffort(e) })
+                        DropItem(title = e.label, subtitle = null, selected = e == effort, onClick = { close(); viewModel.setAgentEffort(e) })
                     }
                 }
             }
             Branch(last = false) { AgentCheckerPicker(settings, viewModel) }
             Branch(last = true) { AgentGoalsField(goals, viewModel::setAgentGoals) }
         }
+    }
+}
+
+/** The (i) by a section's name: tapped, it shows the section's strip in place (no popup). */
+@Composable
+private fun InfoMark(open: Boolean, onToggle: () -> Unit) {
+    Icon(
+        Icons.Outlined.Info,
+        contentDescription = if (open) "Hide what it does" else "What it does",
+        tint = if (open) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed,
+        modifier = Modifier.clip(androidx.compose.foundation.shape.CircleShape).clickable(onClick = onToggle).padding(4.dp).size(18.dp),
+    )
+}
+
+/** What a reply goes through in Agent mode, as three marks in a row. */
+@Composable
+private fun AgentSteps() {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(
+                Icons.Rounded.Psychology to "Thinks",
+                Icons.Rounded.Edit to "Writes",
+                Icons.Rounded.FactCheck to "Checks",
+            ).forEachIndexed { i, (icon, label) ->
+                if (i > 0) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = ButlerTheme.colors.textLow, modifier = Modifier.padding(horizontal = 6.dp).size(18.dp))
+                }
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        }
+        RowDivider()
     }
 }
 
@@ -886,10 +1061,10 @@ private fun AgentCheckerPicker(settings: AiSettings, viewModel: SettingsViewMode
         else -> "The chat's model"
     }
     DropRow(title = "Checks use", value = value) { close ->
-        DropItem(title = "The chat's model", subtitle = "The model that drafted it checks it", selected = pick == null, onClick = { close(); viewModel.setAgentChecker(null) })
+        DropItem(title = "The chat's model", subtitle = null, selected = pick == null, onClick = { close(); viewModel.setAgentChecker(null) })
         DropItem(
             title = "A proxy set",
-            subtitle = if (preset != null) value else "A cheaper or quicker model for the checks",
+            subtitle = if (preset != null) value else null,
             selected = pick != null && preset != null,
             onClick = { close(); configuring = true },
             trailing = { Icon(Icons.Rounded.Edit, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp)) },
@@ -921,11 +1096,11 @@ private fun AgentGoalsField(goals: String, onCommit: (String) -> Unit) {
 }
 
 /**
- * Pictures (beta): which proxy preset looks at a picture put into a message and writes it
+ * Pictures (a Butler special): which proxy preset looks at a picture put into a message and writes it
  * into the line. Write for me's by default; only a proxy can, and its model has to see.
  */
 @Composable
-private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
+private fun PictureCard(settings: AiSettings, viewModel: SettingsViewModel) {
     val pick by viewModel.pictureDescriber.collectAsStateWithLifecycle()
     var configuring by remember { mutableStateOf(false) }
     val preset = pick?.let { p -> settings.proxies.firstOrNull { p.id in it.ids } }
@@ -934,10 +1109,21 @@ private fun PicturePicker(settings: AiSettings, viewModel: SettingsViewModel) {
         pick != null -> "Same as Write for me (that preset is gone)"
         else -> "Same as Write for me"
     }
-    DropRow(title = "Pictures use", value = value, icon = Icons.Rounded.Image, beta = true) { close ->
+    JobCard(
+        title = "Pictures",
+        icon = Icons.Rounded.Image,
+        uses = when {
+            preset != null -> preset.name.ifBlank { "Untitled" }
+            pick != null -> "Same as Write for me · preset gone"
+            else -> "Same as Write for me"
+        },
+        model = if (pick != null && preset != null) pick!!.model ?: preset.model.ifBlank { "no model" } else null,
+        warning = pick != null && preset == null,
+        special = true,
+    ) { close ->
         DropItem(
             title = "Same as Write for me",
-            subtitle = "Has to be a proxy whose model can see",
+            subtitle = null,
             selected = pick == null,
             onClick = { close(); viewModel.setPictureDescriber(null) },
         )
@@ -1085,14 +1271,18 @@ private fun generationSummary(gen: JsonObject): String {
     return "Temperature ${temp.fixed(2)} · $length"
 }
 
-/** The look: three themes as tiles, the chat layout as a choice, and the text styling. */
+/**
+ * The look, in five short groups so each choice has room: the theme and its depth, the layouts,
+ * what a chat looks like, the text, and saved looks.
+ */
 @Composable
 private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Unit, onOpenThinking: () -> Unit, onOpenProfiles: () -> Unit) {
     val current by viewModel.theme.collectAsStateWithLifecycle()
     val chatStyle by viewModel.chatStyle.collectAsStateWithLifecycle()
     val custom by viewModel.custom.collectAsStateWithLifecycle()
     var customizing by remember { mutableStateOf(false) }
-    SettingsSection(title = "Look", icon = Icons.Rounded.Palette) {
+
+    SettingsSection(title = "Theme", icon = Icons.Rounded.Palette) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1109,47 +1299,57 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
             Branch { LinkRow(title = "Custom colours", subtitle = null, onClick = { customizing = true }, icon = Icons.Rounded.Palette) }
         }
         RowDivider()
-        DropRow(title = "Chat layout", value = chatStyle.label, icon = Icons.Rounded.ViewAgenda) { close ->
-            ChatStyle.entries.forEach { style ->
-                DropItem(title = style.label, subtitle = style.blurb, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
-            }
-        }
         val depthPick by viewModel.depth.collectAsStateWithLifecycle()
         val depth = depthPick.orDefaultFor(current)
         DropRow(title = "Depth", value = depth.label, icon = Icons.Rounded.Layers) { close ->
             com.cherry.butler.core.design.Depth.entries.forEach { d ->
-                DropItem(title = d.label, subtitle = d.blurb, selected = d == depth, onClick = { close(); viewModel.setDepth(d) })
+                DropItem(title = d.label, subtitle = null, selected = d == depth, onClick = { close(); viewModel.setDepth(d) })
             }
         }
+    }
+
+    SettingsSection(title = "Layout", icon = Icons.Rounded.ViewAgenda) {
+        DropRow(title = "Chat layout", value = chatStyle.label, icon = Icons.Rounded.ViewAgenda) { close ->
+            ChatStyle.entries.forEach { style ->
+                DropItem(title = style.label, subtitle = null, selected = style == chatStyle, onClick = { close(); viewModel.setChatStyle(style) })
+            }
+        }
+        val paged by viewModel.pagedHome.collectAsStateWithLifecycle()
+        DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll", icon = Icons.Rounded.ViewList) { close ->
+            DropItem(title = "Endless scroll", subtitle = null, selected = !paged, onClick = { close(); viewModel.setPagedHome(false) })
+            DropItem(title = "Pages", subtitle = null, selected = paged, onClick = { close(); viewModel.setPagedHome(true) })
+        }
+    }
+
+    SettingsSection(title = "Chat", icon = Icons.Rounded.Forum) {
         val thinkingLook by viewModel.thinkingLook.collectAsStateWithLifecycle()
         val thoughtLook by viewModel.thoughtLook.collectAsStateWithLifecycle()
         LinkRow(title = "Thinking line", subtitle = "${thinkingLook.label} · ${thoughtLook.label}", onClick = onOpenThinking, icon = Icons.Rounded.Lightbulb)
-        val paged by viewModel.pagedHome.collectAsStateWithLifecycle()
-        DropRow(title = "Home list", value = if (paged) "Pages" else "Endless scroll", icon = Icons.Rounded.ViewList) { close ->
-            DropItem(title = "Endless scroll", subtitle = "More arrives as you reach the end", selected = !paged, onClick = { close(); viewModel.setPagedHome(false) })
-            DropItem(title = "Pages", subtitle = "Previous and Next under each page", selected = paged, onClick = { close(); viewModel.setPagedHome(true) })
-        }
+        LinkRow(title = "Chat text", subtitle = null, onClick = onOpenCustomize, icon = Icons.Rounded.FormatColorText)
+        BackgroundRow()
+    }
+
+    SettingsSection(title = "Text", icon = Icons.Rounded.TextFields) {
         FontRow(title = "Chat font", forChat = true, viewModel = viewModel)
         FontRow(title = "App font", forChat = false, viewModel = viewModel)
         val scale by viewModel.appTextScale.collectAsStateWithLifecycle()
         SliderRow(
-            title = "App text size",
+            title = "Text size",
             value = scale,
             range = com.cherry.butler.core.data.FontPrefs.MIN_SCALE..com.cherry.butler.core.data.FontPrefs.MAX_SCALE,
             step = 0.05f,
             format = { "${(it * 100).toInt()}%" },
             onCommit = viewModel::setAppTextScale,
+            divider = false,
+            mark = 1f,
         )
-        LinkRow(title = "Customize chat text", subtitle = null, onClick = onOpenCustomize, icon = Icons.Rounded.FormatSize)
-        BackgroundRow()
+    }
+
+    SettingsSection(title = "Profiles", icon = Icons.Rounded.Bookmarks) {
         val profiles by viewModel.lookProfiles.collectAsStateWithLifecycle()
         LinkRow(
             title = "Look profiles",
-            subtitle = when (profiles.size) {
-                0 -> "Save this look to put it back on in a tap"
-                1 -> "1 saved"
-                else -> "${profiles.size} saved"
-            },
+            subtitle = if (profiles.isEmpty()) null else "${profiles.size} saved",
             onClick = onOpenProfiles,
             icon = Icons.Rounded.Bookmarks,
         )
@@ -1245,12 +1445,6 @@ private fun AdvancedLookSheet(viewModel: SettingsViewModel, onDismiss: () -> Uni
     ) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             Text("Advanced", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
-            Text(
-                "Colours on Auto follow your accent and background.",
-                style = MaterialTheme.typography.bodySmall,
-                color = ButlerTheme.colors.textLow,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 4.dp),
-            )
             SliderRow(
                 title = "Corners",
                 value = custom.corners,
@@ -1378,11 +1572,10 @@ internal fun RichTypingSection(viewModel: SettingsViewModel) {
     SettingsSection(
         title = "Rich typing",
         icon = Icons.Rounded.FormatQuote,
-        footnote = if (on) "Tap past a closing mark to step out of it." else null,
     ) {
         SwitchRow(
             "Rich typing",
-            "\" * B keys over the message box",
+            null,
             on,
             viewModel::setRich,
             icon = Icons.Rounded.FormatQuote,
@@ -1425,7 +1618,7 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
     ) {
         SwitchRow(
             "Butter mode",
-            "Tap the butter on a reply to read just its key beats",
+            null,
             butter,
             { on -> if (on) asking = true else viewModel.setButter(false) },
             icon = Icons.Rounded.Star,
@@ -1440,7 +1633,7 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
         }
         SwitchRow(
             "Highlights",
-            "Marks lines by mood after each reply",
+            null,
             highlights,
             { on -> if (on) askingHighlights = true else viewModel.setHighlights(false) },
             icon = Icons.Rounded.Highlight,
@@ -1452,8 +1645,8 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
         } }
         if (butter || highlights) {
             DropRow(title = "Tags", value = if (strip) "Kept on this ${com.cherry.butler.core.platform.Device.NAME}" else "Saved to Janitor too", icon = Icons.Rounded.Label) { close ->
-                DropItem(title = "Kept on this ${com.cherry.butler.core.platform.Device.NAME}", subtitle = "Janitor gets clean replies", selected = strip, onClick = { close(); viewModel.setStripTags(true) })
-                DropItem(title = "Saved to Janitor too", subtitle = "Janitor shows the raw tags", selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
+                DropItem(title = "Kept on this ${com.cherry.butler.core.platform.Device.NAME}", subtitle = null, selected = strip, onClick = { close(); viewModel.setStripTags(true) })
+                DropItem(title = "Saved to Janitor too", subtitle = null, selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
             }
         }
     }
@@ -1600,13 +1793,13 @@ private fun AddonWarning(
                 )
                 ChoiceRow(
                     title = "Keep them on this ${com.cherry.butler.core.platform.Device.NAME}",
-                    subtitle = "Janitor gets clean replies. Clearing Butler\u2019s data loses the marks",
+                    subtitle = null,
                     selected = keepHere,
                     onClick = { keepHere = true },
                 )
                 ChoiceRow(
                     title = "Save them to Janitor too",
-                    subtitle = "Janitor\u2019s site and app show them raw",
+                    subtitle = null,
                     selected = !keepHere,
                     onClick = { keepHere = false },
                 )
@@ -1694,7 +1887,7 @@ private fun FontRow(title: String, forChat: Boolean, viewModel: SettingsViewMode
         DropDivider()
         DropItem(
             title = "Add font files",
-            subtitle = ".ttf or .otf: regular, bold, italic, bold italic",
+            subtitle = null,
             onClick = { close(); pick.launch(arrayOf("font/ttf", "font/otf", "font/sfnt", "application/x-font-ttf", "application/x-font-otf", "application/vnd.ms-opentype", "application/octet-stream")) },
             trailing = {
                 Icon(Icons.Rounded.Add, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.padding(12.dp).size(20.dp))
@@ -1741,9 +1934,9 @@ private fun FontFamilyDialog(
                     color = ButlerTheme.colors.textMed,
                     modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
                 )
-                FamilyChoice(title = "A new family", subtitle = "Named “${picked.family}”") { onPlace(null) }
+                FamilyChoice(title = "A new family", subtitle = picked.family) { onPlace(null) }
                 ordered.forEach { font ->
-                    FamilyChoice(title = font.name, subtitle = "Has " + font.faces.joinToString(", ") { it.label }) { onPlace(font.key) }
+                    FamilyChoice(title = font.name, subtitle = font.faces.joinToString(", ") { it.label }) { onPlace(font.key) }
                 }
             }
         },
@@ -1821,25 +2014,26 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
     SettingsSection(
         title = "Length",
         icon = Icons.Rounded.FormatSize,
-        footnote = "Reply length asks the model in words, so a reply ends where it should. The hard limit cuts it off " +
-            "mid-sentence: leave it at 0, or well above the length picked.",
     ) {
         // Butler's own, kept on this phone; the rest are Janitor's and saved there.
-        DropRow(title = "Reply length", value = if (length == com.cherry.butler.core.generation.ReplyLength.Default) length.blurb else "${length.label}: ${length.blurb.replaceFirstChar { it.lowercase() }}") { close ->
+        DropRow(title = "Reply length", value = length.label) { close ->
             com.cherry.butler.core.generation.ReplyLength.entries.forEach { option ->
-                DropItem(title = option.label, subtitle = option.blurb, selected = option == length, onClick = { close(); viewModel.setReplyLength(option) })
+                DropItem(title = option.label, subtitle = null, selected = option == length, onClick = { close(); viewModel.setReplyLength(option) })
             }
         }
         // The defaults shown are the ones the website sends when nothing is saved.
-        NumberRow("Hard limit (tokens)", "0 = no limit", int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
+        NumberRow("Hard limit (tokens)", null, int("max_new_token", 0), { viewModel.setGeneration("max_new_token", JsonPrimitive(it)) }, 0..65_536)
         NumberRow("Context", null, int("context_length", 50_000), { viewModel.setGeneration("context_length", JsonPrimitive(it)) }, 512..1_000_000)
     }
     SettingsSection(title = "Sampling", icon = Icons.Rounded.Tune) {
-        SliderRow("Temperature", num("temperature", 1f), 0f..2f, 0.05f, { it.fixed(2) }, { viewModel.setGeneration("temperature", JsonPrimitive(it)) }, busy = saving == "gen:temperature")
-        SliderRow("Top P", num("top_p", 1f), 0f..1f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("top_p", JsonPrimitive(it)) }, busy = saving == "gen:top_p")
-        SliderRow("Top K", int("top_k", 0).toFloat(), 0f..100f, 1f, { it.toInt().toString() }, { viewModel.setGeneration("top_k", JsonPrimitive(it.toInt())) }, busy = saving == "gen:top_k")
-        SliderRow("Repetition penalty", num("repetition_penalty", 0f), 0f..2f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("repetition_penalty", JsonPrimitive(it)) }, busy = saving == "gen:repetition_penalty")
-        SliderRow("Frequency penalty", num("frequency_penalty", 0f), 0f..2f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("frequency_penalty", JsonPrimitive(it)) }, busy = saving == "gen:frequency_penalty")
+        Column(modifier = Modifier.padding(top = 4.dp, bottom = 10.dp)) {
+            SliderRow("Temperature", num("temperature", 1f), 0f..2f, 0.05f, { it.fixed(2) }, { viewModel.setGeneration("temperature", JsonPrimitive(it)) }, busy = saving == "gen:temperature", divider = false, mark = 1f)
+            SliderRow("Top P", num("top_p", 1f), 0f..1f, 0.01f, { it.fixed(2) }, { viewModel.setGeneration("top_p", JsonPrimitive(it)) }, busy = saving == "gen:top_p", divider = false)
+            SliderRow("Top K", int("top_k", 0).toFloat(), 0f..100f, 1f, { if (it.toInt() == 0) "Off" else it.toInt().toString() }, { viewModel.setGeneration("top_k", JsonPrimitive(it.toInt())) }, busy = saving == "gen:top_k", divider = false)
+            HairlineRule(color = ButlerTheme.colors.outlineFaint, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            SliderRow("Repetition penalty", num("repetition_penalty", 0f), 0f..2f, 0.01f, { if (it == 0f) "Off" else it.fixed(2) }, { viewModel.setGeneration("repetition_penalty", JsonPrimitive(it)) }, busy = saving == "gen:repetition_penalty", divider = false)
+            SliderRow("Frequency penalty", num("frequency_penalty", 0f), 0f..2f, 0.01f, { if (it == 0f) "Off" else it.fixed(2) }, { viewModel.setGeneration("frequency_penalty", JsonPrimitive(it)) }, busy = saving == "gen:frequency_penalty", divider = false)
+        }
     }
     // JLLM's own switches, in Janitor's words. They do nothing for a proxy (its thinking is the
     // proxy's Thinking level), so they show only while JLLM answers. Deep reasoning and
@@ -1850,24 +2044,23 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
         val short = bool("enable_short_responses")
         SettingsSection(
             title = "JLLM",
-            footnote = if (premium == false) "Deep reasoning and reasoning on enhanced swipes come with Janitor+." else null,
         ) {
             SwitchRow(
                 "Short responses",
-                "Shorter, snappier replies",
+                null,
                 short,
                 { viewModel.setGeneration("enable_short_responses", JsonPrimitive(it)) },
             )
             if (premium == true) {
                 SwitchRow(
                     "Deep reasoning",
-                    "Thinks before replying. Slower",
+                    null,
                     bool("enable_reasoning_chat"),
                     { viewModel.setGeneration("enable_reasoning_chat", JsonPrimitive(it)) },
                 )
                 SwitchRow(
                     "Reasoning on enhanced swipes",
-                    if (short) "Off while short responses is on" else "Swipes think first. Slower",
+                    null,
                     bool("enable_reasoning"),
                     { viewModel.setGeneration("enable_reasoning", JsonPrimitive(it)) },
                     enabled = !short,
@@ -1878,7 +2071,7 @@ private fun GenerationSections(gen: JsonObject, saving: String?, viewModel: Sett
     SettingsSection(title = "Replies", icon = Icons.Rounded.Notes) {
         SwitchRow(
             "Prefill",
-            "Replies start with your text",
+            null,
             bool("prefill_enabled"),
             { viewModel.setGeneration("prefill_enabled", JsonPrimitive(it)) },
         )
@@ -1988,7 +2181,7 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
         SwitchRow(
             title = "Lock Butler",
             icon = Icons.Rounded.Lock,
-            subtitle = if (lock.canLock() || locked) null else "Set a screen lock on your ${com.cherry.butler.core.platform.Device.NAME} first",
+            subtitle = null,
             checked = locked,
             enabled = lock.canLock() || locked,
             onChange = { turnOn ->
@@ -2045,12 +2238,11 @@ private fun DebugSection() {
     SettingsSection(
         title = "Debug",
         icon = Icons.Rounded.Dns,
-        footnote = "Debug builds only.",
     ) {
         SwitchRow(
             title = "Send traffic through a proxy",
             icon = Icons.Rounded.Dns,
-            subtitle = if (on && !valid) "Enter the proxy as host:port first" else null,
+            subtitle = null,
             checked = on && valid,
             enabled = valid || on,
             onChange = { turnOn ->
@@ -2077,8 +2269,7 @@ private fun DebugSection() {
         var fetching by remember { mutableStateOf(false) }
         LinkRow(
             title = if (fetching) "Fetching certificate…" else "Fetch certificate",
-            subtitle = issuer?.let { "Trusted: ${it.substringAfter("CN=").substringBefore(',')}. Tap to fetch again" }
-                ?: "From the proxy above, so it can read HTTPS",
+            subtitle = issuer?.let { it.substringAfter("CN=").substringBefore(',') },
             onClick = {
                 if (!fetching) {
                     fetching = true
@@ -2102,7 +2293,7 @@ private fun DebugSection() {
         // a device without one does (calls under a browser name of their own, no clearance).
         LinkRow(
             title = "Forget Cloudflare's pass",
-            subtitle = "Butler's and the WebView's, and the browser name with them. The next call should meet the check",
+            subtitle = null,
             onClick = {
                 com.cherry.butler.core.network.JanitorCookies.clear()
                 com.cherry.butler.core.network.ButlerUserAgent.forgetWebView()

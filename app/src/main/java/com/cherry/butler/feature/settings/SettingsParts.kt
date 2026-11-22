@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -94,6 +95,10 @@ fun SettingsSection(
     icon: ImageVector? = null,
     /** Says so with a tag: the section is a beta. */
     beta: Boolean = false,
+    /** Says so with a tag: the section is a Butler special. */
+    special: Boolean = false,
+    /** A small mark after the title that explains the section, like an (i). */
+    info: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
@@ -114,6 +119,14 @@ fun SettingsSection(
             if (beta) {
                 Spacer(Modifier.width(8.dp))
                 BetaTag()
+            }
+            if (special) {
+                Spacer(Modifier.width(8.dp))
+                ButlerSpecialTag()
+            }
+            if (info != null) {
+                Spacer(Modifier.width(4.dp))
+                info()
             }
         }
         Column(
@@ -293,18 +306,37 @@ fun SliderRow(
     format: (Float) -> String,
     onCommit: (Float) -> Unit,
     busy: Boolean = false,
+    /** The hairline under the row; off when sliders stack as one set. */
+    divider: Boolean = true,
+    /** A small notch on the track at a value worth finding again (the usual one). */
+    mark: Float? = null,
 ) {
     var local by remember(value) { mutableFloatStateOf(value) }
     val steps = (((range.endInclusive - range.start) / step).roundToInt() - 1).coerceAtLeast(0)
+    val changed = local != value
+    val chip by androidx.compose.animation.animateColorAsState(
+        if (changed) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else ButlerTheme.colors.surfaceHigh,
+        animationSpec = com.cherry.butler.core.design.Motion.enter(com.cherry.butler.core.design.Motion.SHORT),
+        label = "slider-chip",
+    )
     Column {
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp)) {
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                Text(
-                    text = if (busy) "Saving…" else format(local),
-                    style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
-                    color = if (local != value) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed,
-                )
+                Box(
+                    modifier = Modifier
+                        .widthIn(min = 52.dp)
+                        .background(chip, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (busy) "Saving…" else format(local),
+                        style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (changed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
             Slider(
                 value = local.coerceIn(range),
@@ -312,25 +344,38 @@ fun SliderRow(
                 onValueChangeFinished = { if (local != value) onCommit(local) },
                 valueRange = range,
                 steps = if (steps <= 200) steps else 0,
-                modifier = Modifier.height(32.dp),
-                // Slim: a round thumb on a thin line, no stop dots.
+                modifier = Modifier.height(36.dp),
+                // A ringed thumb sitting on a fuller track, no stop dots.
                 thumb = {
-                    Box(Modifier.size(18.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                    Box(
+                        Modifier
+                            .size(22.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                            .padding(3.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    )
                 },
                 track = { state ->
                     val active = MaterialTheme.colorScheme.primary
                     val rest = ButlerTheme.colors.surfaceHigh
+                    val notch = ButlerTheme.colors.textLow
                     val span = state.valueRange.endInclusive - state.valueRange.start
                     val fraction = if (span > 0f) ((state.value - state.valueRange.start) / span).coerceIn(0f, 1f) else 0f
-                    Canvas(Modifier.fillMaxWidth().height(4.dp)) {
+                    val markAt = mark?.takeIf { span > 0f && it > state.valueRange.start && it < state.valueRange.endInclusive }
+                        ?.let { (it - state.valueRange.start) / span }
+                    Canvas(Modifier.fillMaxWidth().height(6.dp)) {
                         val r = CornerRadius(size.height / 2)
                         drawRoundRect(rest, cornerRadius = r)
                         drawRoundRect(active, size = Size(size.width * fraction, size.height), cornerRadius = r)
+                        if (markAt != null && markAt > fraction) {
+                            val x = size.width * markAt
+                            drawCircle(notch, radius = size.height / 2.6f, center = androidx.compose.ui.geometry.Offset(x, size.height / 2))
+                        }
                     }
                 },
             )
         }
-        RowDivider()
+        if (divider) RowDivider()
     }
 }
 

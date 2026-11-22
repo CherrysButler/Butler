@@ -75,7 +75,7 @@ fun LorebooksLibraryScreen(
             item {
                 NumberRow(
                     title = "Lore character limit",
-                    subtitle = "0 = unlimited",
+                    subtitle = null,
                     value = limit,
                     onCommit = viewModel::setContextCharLimit,
                     range = 0..Int.MAX_VALUE,

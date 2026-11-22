@@ -9,7 +9,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Agent mode (beta): a reply is drafted, checked against goals, fixed and only then
+ * Agent mode (a Butler special): a reply is drafted, checked against goals, fixed and only then
  * delivered. Off by default; proxies only, and meant for reasoning models. [Effort] is how
  * many check-and-fix rounds a reply may take; [goals] are the user's own goals, one per
  * line, on top of Butler's.

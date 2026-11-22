@@ -99,11 +99,10 @@ internal fun ProfilesSection(viewModel: SettingsViewModel) {
     SettingsSection(
         title = "Profiles",
         icon = Icons.Rounded.Bookmarks,
-        footnote = "A profile keeps the theme and its colours, the chat layout, the thinking line, how chat text looks, and the two fonts.",
     ) {
         if (profiles.isEmpty()) {
             Text(
-                "No profiles yet. Save the look you have on to put it back with one tap.",
+                "No profiles yet",
                 style = MaterialTheme.typography.bodyMedium,
                 color = ButlerTheme.colors.textLow,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
@@ -132,11 +131,11 @@ internal fun ProfilesSection(viewModel: SettingsViewModel) {
             )
         }
     }
-    SettingsSection(title = "Add", footnote = "An imported profile is added here; it goes on only when you tap it.") {
+    SettingsSection(title = "Add") {
         LinkRow(title = "Save the look you have on", subtitle = null, onClick = { naming = true }, icon = Icons.Rounded.Add)
         LinkRow(
             title = "Import a profile",
-            subtitle = "A .json file shared from Butler",
+            subtitle = null,
             onClick = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) },
             icon = Icons.Rounded.FileOpen,
         )

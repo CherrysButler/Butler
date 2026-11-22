@@ -106,7 +106,7 @@ class ChatViewModel @Inject constructor(
     /** On a PC keyboard, which of Enter and Shift+Enter sends. */
     val shiftEnterSends: StateFlow<Boolean> = chatPrefs.shiftEnterSends
 
-    /** A picture put into the draft (beta): its small copy, what has happened to it, and the draft with `[pic]` in it. */
+    /** A picture put into the draft: its small copy, what has happened to it, and the draft with `[pic]` in it. */
     data class Picture(val file: java.io.File, val status: PictureStatus, val original: String)
     enum class PictureStatus { Attached, Describing, Described }
 
@@ -853,5 +853,5 @@ class ChatViewModel @Inject constructor(
     }
 }
 
-/** Where a picture goes in a draft until it is written in (beta). */
+/** Where a picture goes in a draft until it is written in. */
 const val PIC = "[pic]"

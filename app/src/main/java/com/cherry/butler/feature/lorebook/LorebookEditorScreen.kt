@@ -184,11 +184,10 @@ fun LorebookEditorScreen(
                                 label = { Text("Lorebook name") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth(),
                             )
                             NumberField(
-                                label = "Default scan depth", value = book.scanDepth, hint = "Recent messages to scan, from 0 to 100.", enabled = !busy,
+                                label = "Default scan depth", value = book.scanDepth, enabled = !busy,
                                 onChange = { text -> viewModel.updateEditor { it.copy(scanDepth = text) } },
                             )
                             Text("Entries (${book.entries.size})", style = MaterialTheme.typography.titleMedium)
-                            Text("Edit entries below, then save the lorebook to apply your changes.", style = MaterialTheme.typography.bodySmall)
                             FilledTonalButton(enabled = !busy && book.entries.size < Lorebook.MAX_ENTRIES, onClick = { viewModel.editEntry() }) {
                                 Icon(Icons.Outlined.Add, null)
                                 Spacer(Modifier.width(8.dp))
@@ -273,19 +272,19 @@ private fun EntryFields(form: LoreEntryForm, charLimit: Int, update: ((LoreEntry
         OutlinedTextField(value = form.value.name, onValueChange = { text -> update { it.copy(value = it.value.copy(name = text)) } },
             label = { Text("Entry name (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = form.value.content, onValueChange = { text -> update { it.copy(value = it.value.copy(content = text)) } },
-            label = { Text("Content") }, supportingText = { Text("The world information the model receives when this entry activates.") },
+            label = { Text("Content") },
             minLines = 6, maxLines = 14, modifier = Modifier.fillMaxWidth())
         if (charLimit > 0 && form.value.content.length > charLimit) Text(
             "This entry exceeds the $charLimit-character lore budget and will be skipped during generation.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
         )
-        EditorSwitch("Enabled", "Disabled entries are never included.", form.value.enabled) { on -> update { it.copy(value = it.value.copy(enabled = on)) } }
-        EditorSwitch("Always active", "Include without matching keywords.", form.value.constant) { on -> update { it.copy(value = it.value.copy(constant = on)) } }
+        EditorSwitch("Enabled", form.value.enabled) { on -> update { it.copy(value = it.value.copy(enabled = on)) } }
+        EditorSwitch("Always active", form.value.constant) { on -> update { it.copy(value = it.value.copy(constant = on)) } }
         OutlinedTextField(value = form.keys, onValueChange = { text -> update { it.copy(keys = text) } }, label = { Text("Primary keywords") },
-            supportingText = { Text(if (form.value.constant) "Ignored while Always active is on." else "One keyword or phrase per line. Any match can activate the entry.") }, minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth())
-        EditorSwitch("Secondary conditions", "Require additional keyword conditions. Ignored for always-active entries.", form.value.selective) { on -> update { it.copy(value = it.value.copy(selective = on)) } }
+            minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth())
+        EditorSwitch("Secondary conditions", form.value.selective) { on -> update { it.copy(value = it.value.copy(selective = on)) } }
         if (form.value.selective) {
             OutlinedTextField(value = form.secondaryKeys, onValueChange = { text -> update { it.copy(secondaryKeys = text) } },
-                label = { Text("Secondary keywords") }, supportingText = { Text("One keyword or phrase per line.") }, minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth())
+                label = { Text("Secondary keywords") }, minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth())
             val selectedRule = form.value.selectiveLogic
             DropRow(title = "Secondary condition", value = selectedRule.label) { close ->
                 SecondaryKeywordRule.entries.forEach { rule ->
@@ -296,11 +295,11 @@ private fun EntryFields(form: LoreEntryForm, charLimit: Int, update: ((LoreEntry
                 }
             }
         }
-        EditorSwitch("Case sensitive", "Match uppercase and lowercase exactly.", form.value.caseSensitive) { on -> update { it.copy(value = it.value.copy(caseSensitive = on)) } }
-        EditorSwitch("Whole words", "Avoid matching a keyword inside a longer word.", form.value.wholeWords) { on -> update { it.copy(value = it.value.copy(wholeWords = on)) } }
-        NumberField("Priority", form.order, "Higher values get priority when the lore budget is full.") { text -> update { it.copy(order = text) } }
-        NumberField("Scan depth override", form.scanDepth, "Leave blank to use the lorebook default. Otherwise 0–100 messages.") { text -> update { it.copy(scanDepth = text) } }
-        NumberField("Probability (%)", form.probability, "0 never activates; 100 always passes the probability check.") { text -> update { it.copy(probability = text) } }
+        EditorSwitch("Case sensitive", form.value.caseSensitive) { on -> update { it.copy(value = it.value.copy(caseSensitive = on)) } }
+        EditorSwitch("Whole words", form.value.wholeWords) { on -> update { it.copy(value = it.value.copy(wholeWords = on)) } }
+        NumberField("Priority", form.order) { text -> update { it.copy(order = text) } }
+        NumberField("Scan depth override", form.scanDepth) { text -> update { it.copy(scanDepth = text) } }
+        NumberField("Probability (%)", form.probability) { text -> update { it.copy(probability = text) } }
         Spacer(Modifier.height(32.dp))
     }
 }
@@ -314,15 +313,15 @@ private val SecondaryKeywordRule.label: String
     }
 
 @Composable
-private fun NumberField(label: String, value: String, hint: String, enabled: Boolean = true, onChange: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label) }, supportingText = { Text(hint) },
+private fun NumberField(label: String, value: String, enabled: Boolean = true, onChange: (String) -> Unit) {
+    OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label) },
         singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), enabled = enabled, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
-private fun EditorSwitch(label: String, hint: String, value: Boolean, onChange: (Boolean) -> Unit) {
+private fun EditorSwitch(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     ListItem(
-        modifier = Modifier.clickable { onChange(!value) }, headlineContent = { Text(label) }, supportingContent = { Text(hint) },
+        modifier = Modifier.clickable { onChange(!value) }, headlineContent = { Text(label) },
         trailingContent = { Switch(checked = value, onCheckedChange = onChange, modifier = Modifier.semantics { contentDescription = label }) },
     )
 }

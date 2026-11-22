@@ -201,12 +201,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
     ) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             Text("Background", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
-            Text(
-                if (chatId == null) "Behind every chat. A chat can still pick its own from its menu." else "For this chat only.",
-                style = MaterialTheme.typography.bodySmall,
-                color = ButlerTheme.colors.textLow,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 12.dp),
-            )
+            Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (chatId != null) {
                     Option(

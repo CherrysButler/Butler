@@ -45,8 +45,8 @@ Butler on Windows, built for a big screen and a keyboard, not a phone app stretc
 * **Compact mode.** When a chat nears the end of its context, the older messages fold into one summary and the newest stay word for word, so the model keeps the thread without forgetting where it started. Each compact chains onto the one before. Settings › Chat › Memory.
 * **Rich typing.** " * B keys right on the message box, and the formatting shows as you type, like Discord. Marks pair up like a code editor: type one and its other half comes with it. *Actions* have never been this easy to write.
 * **Description writer.** Write a few lines about your persona, tap ✦ Enhance, pick one of your proxy presets, and it fleshes them out in your own style, keeping everything you wrote. Undo if you liked yours better.
-* **Pictures in your message** (beta). Tap the picture key, pick one picture, and a model of yours that can see writes it into your line in your own voice, right where you put it. You read it, change what you like, and send it yourself. Nothing of the picture goes to Janitor, only to your proxy. Switch it off, or make it wait for your go, in Settings › Chat.
-* **Agent mode** (beta, proxies with a reasoning model). The reply is drafted, checked against goals strictly, fixed where it fails (exact edits, or a rewrite) and only then delivered. Pick the effort, add your own goals, and watch every step in the thought panel.
+* **Pictures in your message**. Tap the picture key, pick one picture, and a model of yours that can see writes it into your line in your own voice, right where you put it. You read it, change what you like, and send it yourself. Nothing of the picture goes to Janitor, only to your proxy. Switch it off, or make it wait for your go, in Settings › Chat.
+* **Agent mode** (proxies with a reasoning model). The reply is drafted, checked against goals strictly, fixed where it fails (exact edits, or a rewrite) and only then delivered. Pick the effort, add your own goals, and watch every step in the thought panel.
   
   
   

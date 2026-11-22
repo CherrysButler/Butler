@@ -18,7 +18,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Agent mode (beta): the reply as an agent's work, not one shot.
+ * Agent mode (a Butler special): the reply as an agent's work, not one shot.
  *
  * 1. **Draft.** The assembled payload goes to the proxy as usual; the reply is collected
  *    rather than shown.

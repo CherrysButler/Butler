@@ -40,7 +40,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * A Butler special, beta: a picture in a message. The user puts one picture into their
+ * A Butler special: a picture in a message. The user puts one picture into their
  * draft, where `[pic]` stands for it; a model that can see is shown the picture with the
  * chat's last lines and the draft, and writes what the picture shows as the user would have
  * written it, in their tone. That text takes `[pic]`'s place in the draft; the user reads

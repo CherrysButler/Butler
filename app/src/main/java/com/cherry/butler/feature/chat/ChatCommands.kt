@@ -68,7 +68,7 @@ object ChatCommands {
             options = listOf("default", "off", "minimal", "low", "medium", "high") + if (openRouter) listOf("xhigh", "max") else emptyList(),
         ))
         add(SlashCommand("/length", "How long replies are", options = listOf("default", "short", "medium", "long")))
-        add(SlashCommand("/agent", "Agent mode: draft, check, fix, then deliver", beta = true, options = listOf("on", "off")))
+        add(SlashCommand("/agent", "Agent mode: draft, check, fix, then deliver", options = listOf("on", "off")))
         if (lessons) {
             add(SlashCommand("/learn", "Learn from your OOC notes since last time", beta = true))
             add(SlashCommand("/remember", "Add a note to your Lessons straight away", beta = true))

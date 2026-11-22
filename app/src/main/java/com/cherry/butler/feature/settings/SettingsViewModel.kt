@@ -84,7 +84,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** Agent mode (beta): a reply drafted, checked against goals, fixed, then delivered. */
+    /** Agent mode (a Butler special): a reply drafted, checked against goals, fixed, then delivered. */
     val agentOn: StateFlow<Boolean> = agent.enabled
     fun setAgentOn(on: Boolean) = agent.setEnabled(on)
     val agentEffort: StateFlow<com.cherry.butler.core.data.AgentPrefs.Effort> = agent.effort
@@ -94,7 +94,7 @@ class SettingsViewModel @Inject constructor(
     val agentChecker: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = agent.checker
     fun setAgentChecker(proxy: com.cherry.butler.core.data.Writer.Proxy?) = agent.setChecker(proxy)
 
-    /** Which proxy preset writes pictures into a line (beta); null: Write for me's. */
+    /** Which proxy preset writes pictures into a line; null: Write for me's. */
     val pictureDescriber: StateFlow<com.cherry.butler.core.data.Writer.Proxy?> = pictures.describer
     fun setPictureDescriber(proxy: com.cherry.butler.core.data.Writer.Proxy?) = pictures.set(proxy)
     val picturesOn: StateFlow<Boolean> = pictures.enabled

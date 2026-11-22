@@ -100,7 +100,7 @@ class HttpGenerationTransport(
     baseClient: OkHttpClient,
     private val apiCall: ApiCall,
     private val json: Json,
-    /** Agent mode (beta): drafts, checks and fixes a reply before delivering it; null leaves replies one shot. */
+    /** Agent mode (a Butler special): drafts, checks and fixes a reply before delivering it; null leaves replies one shot. */
     private val agent: AgentLoop? = null,
 ) : GenerationTransport {
 
