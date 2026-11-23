@@ -33,7 +33,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1155,10 +1154,10 @@ private fun BotTurn(
         }
     }
 
-    // A swipe across the last reply, on a touch screen: right for the next version (a new one
-    // past the last), left for the one before. It has to be a real swipe, a third of the way
-    // across and far more sideways than up or down: a brush while reading used to change the
-    // reply or ask for a new one, which is why this was once taken out.
+    // A swipe across the last reply, on a touch screen: dragged left for the next version (a new
+    // one past the last), right for the one before. It has to start level (ReplySwipe.kt): a
+    // scroll whose thumb turns sideways used to change the reply or ask for a new one, which is
+    // why this was once taken out.
     val touch = !com.cherry.butler.ui.components.LocalPointerMotion.current
     val swipeable = touch && isLast && !editing && !writing && !busy && (canSwipe || intros.size > 1)
     var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -1176,28 +1175,19 @@ private fun BotTurn(
             .editingMark(editing)
             .then(
                 if (!swipeable) Modifier else Modifier
-                    .graphicsLayer { translationX = pulled }
-                    .pointerInput(shown.localId, turn.variants.size) {
-                        var across = 0f
-                        var along = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { across = 0f; along = 0f },
-                            onDragCancel = { pull = 0f },
-                            onDragEnd = {
-                                val far = kotlin.math.abs(across) > size.width / 3f && kotlin.math.abs(across) > kotlin.math.abs(along) * 2f
-                                if (far) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    swipe(if (across > 0f) 1 else -1)
-                                }
-                                pull = 0f
-                            },
-                        ) { change, drag ->
-                            across += drag
-                            along += change.position.y - change.previousPosition.y
-                            // The line gives a little under the finger, to show it has hold of it.
-                            pull = across * 0.35f
-                        }
-                    },
+                    // Read outside the layer it moves: inside it, the line sliding with the
+                    // finger took a third off every pixel the swipe counted.
+                    .replySwipe(
+                        // The line gives a little under the finger, to show it has hold of it.
+                        onPull = { pull = it * 0.35f },
+                        // A tick as it passes the point where letting go counts.
+                        onArmed = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
+                        onSwipe = { delta ->
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            swipe(delta)
+                        },
+                    )
+                    .graphicsLayer { translationX = pulled },
             )
             .padding(horizontal = 20.dp, vertical = 10.dp)
             .pointerInput(shown.localId, editing) {
