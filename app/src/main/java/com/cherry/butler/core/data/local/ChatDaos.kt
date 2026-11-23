@@ -308,6 +308,9 @@ interface SendJobDao {
     @Query("SELECT * FROM send_jobs WHERE chatId = :chatId AND state IN (:states) ORDER BY id ASC LIMIT 1")
     suspend fun firstActive(chatId: Long, states: Set<String>): SendJobEntity?
 
+    @Query("SELECT * FROM send_jobs WHERE chatId = :chatId AND state IN (:states) ORDER BY id ASC")
+    suspend fun inStates(chatId: Long, states: Set<String>): List<SendJobEntity>
+
     /** Every job of a chat that is still in [states] stops mattering, at once. */
     @Query("UPDATE send_jobs SET state = 'cancelled', updatedAt = :now WHERE chatId = :chatId AND state IN (:states)")
     suspend fun cancelAll(chatId: Long, states: Set<String>, now: Long)

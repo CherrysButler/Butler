@@ -36,7 +36,7 @@ import coil.compose.AsyncImage
  */
 @Composable
 fun ImageViewer(url: String, name: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         var scale by remember { mutableFloatStateOf(1f) }
         var offset by remember { mutableStateOf(Offset.Zero) }
         val transform = rememberTransformableState { zoom, pan, _ ->

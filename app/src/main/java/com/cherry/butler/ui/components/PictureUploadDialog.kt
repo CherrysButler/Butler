@@ -50,7 +50,7 @@ fun PictureUploadDialog(
     failure: String?,
     onClose: () -> Unit,
 ) {
-    Dialog(
+    com.cherry.butler.ui.components.ButlerDialog(
         onDismissRequest = { if (failure != null) onClose() },
         properties = DialogProperties(dismissOnBackPress = failure != null, dismissOnClickOutside = false),
     ) {

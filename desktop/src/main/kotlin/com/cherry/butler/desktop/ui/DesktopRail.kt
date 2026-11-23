@@ -1,6 +1,26 @@
 package com.cherry.butler.desktop.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import kotlinx.coroutines.delay
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateDpAsState
@@ -8,8 +28,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.TooltipArea
-import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
@@ -46,7 +64,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -229,32 +246,69 @@ private fun breathing(): Float {
 }
 
 /** A name beside the rail on hover: a raised slate tag with the card's hairline edge. */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * A rail key's name, beside it once the pointer has rested there. It fades in from the key and
+ * back to it; a press puts it away until the pointer has left and come back.
+ */
 @Composable
 private fun RailTooltip(text: String, content: @Composable () -> Unit) {
-    TooltipArea(
-        tooltip = {
-            Box(
-                Modifier
-                    .background(ButlerTheme.colors.surfaceHigh, RoundedCornerShape(8.dp))
-                    .border(hairline(), ButlerTheme.colors.rule, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    text,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    var pressed by remember { mutableStateOf(false) }
+    val shown = remember { MutableTransitionState(false) }
+    LaunchedEffect(hovered, pressed) {
+        if (hovered && !pressed) {
+            delay(250)
+            shown.targetState = true
+        } else {
+            shown.targetState = false
+            if (!hovered) pressed = false
+        }
+    }
+    Box(
+        Modifier.hoverable(source).pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    if (awaitPointerEvent(PointerEventPass.Initial).type == PointerEventType.Press) pressed = true
+                }
             }
         },
-        delayMillis = 250,
-        tooltipPlacement = TooltipPlacement.ComponentRect(
-            anchor = Alignment.CenterEnd,
-            alignment = Alignment.CenterEnd,
-            offset = DpOffset(6.dp, 0.dp),
-        ),
-        content = content,
-    )
+    ) {
+        content()
+        if (shown.currentState || shown.targetState) {
+            val gap = with(LocalDensity.current) { 6.dp.roundToPx() }
+            Popup(popupPositionProvider = remember(gap) { BesideEnd(gap) }) {
+                val fromKey = TransformOrigin(0f, 0.5f)
+                AnimatedVisibility(
+                    visibleState = shown,
+                    enter = fadeIn(Motion.enter(Motion.SHORT)) + scaleIn(Motion.enter(Motion.SHORT), initialScale = 0.94f, transformOrigin = fromKey),
+                    exit = fadeOut(Motion.exit(110)) + scaleOut(Motion.exit(110), targetScale = 0.94f, transformOrigin = fromKey),
+                ) {
+                    Box(
+                        Modifier
+                            .background(ButlerTheme.colors.surfaceHigh, RoundedCornerShape(8.dp))
+                            .border(hairline(), ButlerTheme.colors.rule, RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A popup beside its anchor's end, centred on its height, [gap] pixels off it. */
+private class BesideEnd(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
+        IntOffset(
+            anchorBounds.right + gap,
+            (anchorBounds.top + (anchorBounds.height - popupContentSize.height) / 2).coerceIn(0, maxOf(0, windowSize.height - popupContentSize.height)),
+        )
 }

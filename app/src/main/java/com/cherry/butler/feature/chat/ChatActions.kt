@@ -71,6 +71,7 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
 import com.cherry.butler.ui.components.HairlineRule
+import kotlinx.coroutines.launch
 import com.cherry.butler.ui.components.hairlineFrame
 import com.cherry.butler.ui.components.userMessage
 
@@ -96,13 +97,7 @@ fun LineActionsSheet(
     /** Agent mode's check and fixes on this reply, as a new variant; null hides it. */
     onCheck: (() -> Unit)? = null,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
             Text(
                 text = preview.lines().joinToString(" "),
@@ -117,11 +112,13 @@ fun LineActionsSheet(
                 Stars(rating, onRate)
                 HairlineRule(color = ButlerTheme.colors.outlineFaint)
             }
-            ActionRow(Icons.Rounded.ContentCopy, "Copy", onClick = onCopy)
-            if (canEdit) ActionRow(Icons.Rounded.Edit, "Edit", onClick = onEdit)
-            if (onCheck != null) ActionRow(Icons.Rounded.FactCheck, "Check this reply", onClick = onCheck)
-            if (onBranch != null) ActionRow(Icons.Rounded.CallSplit, "Branch from here", onClick = onBranch)
-            if (canDelete) ActionRow(Icons.Rounded.DeleteOutline, "Delete from here", tint = ButlerTheme.colors.danger, onClick = onDelete)
+            // Each of these ends the sheet: it slides away first, then the action is done.
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            ActionRow(Icons.Rounded.ContentCopy, "Copy", onClick = { leave(onCopy) })
+            if (canEdit) ActionRow(Icons.Rounded.Edit, "Edit", onClick = { leave(onEdit) })
+            if (onCheck != null) ActionRow(Icons.Rounded.FactCheck, "Check this reply", onClick = { leave(onCheck) })
+            if (onBranch != null) ActionRow(Icons.Rounded.CallSplit, "Branch from here", onClick = { leave(onBranch) })
+            if (canDelete) ActionRow(Icons.Rounded.DeleteOutline, "Delete from here", tint = ButlerTheme.colors.danger, onClick = { leave(onDelete) })
         }
     }
 }
@@ -185,7 +182,7 @@ fun DeleteConfirmDialog(
     body: String? = null,
     confirmLabel: String? = null,
 ) {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -202,12 +199,14 @@ fun DeleteConfirmDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, shape = com.cherry.butler.core.design.Pill) {
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            TextButton(onClick = { leave(onConfirm) }, shape = com.cherry.butler.core.design.Pill) {
                 Text(confirmLabel ?: if (count <= 1) "Delete" else "Delete $count", color = ButlerTheme.colors.danger, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, shape = com.cherry.butler.core.design.Pill) {
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            TextButton(onClick = { leave(onDismiss) }, shape = com.cherry.butler.core.design.Pill) {
                 Text("Keep", color = MaterialTheme.colorScheme.onSurface)
             }
         },
@@ -440,6 +439,9 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
         }
         runCatching { focus.requestFocus() }
     }
+    // Asking ends the sheet: it slides away first, then the reply is asked for.
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val leave: (() -> Unit) -> Unit = { then -> scope.launch { runCatching { sheetState.hide() } }.invokeOnCompletion { then() } }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -470,7 +472,7 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Send),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onRetry(asked) }),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { leave { onRetry(asked) } }),
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth().focusRequester(focus),
                     decorationBox = { inner ->
@@ -500,7 +502,7 @@ fun RetrySheet(onRetry: (String) -> Unit, onDismiss: () -> Unit) {
                 }
             }
             androidx.compose.material3.Button(
-                onClick = { onRetry(asked) },
+                onClick = { leave { onRetry(asked) } },
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp).heightIn(min = 50.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(

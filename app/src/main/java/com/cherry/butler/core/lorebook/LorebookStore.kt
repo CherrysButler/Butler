@@ -3,6 +3,7 @@ package com.cherry.butler.core.lorebook
 import android.util.Log
 import com.cherry.butler.core.data.local.ChatEntity
 import com.cherry.butler.core.data.local.MessageEntity
+import com.cherry.butler.core.markdown.fillUser
 import com.cherry.butler.core.data.remote.dto.PersonaDto
 import com.cherry.butler.core.data.remote.dto.ProfileDto
 import kotlinx.coroutines.CancellationException
@@ -105,6 +106,24 @@ class LorebookStore @Inject constructor(database: LorebookDatabase) {
                 charLimit = dao.contextLimit() ?: LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT,
                 userName = persona?.name ?: profile.name,
                 history = history,
+            )
+        }
+    }
+
+    /**
+     * The entries the scene would bring in with the next reply, for the chat panel's Context
+     * page. An entry with a chance below 100 is listed as if its roll passed.
+     */
+    suspend fun activatedFor(chat: ChatEntity, profile: ProfileDto, persona: PersonaDto?, history: List<MessageEntity>): List<LoreEntry> {
+        val personaScope = LorebookScope.persona(persona?.id, chat.userId.ifEmpty { profile.id })
+        val userName = persona?.name ?: profile.name
+        return withSelection(chat.id, personaScope) { selected ->
+            if (selected.candidates.isEmpty()) return@withSelection emptyList()
+            LorebookMatcher.activated(
+                selection = selected,
+                messages = history.filter { it.serverId != null }.map { it.text.fillUser(userName) },
+                charLimit = dao.contextLimit() ?: LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT,
+                roll = { 0 },
             )
         }
     }

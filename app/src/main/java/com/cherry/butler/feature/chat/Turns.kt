@@ -40,6 +40,7 @@ fun foldTurns(
     liveIds: Set<Long>,
 ): List<Turn> {
     val activeBotRows = jobs.filter { it.state in SendJobState.active }.mapNotNullTo(HashSet()) { it.botMessageLocalId }
+    val failedBotRows = jobs.filter { it.state == SendJobState.FAILED }.mapNotNullTo(HashSet()) { it.botMessageLocalId }
     val botJobs = jobs.filter { it.userMessageLocalId == null && it.botMessageLocalId != null }
         .associateBy { it.botMessageLocalId!! }
 
@@ -56,8 +57,12 @@ fun foldTurns(
         while (j < messages.size && messages[j].isBot) j++
         val group = messages.subList(i, j)
         // An empty row nobody is writing into is not a variant, it is a failed attempt;
-        // its job (if any) still shows under the turn.
-        val variants = group.filter { it.text.isNotEmpty() || it.localId in liveIds || it.localId in activeBotRows || !it.thinking.isNullOrEmpty() }
+        // its job (if any) still shows under the turn. Thinking alone keeps a finished reply
+        // that came back wordless, but not an attempt that failed or was stopped.
+        val variants = group.filter {
+            it.text.isNotEmpty() || it.localId in liveIds || it.localId in activeBotRows ||
+                (!it.thinking.isNullOrEmpty() && it.localId !in failedBotRows)
+        }
         if (variants.isEmpty()) {
             // Nothing but leftovers of failed attempts: no turn at all. The failure itself
             // is shown under the user's line, where its job belongs.

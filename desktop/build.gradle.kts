@@ -118,6 +118,8 @@ val generateViewModelBindings by tasks.registering {
 val sharedSources by tasks.registering(Sync::class) {
     from(shared) {
         exclude(androidOnly.map { "com/cherry/butler/$it" })
+        // Liquid's Android half (RuntimeShader); the desktop has its Skia half in its own sources.
+        exclude("io/github/fletchmckee/liquid/internal/*.android.kt")
         // Android loads res/font fonts by id; the desktop's ButlerFont loads the bundled file.
         filesMatching("com/cherry/butler/core/design/Type.kt") {
             filter { line -> line.replace(Regex("""\bFont\("""), "ButlerFont(") }

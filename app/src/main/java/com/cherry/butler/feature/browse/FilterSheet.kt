@@ -48,14 +48,7 @@ fun FilterSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.background,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, containerColor = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Filters", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))

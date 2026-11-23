@@ -47,13 +47,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: Turn
     val dark = !MaterialTheme.colorScheme.background.let { it.red + it.green + it.blue > 1.5f }
     var failure by remember { mutableStateOf<String?>(null) }
     val deliver by rememberUpdatedState(onToken)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             Text("One moment", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Text(

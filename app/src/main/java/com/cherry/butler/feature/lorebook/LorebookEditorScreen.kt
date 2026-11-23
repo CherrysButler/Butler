@@ -243,7 +243,7 @@ fun LorebookEditorScreen(
         dismissButton = { TextButton(onClick = { discard = false }) { Text("Keep editing") } },
     )
     deleting?.let { id ->
-        AlertDialog(
+        com.cherry.butler.ui.components.ButlerAlertDialog(
             onDismissRequest = { deleting = null }, title = { Text("Delete entry?") },
             text = {
                 Text("The entry will be removed when you save the lorebook.")

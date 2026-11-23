@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
@@ -87,7 +88,7 @@ import com.cherry.butler.ui.navigation.TopLevelDestination
 
 /** A character's page sits beside the content from this pane width; below it, it slides over. */
 private val SideBySideFrom = 1040.dp
-private val PanelWidth = 380.dp
+private val PanelWidth = 490.dp
 private val PanelNarrowest = 320.dp
 private val PanelWidest = 900.dp
 /** What the panel always leaves the pane beside it. */
@@ -128,7 +129,8 @@ private fun PanelEdge(onDrag: (Dp) -> Unit, onDone: () -> Unit, onReset: () -> U
             .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onReset() }) },
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.width(if (lit) 2.dp else hairline()).fillMaxHeight().background(line))
+        val thick by androidx.compose.animation.core.animateDpAsState(if (lit) 2.dp else hairline(), tween(Motion.SHORT), label = "panel-edge-width")
+        Box(Modifier.width(thick).fillMaxHeight().background(line))
     }
 }
 
@@ -152,20 +154,59 @@ fun DesktopShell() {
     val openChatId = if (route == Routes.CHAT) backStackEntry?.arguments?.getLong(Routes.ARG_CHAT_ID) else null
     var tab by rememberSaveable { mutableStateOf(TopLevelDestination.Browse) }
     var panelCharacter by rememberSaveable { mutableStateOf<String?>(null) }
+    // The open chat's panel at the window's right: its pages come from the chat itself.
+    val chatPanel = remember {
+        com.cherry.butler.feature.chat.ChatPanelHost().apply {
+            open = com.cherry.butler.desktop.WindowMemory.chatPanelOpen()
+            com.cherry.butler.desktop.WindowMemory.chatPanelTab()
+                ?.let { t -> com.cherry.butler.feature.chat.ChatPanelTab.entries.firstOrNull { it.name == t } }
+                ?.takeIf { it in com.cherry.butler.feature.chat.PANEL_TABS }
+                ?.let { this.tab = it }
+        }
+    }
+    // Kept as it is left, so a chat opens with the panel as it was.
+    LaunchedEffect(chatPanel) {
+        androidx.compose.runtime.snapshotFlow { chatPanel.open to chatPanel.tab }
+            .collect { (open, tab) -> com.cherry.butler.desktop.WindowMemory.keepChatPanel(open, tab.name) }
+    }
     val leaveGuard = remember { LeaveGuard() }
 
     fun openChat(id: Long) {
         navController.navigate(Routes.chat(id)) { popUpTo(Routes.TABS) }
     }
 
-    fun goTo(dest: TopLevelDestination) = leaveGuard.leave {
-        tab = dest
-        navController.popBackStack(Routes.TABS, inclusive = false)
+    // Settings is a window over the app (SettingsWindow), not a section of the pane: whatever
+    // was on show stays where it was behind it.
+    val settings = remember { SettingsWindowState() }
+    // A settings page that opens a screen of its own (a proxy, a prompt, the lorebooks) leaves
+    // the window for it; stepping back from that screen brings the window out again. The entry
+    // the window was left from, until then.
+    var settingsLeftFrom by remember { mutableStateOf<String?>(null) }
+    val entryId = backStackEntry?.id
+    LaunchedEffect(entryId) {
+        if (settingsLeftFrom != null && entryId == settingsLeftFrom) {
+            settingsLeftFrom = null
+            settings.open = true
+        }
+    }
+
+    fun goTo(dest: TopLevelDestination) {
+        if (dest == TopLevelDestination.Settings) {
+            settingsLeftFrom = null
+            settings.open = true
+            return
+        }
+        leaveGuard.leave {
+            tab = dest
+            navController.popBackStack(Routes.TABS, inclusive = false)
+        }
     }
 
     var panelDrag by remember { mutableStateOf(com.cherry.butler.desktop.WindowMemory.panelWidth(PanelWidth)) }
+    var panelDragging by remember { mutableStateOf(false) }
 
-    RememberPlace(navController, tab, panelCharacter, onTab = { tab = it }, onPanel = { panelCharacter = it })
+    // A place kept from when Settings was a section opens the first section instead.
+    RememberPlace(navController, tab, panelCharacter, onTab = { if (it != TopLevelDestination.Settings) tab = it }, onPanel = { panelCharacter = it })
 
     // A clicked reply notification names the chat to open.
     val shell: ShellViewModel = hiltViewModel()
@@ -186,7 +227,10 @@ fun DesktopShell() {
     DisposableEffect(navController) {
         DesktopBack.fallback = {
             when {
+                // The settings window is over everything: a page it opened steps back, then it closes.
+                settings.open -> { if (!settings.back()) leaveGuard.leave { settings.open = false }; true }
                 panelCharacter != null -> { panelCharacter = null; true }
+                chatPanel.open && chatPanel.pages != null -> { chatPanel.open = false; true }
                 navController.previousBackStackEntry != null -> navController.popBackStack()
                 else -> false
             }
@@ -218,8 +262,13 @@ fun DesktopShell() {
     ChatListWatch(section = tab.takeIf { route == Routes.TABS })
 
     val chatLight = remember { ChatLight() }
+    DisposableEffect(chatPanel) {
+        com.cherry.butler.desktop.DesktopKeys.chatPanel = { if (chatPanel.pages != null) { chatPanel.toggle(); true } else false }
+        onDispose { com.cherry.butler.desktop.DesktopKeys.chatPanel = null }
+    }
     CompositionLocalProvider(
         LocalLeaveGuard provides leaveGuard,
+        com.cherry.butler.feature.chat.LocalChatPanelHost provides chatPanel,
         com.cherry.butler.ui.components.LocalPointerMotion provides true,
         // Every scrollbar in Butler's colours: a hairline track's worth of thumb, lit on hover.
         androidx.compose.foundation.LocalScrollbarStyle provides androidx.compose.foundation.ScrollbarStyle(
@@ -244,7 +293,7 @@ fun DesktopShell() {
         Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize().background(ButlerTheme.colors.chrome)) {
             DesktopRail(
-                lit = tab.takeIf { route != Routes.CHAT },
+                lit = if (settings.open) TopLevelDestination.Settings else tab.takeIf { route != Routes.CHAT },
                 openChatId = openChatId,
                 onSection = ::goTo,
                 onOpenChat = ::openChat,
@@ -258,12 +307,33 @@ fun DesktopShell() {
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val sideBySide = maxWidth >= SideBySideFrom
-                    val panelOpen = panelCharacter != null
+                    // A character opened from anywhere takes the right over the chat panel.
+                    val chatPanelOpen = panelCharacter == null && chatPanel.open && chatPanel.pages != null
+                    val panelOpen = panelCharacter != null || chatPanelOpen
                     // The panel is as wide as it was last dragged, within what leaves the pane room.
                     val widest = (maxWidth - PaneAtLeast).coerceAtLeast(PanelNarrowest)
                     val panelWidth = panelDrag.coerceIn(PanelNarrowest, minOf(PanelWidest, widest))
                     val paneWidth = if (panelOpen && sideBySide) maxWidth - panelWidth else maxWidth
                     val paneHeight = maxHeight
+                    // The panel slides out from the window's edge and back into it, and the pane
+                    // gives it room as it comes. What is drawn of it follows this width; the
+                    // panel itself is laid out at its full width from the start and only clipped,
+                    // and the pane's screens are told their final width at once, so nothing is
+                    // laid out again frame by frame: things only move. A drag of its edge is
+                    // followed at once, with no easing behind the pointer.
+                    val showing = panelOpen && sideBySide
+                    val panelShown by androidx.compose.animation.core.animateDpAsState(
+                        targetValue = if (showing) panelWidth else 0.dp,
+                        animationSpec = when {
+                            panelDragging -> androidx.compose.animation.core.snap()
+                            showing -> Motion.enter(Motion.LONG)
+                            else -> Motion.exit(Motion.MEDIUM)
+                        },
+                        label = "side panel",
+                    )
+                    // What the panel holds, kept while it slides away: a character's page, or the chat's panel.
+                    var keptCharacter by remember { mutableStateOf<String?>(null) }
+                    if (panelCharacter != null) keptCharacter = panelCharacter else if (chatPanelOpen) keptCharacter = null
                     Row(Modifier.fillMaxSize()) {
                         PaneSize(paneWidth, paneHeight, Modifier.weight(1f)) {
                             PaneNav(
@@ -273,27 +343,53 @@ fun DesktopShell() {
                                 onTab = { tab = it },
                                 onCharacter = { panelCharacter = it },
                                 onOpenChat = ::openChat,
+                                onSettings = { page ->
+                                    settingsLeftFrom = null
+                                    settings.pick(page)
+                                    settings.open = true
+                                },
                             )
                         }
-                        if (panelOpen && sideBySide) {
-                            PanelEdge(
-                                onDrag = { dx -> panelDrag = (panelDrag.coerceIn(PanelNarrowest, minOf(PanelWidest, widest)) - dx).coerceIn(PanelNarrowest, minOf(PanelWidest, widest)) },
-                                onDone = { com.cherry.butler.desktop.WindowMemory.keepPanelWidth(panelDrag) },
-                                onReset = { panelDrag = PanelWidth; com.cherry.butler.desktop.WindowMemory.keepPanelWidth(PanelWidth) },
-                            )
-                            PaneSize(panelWidth, paneHeight, Modifier.width(panelWidth)) {
-                                CharacterPanel(
-                                    characterId = panelCharacter!!,
-                                    onClose = { panelCharacter = null },
-                                    onOpenChat = ::openChat,
-                                    onNavigate = { navController.navigate(it) },
-                                    onCharacter = { panelCharacter = it },
+                        if (sideBySide && (showing || panelShown > 0.dp)) {
+                            if (showing) {
+                                PanelEdge(
+                                    onDrag = { dx ->
+                                        panelDragging = true
+                                        panelDrag = (panelDrag.coerceIn(PanelNarrowest, minOf(PanelWidest, widest)) - dx).coerceIn(PanelNarrowest, minOf(PanelWidest, widest))
+                                    },
+                                    onDone = { panelDragging = false; com.cherry.butler.desktop.WindowMemory.keepPanelWidth(panelDrag) },
+                                    onReset = { panelDrag = PanelWidth; com.cherry.butler.desktop.WindowMemory.keepPanelWidth(PanelWidth) },
                                 )
+                            }
+                            Box(Modifier.width(panelShown).fillMaxHeight().clipToBounds()) {
+                                PaneSize(panelWidth, paneHeight, Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(panelWidth)) {
+                                    val character = keptCharacter
+                                    if (character != null) {
+                                        CharacterPanel(
+                                            characterId = character,
+                                            onClose = { panelCharacter = null },
+                                            onOpenChat = ::openChat,
+                                            onNavigate = { navController.navigate(it) },
+                                            onCharacter = { panelCharacter = it },
+                                        )
+                                    } else {
+                                        ChatSidePanel(chatPanel, ::openChat, { navController.navigate(it) }, { panelCharacter = it })
+                                    }
+                                }
                             }
                         }
                     }
                     // A narrow window: the page slides in over the content, behind a scrim.
                     if (!sideBySide) {
+                        ChatPanelOverlay(
+                            host = chatPanel,
+                            shown = chatPanelOpen,
+                            width = minOf(maxWidth, 440.dp),
+                            height = paneHeight,
+                            onOpenChat = ::openChat,
+                            onNavigate = { navController.navigate(it) },
+                            onCharacter = { panelCharacter = it },
+                        )
                         PanelOverlay(
                             characterId = panelCharacter,
                             width = minOf(maxWidth, 440.dp),
@@ -309,8 +405,75 @@ fun DesktopShell() {
         }
         // An open chat's light, over the rail and the panes alike.
         ChatLightOverlay(chatLight, Modifier.matchParentSize())
+        // Settings, over all of it. Its pages keep the sections' own view models (the first
+        // screen's), so what was being changed is still there when the window comes back.
+        val settingsOwner = remember(backStackEntry) { runCatching { navController.getBackStackEntry(Routes.TABS) }.getOrNull() }
+        val leaveSettingsFor: (String) -> Unit = { route ->
+            settingsLeftFrom = navController.currentBackStackEntry?.id
+            settings.open = false
+            navController.navigate(route)
+        }
+        SettingsWindow(
+            state = settings,
+            onClose = { leaveGuard.leave { settings.open = false } },
+            onLorebooks = { leaveSettingsFor(Routes.LOREBOOKS) },
+        ) { page, onBack, onOpenPage ->
+            val body = @Composable { settingsScreen(navController, page = page, onBack = onBack, onOpenPage = onOpenPage, windowed = true, go = leaveSettingsFor) }
+            if (settingsOwner != null) {
+                CompositionLocalProvider(androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner provides settingsOwner) { body() }
+            } else {
+                body()
+            }
         }
         }
+        }
+        }
+    }
+}
+
+/** The open chat's panel: its tabs, the Character page being the character's own page. */
+@Composable
+private fun ChatSidePanel(
+    host: com.cherry.butler.feature.chat.ChatPanelHost,
+    onOpenChat: (Long) -> Unit,
+    onNavigate: (String) -> Unit,
+    onCharacter: (String) -> Unit,
+) {
+    com.cherry.butler.feature.chat.ChatPanel(
+        host = host,
+        character = {
+            host.characterId?.let { id ->
+                CharacterPanel(id, onClose = { host.open = false }, onOpenChat = onOpenChat, onNavigate = onNavigate, onCharacter = onCharacter)
+            }
+        },
+    )
+}
+
+/** The chat panel over the chat, behind a scrim, for a window too narrow for both. */
+@Composable
+private fun ChatPanelOverlay(
+    host: com.cherry.butler.feature.chat.ChatPanelHost,
+    shown: Boolean,
+    width: Dp,
+    height: Dp,
+    onOpenChat: (Long) -> Unit,
+    onNavigate: (String) -> Unit,
+    onCharacter: (String) -> Unit,
+) {
+    Box(Modifier.fillMaxSize()) {
+        AnimatedVisibility(shown, enter = fadeIn(tween(Motion.SHORT)), exit = fadeOut(tween(Motion.SHORT))) {
+            Box(
+                Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { host.open = false },
+            )
+        }
+        AnimatedVisibility(
+            visible = shown,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            enter = slideInHorizontally(tween(Motion.MEDIUM, easing = Motion.EaseOut)) { it },
+            exit = slideOutHorizontally(tween(Motion.SHORT, easing = Motion.EaseOut)) { it },
+        ) {
+            PaneSize(width, height, Modifier.width(width)) { ChatSidePanel(host, onOpenChat, onNavigate, onCharacter) }
         }
     }
 }
@@ -370,6 +533,8 @@ private fun PaneNav(
     onTab: (TopLevelDestination) -> Unit,
     onCharacter: (String) -> Unit,
     onOpenChat: (Long) -> Unit,
+    /** Opens the settings window on a page (a chat's "All model settings"). */
+    onSettings: (SettingsPage) -> Unit,
 ) {
     val none = PaddingValues()
     // Every screen change is a cut, as on the phone: a fade drew both screens at once and
@@ -543,7 +708,7 @@ private fun PaneNav(
             DesktopChat {
                 ChatScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenModelSettings = { navController.navigate(Routes.MODEL_SETTINGS) },
+                    onOpenModelSettings = { onSettings(SettingsPage.Model) },
                     onOpenCustomize = { navController.navigate(Routes.CUSTOMIZE) },
                     onOpenCharacter = onCharacter,
                     onOpenChat = { id -> navController.navigate(Routes.chat(id)) { popUpTo(Routes.CHAT) { inclusive = true } } },
@@ -562,21 +727,27 @@ private fun settingsScreen(
     page: SettingsPage,
     onBack: (() -> Unit)?,
     onOpenPage: (SettingsPage) -> Unit = { navController.navigate(Routes.settingsPage(it.name)) },
+    /** In the settings window: the page is headed by its own name. */
+    windowed: Boolean = false,
+    /** How a screen of its own is opened: in the pane, which the settings window first steps aside for. */
+    go: (String) -> Unit = { navController.navigate(it) },
 ) = SettingsScreen(
     contentPadding = PaddingValues(),
-    onEditProxy = { navController.navigate(Routes.proxy(it)) },
-    onOpenPrompts = { navController.navigate(Routes.SETTINGS_PROMPTS) },
-    onOpenPrompt = { navController.navigate(Routes.prompt(it)) },
-    onOpenCustomize = { navController.navigate(Routes.CUSTOMIZE) },
-    onOpenGeneration = { navController.navigate(Routes.GENERATION) },
-    onOpenNotifications = { navController.navigate(Routes.NOTIFICATION_PREFS) },
-    onOpenBlocked = { navController.navigate(Routes.BLOCKED) },
-    onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
-    onOpenRouter = { navController.navigate(Routes.ROUTER) },
-    onOpenLorebooks = { navController.navigate(Routes.LOREBOOKS) },
+    onEditProxy = { go(Routes.proxy(it)) },
+    onOpenPrompts = { go(Routes.SETTINGS_PROMPTS) },
+    onOpenPrompt = { go(Routes.prompt(it)) },
+    onOpenCustomize = { go(Routes.CUSTOMIZE) },
+    // In the window, Generation is one of its own pages, not a screen to leave it for.
+    onOpenGeneration = { if (windowed) onOpenPage(SettingsPage.Generation) else go(Routes.GENERATION) },
+    onOpenNotifications = { go(Routes.NOTIFICATION_PREFS) },
+    onOpenBlocked = { go(Routes.BLOCKED) },
+    onOpenDiagnostics = { go(Routes.DIAGNOSTICS) },
+    onOpenRouter = { go(Routes.ROUTER) },
+    onOpenLorebooks = { go(Routes.LOREBOOKS) },
     onOpenPage = onOpenPage,
     page = page,
     onBack = onBack,
+    windowed = windowed,
 )
 
 /**

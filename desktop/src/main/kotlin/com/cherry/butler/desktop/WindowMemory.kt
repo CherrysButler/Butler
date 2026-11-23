@@ -44,6 +44,13 @@ object WindowMemory {
         prefs.edit().putFloat("panel_w", width.value).apply()
     }
 
+    /** The chat panel as it was left: out or away, and on which page. */
+    fun chatPanelOpen(): Boolean = prefs.getBoolean("chat_panel_open", false)
+    fun chatPanelTab(): String? = prefs.getString("chat_panel_tab", null)
+    fun keepChatPanel(open: Boolean, tab: String) {
+        prefs.edit().putBoolean("chat_panel_open", open).putString("chat_panel_tab", tab).apply()
+    }
+
     @OptIn(FlowPreview::class)
     @Composable
     fun Keep(state: WindowState) {

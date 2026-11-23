@@ -352,7 +352,7 @@ private fun Gap() = Spacer(Modifier.width(6.dp).height(1.dp))
 private fun LinkDialog(selected: String, onLink: (String) -> Unit, onDismiss: () -> Unit) {
     var url by remember { mutableStateOf("https://") }
     val ok = url.trim().let { it.startsWith("http://") || it.startsWith("https://") } && url.trim().length > 8
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add a link") },
         text = {
@@ -370,7 +370,7 @@ private fun LinkDialog(selected: String, onLink: (String) -> Unit, onDismiss: ()
             }
         },
         confirmButton = { TextButton(onClick = { onLink(url.trim().replace("\"", "%22")) }, enabled = ok) { Text("Add") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss)) { Text("Cancel") } },
     )
 }
 

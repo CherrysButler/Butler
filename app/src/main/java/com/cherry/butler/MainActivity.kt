@@ -144,9 +144,14 @@ class MainActivity : FragmentActivity() {
                         // Janitor's queue, while Butler stands in it.
                         com.cherry.butler.ui.components.QueueBanner(androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopCenter))
                     }
-                    if (locked) LockScreen(appLock)
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = locked,
+                        // It covers at once (nothing shows through a lock coming up) and lifts softly.
+                        enter = androidx.compose.animation.EnterTransition.None,
+                        exit = androidx.compose.animation.fadeOut(com.cherry.butler.core.design.Motion.exit(com.cherry.butler.core.design.Motion.MEDIUM)),
+                    ) { LockScreen(appLock) }
                     // The automatic update check (off unless switched on); never over the lock.
-                    else com.cherry.butler.feature.settings.UpdatePrompt(updates)
+                    if (!locked) com.cherry.butler.feature.settings.UpdatePrompt(updates)
                 }
             }
         }

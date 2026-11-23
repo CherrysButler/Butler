@@ -126,13 +126,7 @@ fun BlockedScreen(onBack: () -> Unit, viewModel: BlockedViewModel = hiltViewMode
     var pickingTag by remember { mutableStateOf(false) }
 
     if (pickingTag) {
-        ModalBottomSheet(
-            onDismissRequest = { pickingTag = false },
-            shape = com.cherry.butler.core.design.SheetShape,
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            scrimColor = com.cherry.butler.ui.components.SheetScrim,
-            dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-        ) {
+        com.cherry.butler.ui.components.ButlerSheet(onDismiss = { pickingTag = false }, skipPartiallyExpanded = false) {
             val blocked = blocks?.tags.orEmpty().map { it.id }.toSet()
             Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
                 Text("Block a tag", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(vertical = 8.dp))

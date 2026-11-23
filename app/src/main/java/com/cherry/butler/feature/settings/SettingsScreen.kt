@@ -159,6 +159,8 @@ fun SettingsScreen(
     /** Which page: the main list on the tab, or one page with a back arrow. */
     page: SettingsPage = SettingsPage.Main,
     onBack: (() -> Unit)? = null,
+    /** In the PC's settings window: a page with no way back is headed by its own name, not "Settings". */
+    windowed: Boolean = false,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     // Ctrl+R / F5 on the desktop.
@@ -222,6 +224,12 @@ fun SettingsScreen(
                     IconButton(onClick = { if (dirty) leaving = onBack else onBack() }) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
+                    Text(page.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    saveKey()
+                }
+            } else if (windowed) {
+                // The window's own bar says "Settings"; the page says which.
+                Row(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(page.title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     saveKey()
                 }
@@ -318,6 +326,7 @@ private fun SettingsBody(
             SettingsPage.App -> { AppSection(onOpenNotifications, onOpenBlocked, onOpenDiagnostics); UpdatesSection(viewModel) }
             SettingsPage.Updates -> UpdatesSection(viewModel)
             SettingsPage.Debug -> DebugSection()
+            SettingsPage.Account -> AccountSection(viewModel)
         }
     }
 }
@@ -642,7 +651,7 @@ private fun SaveKey(saving: Boolean, onClick: () -> Unit) {
 /** Asked when leaving with changes still waiting: send them, drop them, or stay. */
 @Composable
 private fun UnsavedDialog(saving: Boolean, onSave: () -> Unit, onDiscard: () -> Unit, onKeep: () -> Unit) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onKeep) {
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = onKeep) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -661,8 +670,8 @@ private fun UnsavedDialog(saving: Boolean, onSave: () -> Unit, onDiscard: () -> 
                 horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = onKeep, enabled = !saving) { Text("Keep editing", color = MaterialTheme.colorScheme.onSurface) }
-                TextButton(onClick = onDiscard, enabled = !saving) { Text("Discard", color = ButlerTheme.colors.danger) }
+                TextButton(onClick = com.cherry.butler.ui.components.leaving(onKeep), enabled = !saving) { Text("Keep editing", color = MaterialTheme.colorScheme.onSurface) }
+                TextButton(onClick = com.cherry.butler.ui.components.leaving(onDiscard), enabled = !saving) { Text("Discard", color = ButlerTheme.colors.danger) }
                 SaveKey(saving = saving, onClick = onSave)
             }
         }
@@ -685,6 +694,8 @@ enum class SettingsPage(val title: String, val blurb: String, val icon: Int, val
     App("App", "Notifications, blocked, background, lock", com.cherry.butler.R.drawable.ic_set_app),
     Updates("Updates", "Optional check against GitHub", com.cherry.butler.R.drawable.ic_set_updates, listed = false),
     Debug("Debug", "Proxy for Burp or mitmproxy", com.cherry.butler.R.drawable.ic_set_debug),
+    /** The account on a page of its own, for the PC's settings window (the phone has it under the list). */
+    Account("Account", "Signing out", com.cherry.butler.R.drawable.ic_set_app, listed = false),
 }
 
 /**
@@ -1741,7 +1752,7 @@ private fun AddonWarning(
     points: List<Pair<String, String>>? = null,
 ) {
     var keepHere by remember { mutableStateOf(strip) }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = onCancel) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

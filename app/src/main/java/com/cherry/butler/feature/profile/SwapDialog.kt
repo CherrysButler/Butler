@@ -57,7 +57,7 @@ fun SwapDialog(
 ) {
     val stage = flow.stage
     val settled = stage == SwapFlow.Stage.Confirm || stage == SwapFlow.Stage.Done || stage == SwapFlow.Stage.Failed
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = { if (settled) onClose() },
         // Wider than the platform default: three steps with notes need the measure.
         modifier = Modifier.padding(horizontal = 20.dp),

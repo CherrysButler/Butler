@@ -113,7 +113,12 @@ class ProxyEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: SettingsRepository,
     private val openRouter: OpenRouterOptionsStore,
+    private val modelCatalog: com.cherry.butler.core.data.ModelCatalog,
 ) : ViewModel() {
+
+    /** OpenRouter's models, for the model picker; fetched when the picker first opens. */
+    val models: StateFlow<com.cherry.butler.core.data.ModelCatalog.State> = modelCatalog.openRouter
+    fun loadModels(force: Boolean) { viewModelScope.launch { modelCatalog.load(force) } }
 
     val proxyId: String? = savedStateHandle.get<String>(ARG)?.takeIf { it != NEW }
     val isNew: Boolean get() = proxyId == null
@@ -239,7 +244,14 @@ fun ProxyEditorScreen(onBack: () -> Unit, viewModel: ProxyEditorViewModel = hilt
     ) {
         FieldBlock("Name", form.name, { v -> viewModel.update { it.copy(name = v) } }, placeholder = "OpenRouter")
         FieldBlock("Endpoint URL", form.apiUrl, { v -> viewModel.update { it.copy(apiUrl = v) } }, keyboardType = KeyboardType.Uri)
-        FieldBlock("Model", form.model, { v -> viewModel.update { it.copy(model = v) } }, placeholder = "provider/model-name")
+        val models by viewModel.models.collectAsStateWithLifecycle()
+        ModelField(
+            label = "Model",
+            value = form.model,
+            onChoose = { v -> viewModel.update { it.copy(model = v) } },
+            catalog = models.takeIf { form.isOpenRouter },
+            onLoad = viewModel::loadModels,
+        )
         FieldBlock(
             label = "API key",
             value = form.newKey,

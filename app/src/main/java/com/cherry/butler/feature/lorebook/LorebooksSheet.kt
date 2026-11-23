@@ -63,18 +63,12 @@ fun LorebooksSheet(
         } else if (scope != null) viewModel.setEnabled(scope, id, on)
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                 PlateText("Local Lorebooks", PlateLevel.Name, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onEdit(null) }) { Text("Create") }
+                val leave = com.cherry.butler.ui.components.LocalLeave.current
+                TextButton(onClick = { leave { onEdit(null) } }) { Text("Create") }
             }
             Text(
                 if (scope?.startsWith("chat:") == true) "Enabled books provide context for this chat. Persona books are included automatically. Tap a book to edit it."
@@ -86,6 +80,8 @@ fun LorebooksSheet(
                 FilterChip(selected = !favoritesOnly, onClick = { favoritesOnly = false }, label = { Text("All") })
                 FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = true }, label = { Text("Favorites") })
             }
+            // Opening a book for editing ends the sheet: it slides away first.
+            val leaveForBook = com.cherry.butler.ui.components.LocalLeave.current
             LazyColumn(Modifier.weight(1f, fill = false)) {
                 if (books.isEmpty()) item {
                     Text(
@@ -96,7 +92,7 @@ fun LorebooksSheet(
                 }
                 items(books, key = { it.id }) { book ->
                     ListItem(
-                        modifier = Modifier.clickable { onEdit(book.id) },
+                        modifier = Modifier.clickable { leaveForBook { onEdit(book.id) } },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         headlineContent = { Text(book.name) },
                         supportingContent = {

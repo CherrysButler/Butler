@@ -97,13 +97,7 @@ fun PersonaPickerSheet(
         shown == null -> options
         else -> options.filter { it.id != null && it.groupId == shown }
     }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Text(
                 text = "Play as",
@@ -130,13 +124,15 @@ fun PersonaPickerSheet(
                     edge = 20.dp,
                 )
             }
+            // A pick ends the sheet: it slides away first, then the persona is the one played.
+            val leave = LocalLeave.current
             LazyColumn(modifier = Modifier.padding(bottom = 8.dp)) {
                 items(list, key = { it.id ?: "profile" }) { option ->
                     PersonaPickRow(
                         option = option,
                         chosen = option.id == selected?.id,
-                        onEdit = onEdit?.let { edit -> { edit(option) } },
-                        onClick = { onPick(option) },
+                        onEdit = onEdit?.let { edit -> { leave { edit(option) } } },
+                        onClick = { leave { onPick(option) } },
                     )
                 }
                 if (list.isEmpty()) item("none") {

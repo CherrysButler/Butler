@@ -39,6 +39,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,14 +84,29 @@ fun CharacterChatsSheet(
         )
     }
     val sheetState = rememberModalBottomSheetState()
+    // Leaving for a chat or a character page, the sheet folds away first, quickly, and the
+    // screen opens once it has gone: left up, it sat over the chat while the chat came in.
+    val fold = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    fun leave(then: () -> Unit) {
+        if (fold.isRunning || fold.value > 0f) return
+        scope.launch {
+            fold.animateTo(1f, androidx.compose.animation.core.tween(FOLD_MS, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+            then()
+        }
+    }
     // Janitor's Oldest / Latest switch; latest first, as the list arrives.
     var oldestFirst by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        modifier = Modifier.graphicsLayer {
+            alpha = 1f - fold.value
+            translationY = fold.value * 56.dp.toPx()
+        },
         shape = com.cherry.butler.core.design.SheetShape,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
+        scrimColor = com.cherry.butler.ui.components.SheetScrim.let { it.copy(alpha = it.alpha * (1f - fold.value)) },
         dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
@@ -119,7 +136,7 @@ fun CharacterChatsSheet(
                     )
                 }
                 if (!state.group.characterDeleted) {
-                    IconButton(onClick = { onOpenCharacter(state.group.characterId) }) {
+                    IconButton(onClick = { leave { onOpenCharacter(state.group.characterId) } }) {
                         Icon(
                             imageVector = Icons.Rounded.ChevronRight,
                             contentDescription = "Open character",
@@ -220,7 +237,7 @@ fun CharacterChatsSheet(
                             ),
                             messageCount = chat.messageCount,
                             updatedAt = chat.lastMessageAt,
-                            onClick = { onOpenChat(chat.id) },
+                            onClick = { leave { onOpenChat(chat.id) } },
                             onLongClick = { deleting = chat.id },
                         )
                     }
@@ -239,3 +256,6 @@ fun CharacterChatsSheet(
         }
     }
 }
+
+/** How long the sheet takes to fold away before the screen it leaves for opens. */
+private const val FOLD_MS = 140

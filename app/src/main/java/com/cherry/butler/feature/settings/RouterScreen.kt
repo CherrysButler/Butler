@@ -227,13 +227,7 @@ private fun ModelPickerSheet(
     onFavorite: (RouterModelDto, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         LazyColumn(modifier = Modifier.navigationBarsPadding().heightIn(max = 680.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
             item {
                 Text("Model", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))

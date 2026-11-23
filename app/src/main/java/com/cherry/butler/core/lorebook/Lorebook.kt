@@ -57,7 +57,15 @@ object LorebookMatcher {
         messages: List<String>,
         charLimit: Int,
         roll: () -> Int = { Random.nextInt(100) },
-    ): String {
+    ): String = activated(selection, messages, charLimit, roll).joinToString("\n\n") { it.content }
+
+    /** The entries a scene brings in, in the order they are sent. */
+    internal fun activated(
+        selection: LorebookSelection,
+        messages: List<String>,
+        charLimit: Int,
+        roll: () -> Int = { Random.nextInt(100) },
+    ): List<LoreEntry> {
         require(charLimit >= 0) { "Lore character limit cannot be negative." }
         var pending = selection.candidates
         val history = pending.map { it.scanDepth }.distinct()
@@ -80,7 +88,7 @@ object LorebookMatcher {
             remaining = round.remainingChars
             previousRoundText = round.activated.joinToString("\n") { it.content }
         }
-        return selected.sortedBy { it.order }.joinToString("\n\n") { it.content }
+        return selected.sortedBy { it.order }
     }
 
     private data class Round(val pending: List<LorebookCandidate>, val activated: List<LoreEntry>, val remainingChars: Int)

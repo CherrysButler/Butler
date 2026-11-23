@@ -502,13 +502,9 @@ private fun MoveToGroupSheet(
     onNewGroup: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
+        // A pick ends the sheet: it slides away first, then the persona is moved.
+        val leave = com.cherry.butler.ui.components.LocalLeave.current
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             Text(
                 "Move ${persona.name}",
@@ -519,9 +515,9 @@ private fun MoveToGroupSheet(
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
             groups.forEach { g ->
-                GroupChoice(name = g.name, color = com.cherry.butler.ui.components.groupColor(g.color), chosen = persona.groupId == g.id) { onPick(g.id) }
+                GroupChoice(name = g.name, color = com.cherry.butler.ui.components.groupColor(g.color), chosen = persona.groupId == g.id) { leave { onPick(g.id) } }
             }
-            GroupChoice(name = "No group", color = null, chosen = persona.groupId == null || groups.none { it.id == persona.groupId }) { onPick(null) }
+            GroupChoice(name = "No group", color = null, chosen = persona.groupId == null || groups.none { it.id == persona.groupId }) { leave { onPick(null) } }
             Row(
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onNewGroup).padding(horizontal = 20.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -556,7 +552,7 @@ private fun GroupDialog(start: GroupEdit, onSave: (name: String, color: String) 
     var name by remember { mutableStateOf(start.name) }
     var color by remember { mutableStateOf(start.color) }
     var wheel by remember { mutableStateOf(false) }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

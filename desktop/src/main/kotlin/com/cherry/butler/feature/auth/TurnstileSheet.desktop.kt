@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -50,6 +51,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: Turn
     val panel = ButlerTheme.colors.surfaceElevated
     var failure by remember { mutableStateOf<String?>(null) }
     val deliver by rememberUpdatedState(onToken)
+    val motion = com.cherry.butler.ui.components.rememberDialogMotion()
     var process by remember { mutableStateOf<Process?>(null) }
     var slot by remember { mutableStateOf<Rect?>(null) }
 
@@ -57,7 +59,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: Turn
         val bounds = slot ?: return@LaunchedEffect
         val result = withContext(Dispatchers.IO) { runCheck(dark, panel, bounds, check) { process = it } }
         when {
-            result.startsWith("token ") -> deliver(result.removePrefix("token "))
+            result.startsWith("token ") -> result.removePrefix("token ").let { token -> motion.leave { deliver(token) } }
             else -> failure = result.removePrefix("error ")
         }
     }
@@ -68,6 +70,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: Turn
     Box(
         Modifier
             .fillMaxSize()
+            .graphicsLayer { alpha = motion.progress }
             .background(Color.Black.copy(alpha = 0.6f))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
         contentAlignment = Alignment.Center,
@@ -96,7 +99,7 @@ fun TurnstileSheet(onToken: (String) -> Unit, onDismiss: () -> Unit, check: Turn
                     modifier = Modifier.padding(top = 10.dp),
                 )
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
+            TextButton(onClick = { process?.destroy(); motion.leave(onDismiss) }, modifier = Modifier.align(Alignment.End)) { Text("Cancel") }
         }
     }
     }

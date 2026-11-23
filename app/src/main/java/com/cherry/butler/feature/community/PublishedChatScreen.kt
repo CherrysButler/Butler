@@ -487,13 +487,7 @@ private fun ReactionRow(tallies: List<ReactionTally>, emojiById: Map<String, Emo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EmojiPickerSheet(emojis: List<Emoji>, onPick: (Emoji) -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text("React", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             if (emojis.isEmpty()) {
@@ -537,13 +531,7 @@ private fun PublishedCommentsSheet(
     onDelete: (ChatComment) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp, max = 640.dp)) {
             Text(
                 text = if (total > 0) "Comments · $total" else "Comments",

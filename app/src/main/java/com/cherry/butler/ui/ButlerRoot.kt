@@ -135,7 +135,7 @@ fun ButlerRoot() {
     val lifted = com.cherry.butler.core.design.LocalDepth.current == com.cherry.butler.core.design.Depth.Lifted
     // Frosted: the island frosts the lists scrolling under it (Glass.kt).
     val frost = com.cherry.butler.ui.components.glassOn()
-    val islandHaze = androidx.compose.runtime.remember { dev.chrisbanes.haze.HazeState() }
+    val islandHaze = io.github.fletchmckee.liquid.rememberLiquidState()
     Scaffold(
         containerColor = if (showBar && !lifted) ButlerTheme.colors.chrome else MaterialTheme.colorScheme.background,
         bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { dest -> if (dest != tab) leaveGuard.leave { tab = dest } }, haze = islandHaze.takeIf { frost }) },
@@ -433,7 +433,7 @@ fun ButlerRoot() {
 
 /** Five icons on the dark bar, as in Janitor; the current tab is lit red. */
 @Composable
-private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestination) -> Unit, haze: dev.chrisbanes.haze.HazeState? = null) {
+private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestination) -> Unit, haze: io.github.fletchmckee.liquid.LiquidState? = null) {
     val shell: ShellViewModel = hiltViewModel()
     val unread by shell.unread.collectAsStateWithLifecycle()
     LaunchedEffect(selected) { shell.refreshUnread() }
@@ -450,7 +450,7 @@ private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestinat
                 .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
                 .liftShadow(island, look, com.cherry.butler.core.design.Lift.Float)
                 .clip(island)
-                .frosted(haze)
+                .frosted(haze, island)
                 .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), island)
                 .height(56.dp)
         } else if (lifted) {

@@ -13,6 +13,9 @@ object Motion {
     /** Expo-out: fast start, long soft landing. */
     val EaseOut = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
+    /** For what moves across the screen (a page, a menu, a window): eases off its mark, lands softly. */
+    val Glide = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+
     /** Selection, colour, small state flips. */
     const val SHORT = 150
 

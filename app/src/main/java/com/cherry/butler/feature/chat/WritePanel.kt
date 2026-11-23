@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -129,14 +130,7 @@ fun WritePanel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneSheet(onClose: () -> Unit, content: @Composable () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onClose,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onClose) {
         Box(Modifier.navigationBarsPadding().imePadding()) { content() }
     }
 }
@@ -147,13 +141,18 @@ private fun PhoneSheet(onClose: () -> Unit, content: @Composable () -> Unit) {
  */
 @Composable
 private fun DeskCard(onClose: () -> Unit, composerHeight: Dp, content: @Composable () -> Unit) {
-    androidx.activity.compose.BackHandler(onBack = onClose)
+    // It comes up out of the message box's corner and goes back into it: the card and the dim
+    // over the story together, in and out (it used to stand there in a frame and be gone in one).
+    val motion = com.cherry.butler.ui.components.rememberDialogMotion()
+    val leave: (() -> Unit) -> Unit = motion::leave
+    androidx.activity.compose.BackHandler(onBack = { leave(onClose) })
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
                 .matchParentSize()
+                .graphicsLayer { alpha = motion.progress }
                 .background(SheetScrim.copy(alpha = 0.3f))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClickLabel = "Close", onClick = onClose),
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClickLabel = "Close", onClick = { leave(onClose) }),
         )
         Box(
             Modifier
@@ -161,6 +160,15 @@ private fun DeskCard(onClose: () -> Unit, composerHeight: Dp, content: @Composab
                 .padding(start = 12.dp, end = 12.dp, top = 72.dp, bottom = composerHeight + 4.dp)
                 .widthIn(max = DeskCardWidth)
                 .fillMaxWidth()
+                .graphicsLayer {
+                    val t = motion.progress
+                    alpha = t
+                    val scale = 0.96f + 0.04f * t
+                    scaleX = scale
+                    scaleY = scale
+                    translationY = (1f - t) * 12.dp.toPx()
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 1f)
+                }
                 .shadow(18.dp, MaterialTheme.shapes.large)
                 .clip(MaterialTheme.shapes.large)
                 .background(MaterialTheme.colorScheme.surfaceContainer)
@@ -168,7 +176,10 @@ private fun DeskCard(onClose: () -> Unit, composerHeight: Dp, content: @Composab
                 // Its own clicks stay on it; the dimmed story under it would take them.
                 .pointerInput(Unit) { detectTapGestures { } }
                 .padding(top = 14.dp),
-        ) { content() }
+        ) {
+            // Its close key and Use go out through the same door.
+            androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.ui.components.LocalLeave provides leave) { content() }
+        }
     }
 }
 
@@ -222,7 +233,8 @@ private fun WritePanelBody(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            IconButton(onClick = onClose, modifier = Modifier.size(40.dp)) {
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            IconButton(onClick = { leave(onClose) }, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Rounded.Close, contentDescription = "Close", tint = ButlerTheme.colors.textLow, modifier = Modifier.size(20.dp))
             }
         }
@@ -441,7 +453,8 @@ private fun Actions(
                 Spacer(Modifier.width(8.dp))
                 Text("Again", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
             }
-            RedKey(label = "Use", onClick = onUse, modifier = Modifier.weight(1f).then(tall))
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            RedKey(label = "Use", onClick = { leave(onUse) }, modifier = Modifier.weight(1f).then(tall))
         }
         else -> RedKey(
             label = if (rewrite) "Enhance" else "Write",

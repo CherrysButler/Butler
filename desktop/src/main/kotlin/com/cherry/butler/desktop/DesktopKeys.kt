@@ -13,6 +13,9 @@ object DesktopKeys {
     /** Set by the shell: Ctrl+H, the Chats archive opened (from any section) or closed. */
     @Volatile var archive: (() -> Boolean)? = null
 
+    /** Set by the shell: Alt+I, the open chat's panel out or away. True when a chat is open. */
+    @Volatile var chatPanel: (() -> Boolean)? = null
+
     /** Set by the shell: refreshes the screen on show, if it can. True when something refreshed. */
     @Volatile var refresh: (() -> Boolean)? = null
 }

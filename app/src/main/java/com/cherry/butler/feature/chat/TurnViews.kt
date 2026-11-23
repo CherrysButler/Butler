@@ -43,7 +43,6 @@ import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -95,10 +94,14 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * Prose that is still arriving, revealed softly. The visible length glides toward what has
- * arrived (faster the further behind it is, so it never lags more than a moment), and the
- * newest characters fade up over a short trail instead of popping in. Only revealed text
- * is laid out, so the reply grows a line at a time. A block caret blinks at its end.
+ * Prose that is still arriving, revealed the way a person reads it: a few words at a time, on a
+ * steady beat, each handful fading up over most of a second, so several are always mid-fade and
+ * the text flows instead of ticking. Text is cut only at the end of a word (and kept with a comma
+ * or a full stop close after it); a little is gathered before the first words show and a little
+ * is held back while the model is still writing, so a pause in the stream never stops the flow.
+ * The further behind, the bigger each handful, so it never lags more than a moment. Only shown
+ * text is laid out, so the reply grows a line at a time. No caret: a blink at the end fought the
+ * fade, so the soft edge of the newest words is where the writing is.
  */
 @Composable
 fun StreamingProse(
@@ -106,7 +109,7 @@ fun StreamingProse(
     style: TextStyle,
     color: Color,
     modifier: Modifier = Modifier,
-    /** The stream has ended; call [onRevealed] once the reveal has caught up. */
+    /** The stream has ended; call [onRevealed] once the reveal has caught up and settled. */
     finished: Boolean = false,
     onRevealed: () -> Unit = {},
 ) {
@@ -116,66 +119,101 @@ fun StreamingProse(
     val keepQuotes = LocalRpLook.current.showQuotes
     val ink = narrationInk(color)
     val blocks = remember(text, keepQuotes) { RpMarkdown.parse(text, keepQuotes, images = true) }
-    val total = remember(blocks) { blocks.sumOf { it.length() } }
-    val target by rememberUpdatedState(total)
+    // The blocks' characters end to end, and where each block starts (a block's edge is a word's edge).
+    val flat = remember(blocks) { Flat(blocks) }
+    val latest by rememberUpdatedState(flat)
     // Starts at what is already there: a view rebuilt mid-stream (scrolled back into sight) does not replay.
-    var revealed by remember { mutableFloatStateOf(total.toFloat()) }
+    var revealed by remember { mutableIntStateOf(flat.length) }
+    /** Each handful shown: its range and when it came, while it is still fading up. */
+    val births = remember { androidx.compose.runtime.mutableStateListOf<Birth>() }
+    var clock by remember { androidx.compose.runtime.mutableLongStateOf(nowMs()) }
+
+    // The beat: decides when the next handful shows and how big it is.
     LaunchedEffect(Unit) {
-        var last = 0L
+        var started = revealed > 0
+        var waitingSince = 0L
+        var lastShown = 0L
         var reported = false
         while (true) {
-            if (!done) reported = false
-            if (revealed >= target) {
-                if (revealed > target) revealed = target.toFloat()
-                if (done && !reported) { reported = true; reportRevealed() }
-                // Caught up: no frames are asked for until more text arrives (or the stream
-                // ends). Waiting on the model used to redraw the window every display frame.
-                androidx.compose.runtime.snapshotFlow { target > revealed || (done && !reported) }.first { it }
-                last = 0L
+            val f = latest
+            if (f.length < revealed) {
+                // A new reply in the same place (sent again): start over.
+                revealed = 0
+                births.clear()
+                started = false
+            }
+            val backlog = f.length - revealed
+            if (backlog <= 0) {
+                waitingSince = 0L
+                if (!done) {
+                    reported = false
+                    androidx.compose.runtime.snapshotFlow { latest.length > revealed || done }.first { it }
+                    continue
+                }
+                if (!reported) {
+                    // Let the last words finish fading before the finished text takes over.
+                    val settle = (births.maxOfOrNull { it.at } ?: 0L) + REVEAL_FADE_MS + 100 - nowMs()
+                    if (settle > 0) kotlinx.coroutines.delay(settle)
+                    if (latest.length == revealed) { reported = true; reportRevealed() }
+                    continue
+                }
+                androidx.compose.runtime.snapshotFlow { latest.length > revealed || !done }.first { it }
                 continue
             }
-            withFrameNanos { now ->
-                val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.1f)
-                last = now
-                val goal = target.toFloat()
-                if (revealed > goal) revealed = goal
-                val behind = goal - revealed
-                if (behind > 0f) revealed = (revealed + maxOf(REVEAL_MIN_CPS, behind * REVEAL_CATCH_UP) * dt).coerceAtMost(goal)
+            val now = nowMs()
+            if (waitingSince == 0L) waitingSince = now
+            val live = !done
+            if (live && !started && backlog < REVEAL_HEAD_START && now - waitingSince < REVEAL_HEAD_WAIT_MS) {
+                kotlinx.coroutines.delay(REVEAL_BEAT_MS / 3)
+                continue
             }
+            if (live && started && backlog - REVEAL_RESERVE < REVEAL_MIN_CHARS && now - lastShown < REVEAL_STALL_MS) {
+                kotlinx.coroutines.delay(REVEAL_BEAT_MS / 3)
+                continue
+            }
+            val size = maxOf(REVEAL_MIN_CHARS, ((if (live) backlog - REVEAL_RESERVE else backlog) + 3) / 4)
+            val cut = if (live) f.wordEnd(revealed + size) else (f.wordEnd(minOf(f.length, revealed + size * 2)) ?: f.length)
+            if (cut == null || cut <= revealed) {
+                kotlinx.coroutines.delay(REVEAL_BEAT_MS / 3)
+                continue
+            }
+            births.add(Birth(revealed, cut, now))
+            revealed = cut
+            started = true
+            lastShown = now
+            kotlinx.coroutines.delay(if (live) REVEAL_BEAT_MS else REVEAL_FLUSH_BEAT_MS)
+        }
+    }
+    // The fade: frames only while something is still fading up; settled handfuls are dropped.
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = nowMs()
+            births.removeAll { now - it.at >= REVEAL_FADE_MS }
+            if (births.isEmpty()) {
+                androidx.compose.runtime.snapshotFlow { births.size }.first { it > 0 }
+                continue
+            }
+            withFrameNanos { clock = nowMs() }
         }
     }
 
-    var lastLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    var caretAt by remember { mutableIntStateOf(0) }
-    val blink = rememberCaretBlink()
-
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val shown = revealed.toInt()
+        val shown = revealed.coerceAtMost(flat.length)
         if (blocks.isEmpty() || shown == 0) {
-            Text(
-                text = "",
-                style = style,
-                onTextLayout = { lastLayout = it; caretAt = 0 },
-                modifier = Modifier.caret(ink, { lastLayout }, { caretAt }, blink),
-            )
+            Text(text = "", style = style)
             return@Column
         }
+        val fadingFrom = births.minOfOrNull { it.from } ?: shown
         var start = 0
         for (block in blocks) {
             val len = block.length()
             if (start >= shown) break
             val cut = (shown - start).coerceAtMost(len)
-            val partial = cut < len || start + len >= shown
+            val fading = start + len > fadingFrom
             val base = remember(block, styles) { block.toAnnotated(styles) }
-            val annotated = if (partial) base.revealedTo(cut, block, styles, ink) else base
+            val annotated = if (fading || cut < len) base.revealedTo(cut, start, block, styles, ink, births, clock) else base
             when (block) {
-                is Block.Paragraph -> Text(
-                    text = annotated,
-                    style = style,
-                    color = ink,
-                    onTextLayout = { if (partial) { lastLayout = it; caretAt = cut } },
-                    modifier = if (partial) Modifier.caret(ink, { lastLayout }, { caretAt }, blink) else Modifier,
-                )
+                is Block.Paragraph -> Text(text = annotated, style = style, color = ink)
                 is Block.ListItem -> Row {
                     Text(
                         text = if (block.ordered) "${block.index}." else "•",
@@ -183,13 +221,7 @@ fun StreamingProse(
                         color = ButlerTheme.colors.textLow,
                         modifier = Modifier.width(22.dp),
                     )
-                    Text(
-                        text = annotated,
-                        style = style,
-                        color = ink,
-                        onTextLayout = { if (partial) { lastLayout = it; caretAt = cut } },
-                        modifier = if (partial) Modifier.caret(ink, { lastLayout }, { caretAt }, blink) else Modifier,
-                    )
+                    Text(text = annotated, style = style, color = ink)
                 }
                 Block.Rule -> HairlineRule(color = ButlerTheme.colors.outlineFaint)
                 is Block.Image -> ChatImage(url = block.url, alt = block.alt)
@@ -199,9 +231,73 @@ fun StreamingProse(
     }
 }
 
-private const val REVEAL_MIN_CPS = 45f
-private const val REVEAL_CATCH_UP = 5f
-private const val REVEAL_TRAIL = 18
+/** A handful of revealed text: characters [from] until [to], shown at [at] (ms). */
+private class Birth(val from: Int, val to: Int, val at: Long)
+
+private fun nowMs(): Long = System.nanoTime() / 1_000_000
+
+/** The reply's blocks as one run of characters, for finding where words end. */
+private class Flat(blocks: List<Block>) {
+    private val text: String = buildString {
+        for (b in blocks) when (b) {
+            is Block.Paragraph -> append(b.text)
+            is Block.ListItem -> append(b.text)
+            else -> append('\n')
+        }
+    }
+    private val edges: Set<Int> = buildSet {
+        var at = 0
+        for (b in blocks) { add(at); at += b.length() }
+        add(at)
+    }
+    val length: Int get() = text.length
+
+    private fun gap(i: Int) = i in edges || (i < text.length && text[i].isWhitespace())
+
+    /**
+     * The end of the word running at [from], carried past a comma or full stop that closes the
+     * phrase within a few characters. Null when the text runs out mid-word (more is coming).
+     */
+    fun wordEnd(from: Int): Int? {
+        if (from >= text.length) return null
+        var i = from
+        while (i < text.length && !gap(i)) i++
+        if (i >= text.length && i !in edges) return null
+        val limit = minOf(text.length, i + REVEAL_PHRASE_REACH)
+        var j = i
+        while (j < limit) {
+            if (j > i && j in edges) break
+            if (text[j] in PHRASE_END && (j + 1 >= text.length || gap(j + 1) || text[j + 1] in CLOSERS)) {
+                var k = j + 1
+                while (k < text.length && text[k] in CLOSERS) k++
+                return if (k >= text.length && k !in edges) i else k
+            }
+            j++
+        }
+        return i
+    }
+}
+
+private const val PHRASE_END = ".,;:!?—…"
+private const val CLOSERS = "\"”’)*"
+
+/** How often a handful shows while the model writes, and once it has finished. */
+private const val REVEAL_BEAT_MS = 180L
+private const val REVEAL_FLUSH_BEAT_MS = 80L
+/** The smallest handful (about four or five words). */
+private const val REVEAL_MIN_CHARS = 24
+/** Gathered before the first words show, unless the wait runs past [REVEAL_HEAD_WAIT_MS]. */
+private const val REVEAL_HEAD_START = 120
+private const val REVEAL_HEAD_WAIT_MS = 800L
+/** Held back while the model writes, so a pause in the stream does not stop the flow... */
+private const val REVEAL_RESERVE = 36
+/** ...unless keeping it back would stall the text this long. */
+private const val REVEAL_STALL_MS = 450L
+/** How far past a word's end a comma or full stop still pulls the cut along. */
+private const val REVEAL_PHRASE_REACH = 18
+/** How long a handful takes to fade fully up. */
+private const val REVEAL_FADE_MS = 900L
+private val REVEAL_EASE = androidx.compose.animation.core.CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 
 private fun Block.length(): Int = when (this) {
     is Block.Paragraph -> text.length
@@ -210,8 +306,16 @@ private fun Block.length(): Int = when (this) {
     is Block.Image -> 1
 }
 
-/** [this] cut at [cut], with the last few shown characters fading up. */
-private fun AnnotatedString.revealedTo(cut: Int, block: Block, styles: RpStyles, ink: Color): AnnotatedString {
+/** [this] cut at [cut], with each handful still fading up drawn at its fade. [offset] is the block's start in the reply. */
+private fun AnnotatedString.revealedTo(
+    cut: Int,
+    offset: Int,
+    block: Block,
+    styles: RpStyles,
+    ink: Color,
+    births: List<Birth>,
+    now: Long,
+): AnnotatedString {
     if (block is Block.Rule || block is Block.Image) return this
     val spans = when (block) {
         is Block.Paragraph -> block.spans
@@ -223,12 +327,24 @@ private fun AnnotatedString.revealedTo(cut: Int, block: Block, styles: RpStyles,
         val c = styles.forKind(kind).color
         return if (c == Color.Unspecified) ink else c
     }
-    val trailFrom = (cut - REVEAL_TRAIL).coerceAtLeast(0)
+    // Where the colour can change inside a handful: span edges.
+    val edges = spans.flatMap { listOf(it.start, it.end) }.toSortedSet()
     return buildAnnotatedString {
         append(this@revealedTo)
-        for (i in trailFrom until cut) {
-            val a = (cut - i).toFloat() / (cut - trailFrom + 1)
-            addStyle(SpanStyle(color = colorAt(i).copy(alpha = (1f - a).coerceIn(0.08f, 1f) * colorAt(i).alpha)), i, i + 1)
+        for (b in births) {
+            val a = (b.from - offset).coerceAtLeast(0)
+            val z = (b.to - offset).coerceAtMost(cut)
+            if (a >= z) continue
+            val t = ((now - b.at).toFloat() / REVEAL_FADE_MS).coerceIn(0f, 1f)
+            val alpha = REVEAL_EASE.transform(t)
+            if (alpha >= 1f) continue
+            var s = a
+            while (s < z) {
+                val e = (edges.tailSet(s + 1).firstOrNull() ?: z).coerceAtMost(z)
+                val c = colorAt(s)
+                addStyle(SpanStyle(color = c.copy(alpha = alpha * c.alpha)), s, e)
+                s = e
+            }
         }
     }.subSequence(0, cut)
 }
@@ -250,23 +366,6 @@ private fun rememberCaretBlink(): () -> Boolean {
     return { on.value }
 }
 
-private fun Modifier.caret(color: Color, layout: () -> TextLayoutResult?, at: () -> Int, visible: () -> Boolean): Modifier =
-    drawWithContent {
-        drawContent()
-        if (!visible()) return@drawWithContent
-        val l = layout() ?: return@drawWithContent
-        val offset = at().coerceIn(0, l.layoutInput.text.length)
-        val line = l.getLineForOffset(offset)
-        val top = l.getLineTop(line)
-        val bottom = l.getLineBottom(line)
-        val x = if (l.layoutInput.text.isEmpty()) 0f else l.getHorizontalPosition(offset, usePrimaryDirection = true)
-        val h = (bottom - top) * 0.72f
-        drawRect(
-            color = color,
-            topLeft = Offset(x + 3.dp.toPx(), top + (bottom - top - h) / 2f),
-            size = Size(7.dp.toPx(), h),
-        )
-    }
 
 private fun Block.toAnnotated(styles: RpStyles): AnnotatedString = when (this) {
     is Block.Paragraph -> buildAnnotatedString { append(text); for (s in spans) addStyle(styles.forKind(s.kind), s.start, s.end) }
@@ -509,15 +608,7 @@ private fun Caret(color: Color) {
 fun ThinkingSheet(text: String, streaming: Boolean, onDismiss: () -> Unit, word: String = "Thinking") {
     val scroll = rememberScrollState()
     LaunchedEffect(text.length) { if (streaming) scroll.animateScrollTo(scroll.maxValue) }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        // Opened all the way, so its last lines are never below the screen's edge.
-        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f)) {
             Row(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 PlateText(

@@ -342,13 +342,7 @@ private fun SettingsSheet(
     onComments: (CommentMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, skipPartiallyExpanded = false) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
             Text(
                 settings.name,

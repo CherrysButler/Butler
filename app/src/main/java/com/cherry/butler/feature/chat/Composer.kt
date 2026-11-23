@@ -2,6 +2,8 @@ package com.cherry.butler.feature.chat
 
 import com.cherry.butler.ui.components.rim
 import com.cherry.butler.ui.components.pressSpring
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -34,8 +36,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.FormatItalic
+import androidx.compose.material.icons.rounded.FormatBold
+import androidx.compose.material.icons.rounded.FormatClear
+import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import com.cherry.butler.core.generation.SuggestionService
@@ -53,6 +63,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +91,8 @@ import androidx.compose.foundation.layout.widthIn
 import com.cherry.butler.ui.components.HairlineRule
 import com.cherry.butler.ui.components.hairlineFrame
 import com.cherry.butler.ui.components.card
+import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.liftShadow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 
@@ -121,6 +136,43 @@ internal fun enterKey(
     return true
 }
 
+/** A line of the story being edited in the message box: what its strip says, and how the save is going. */
+class ComposerEdit(val label: String, val saving: Boolean = false, val error: String? = null)
+
+/**
+ * The story's own keys on a PC, for when the message box does not have the keyboard: the chat
+ * sets them, the window's chat column presses them.
+ */
+class ChatKeys {
+    var onEditLast: (() -> Unit)? = null
+    var onStepReply: ((Int) -> Unit)? = null
+}
+
+val LocalChatKeys = androidx.compose.runtime.staticCompositionLocalOf<ChatKeys?> { null }
+
+/** Ctrl+P: plain from here (out of the mark the caret is in, or an empty pair taken away). */
+internal fun plainKey(e: androidx.compose.ui.input.key.KeyEvent): Boolean =
+    e.isCtrlPressed && !e.isAltPressed && !e.isShiftPressed && e.key == androidx.compose.ui.input.key.Key.P
+
+/**
+ * Where the message box is on screen, so a PC window can take the keyboard off it when a click
+ * lands anywhere else (Compose keeps it in the box otherwise, and the opened box never closes).
+ */
+class ComposerSpot { var bounds: androidx.compose.ui.geometry.Rect? = null }
+
+val LocalComposerSpot = androidx.compose.runtime.staticCompositionLocalOf<ComposerSpot?> { null }
+
+/** The mark a keyboard shortcut stands for: Ctrl+' speech, Ctrl+I action, Ctrl+B bold. */
+internal fun markKey(e: androidx.compose.ui.input.key.KeyEvent): Mark? {
+    if (!e.isCtrlPressed || e.isAltPressed || e.isShiftPressed) return null
+    return when (e.key) {
+        androidx.compose.ui.input.key.Key.Apostrophe -> Mark.Speech
+        androidx.compose.ui.input.key.Key.I -> Mark.Action
+        androidx.compose.ui.input.key.Key.B -> Mark.Bold
+        else -> null
+    }
+}
+
 /**
  * The widest the text window grows, centred, with the ground either side: a wide PC window
  * otherwise stretches it edge to edge. Unbounded on the phone, where it spans the screen.
@@ -145,6 +197,8 @@ fun Composer(
     /** Rich typing on; [richDefault] is what typing opens on its own (null: plain). */
     rich: Boolean = false,
     richDefault: Mark? = Mark.Action,
+    /** Picks what typing starts as (null: plain) from the mode box on a PC; null hides the box. */
+    onRichMode: ((Mark?) -> Unit)? = null,
     /** A picture in the draft, and its keys; [onAddPicture] null hides the picture key. */
     picture: ChatViewModel.Picture? = null,
     /** Called with the caret's place in the draft, so the picture lands where the user is. */
@@ -158,7 +212,25 @@ fun Composer(
     commands: List<SlashCommand> = emptyList(),
     /** Over the box, inside its width: Lessons' strip while /learn runs. */
     above: (@Composable () -> Unit)? = null,
+    /**
+     * Over a background picture with the frame as glass (Glass.kt): the box itself is the
+     * glass, floating over the picture, and no ground is painted behind it.
+     */
+    glass: io.github.fletchmckee.liquid.LiquidState? = null,
+    /**
+     * A line of the story being edited here, in the box, instead of where it stands: [draft] is
+     * its words, Send saves it. What the strip over the box says of it.
+     */
+    editing: ComposerEdit? = null,
+    onCancelEdit: () -> Unit = {},
+    /** In the empty box on a keyboard: ↑ takes your last line into the box to edit. */
+    onEditLast: (() -> Unit)? = null,
+    /** In the empty box on a keyboard: ← the reply before, → the next one, or a new one after the last. */
+    onStepReply: ((Int) -> Unit)? = null,
 ) {
+    // A line taken into the box brings the keyboard with it.
+    val boxFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(editing != null) { if (editing != null) runCatching { boxFocus.requestFocus() } }
     // The field keeps its own caret; the draft (saved state) is its text. A draft changed from
     // outside (sent, written for you, undone) resets the caret to the end.
     var field by remember { mutableStateOf(TextFieldValue(draft, TextRange(draft.length))) }
@@ -166,15 +238,58 @@ fun Composer(
     /** The text the keyboard last reported, before the marks touched it. */
     val imeText = remember { KeyboardCopy() }
     var focused by remember { mutableStateOf(false) }
+    /** Counts drafts emptied from outside (a line sent): the box offers its default mark again. */
+    var emptied by remember { mutableStateOf(0) }
     LaunchedEffect(draft) {
         if (field.text != draft) {
             field = TextFieldValue(draft, TextRange(draft.length))
-            if (draft.isEmpty()) typing = TypingState(richDefault)
+            if (draft.isEmpty()) {
+                typing = TypingState(richDefault)
+                emptied++
+            }
         }
     }
     // A command is typed plain: rich typing would wrap the `/` in its marks.
     val command = field.text.startsWith("/")
     val richNow = rich && !command
+    // On a PC the box opens up while it has the keyboard: a line at rest, three when writing,
+    // wider by its gutters. Only the opening animates; lines typed past that grow it at once.
+    val desk = LocalEnterSends.current
+    val open = desk && focused
+    val opening = androidx.compose.animation.core.tween<androidx.compose.ui.unit.Dp>(
+        durationMillis = 300,
+        easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f),
+    )
+    val roomMin by androidx.compose.animation.core.animateDpAsState(if (open) 88.dp else 36.dp, opening, label = "composer room")
+    // On a PC the default mark is already in the empty box when it opens, the caret inside it, so
+    // the box shows what typing will be. A box holding only that pair is still empty: it is not
+    // sent, not kept as a draft, and goes when the box closes.
+    val bare = if (desk && richNow) richDefault?.let { it.open + it.close } else null
+    val pairs = remember { Mark.entries.map { it.open + it.close }.toSet() }
+    // Any empty pair is still nothing written: switching modes swaps the pair a frame after the
+    // mode changes, and the old one must not light Send and Write for that frame.
+    val empty = field.text.isBlank() || (desk && richNow && field.text in pairs)
+    // Offered when the box opens or a line has gone out; never because the user emptied it. A
+    // new mode picked while the box holds only an empty pair swaps it (or clears it, for plain).
+    LaunchedEffect(focused, emptied, bare) {
+        val leftover = field.text in pairs
+        if (focused && (field.text.isEmpty() || (leftover && field.text != bare))) {
+            if (bare != null) {
+                field = TextFieldValue(bare, TextRange(bare.length / 2))
+                typing = TypingState(null)
+            } else if (leftover) {
+                field = TextFieldValue("")
+                if (draft.isNotEmpty()) onDraftChanged("")
+            }
+        } else if (!focused && leftover) {
+            field = TextFieldValue("")
+            if (draft.isNotEmpty()) onDraftChanged("")
+        }
+    }
+    // The words take the room the box opened, so the mark keys sit at its bottom.
+    val wordsMin by androidx.compose.animation.core.animateDpAsState(if (open) 76.dp else 0.dp, opening, label = "composer words")
+    // At rest the box sits in from the column's edges; writing, it opens out to them.
+    val gutter by androidx.compose.animation.core.animateDpAsState(if (open || !desk) 12.dp else 44.dp, opening, label = "composer gutter")
     val marks = RichMarks(
         mark = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
         speech = com.cherry.butler.core.design.LocalRpLook.current.speech?.let { androidx.compose.ui.graphics.Color(it) } ?: ButlerTheme.colors.speech,
@@ -183,12 +298,28 @@ fun Composer(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            .then(if (glass == null) Modifier.background(MaterialTheme.colorScheme.background) else Modifier)
             .navigationBarsPadding()
             .imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
     Column(Modifier.widthIn(max = LocalComposerMaxWidth.current).fillMaxWidth()) {
+        editing?.let { edit ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = edit.error ?: if (edit.saving) "Saving…" else edit.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (edit.error != null) ButlerTheme.colors.danger else ButlerTheme.colors.textLow,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                StateAction(label = "Cancel", onClick = onCancelEdit)
+            }
+        }
         (suggestion as? SuggestionService.State.Used)?.let { written ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 10.dp, top = 6.dp),
@@ -211,8 +342,17 @@ fun Composer(
         // room: grown into the box, they pushed the whole chat up as they came and went.
         Column(Modifier.fillMaxWidth().overTheChat().padding(bottom = 2.dp)) {
             above?.invoke()
-            if (offered.isNotEmpty()) {
-                CommandList(offered) { picked ->
+            // The list rises out of the box and sinks back into it, keeping its rows while it goes.
+            var lastOffered by remember { mutableStateOf(offered) }
+            if (offered.isNotEmpty()) lastOffered = offered
+            AnimatedVisibility(
+                visible = offered.isNotEmpty(),
+                enter = fadeIn(com.cherry.butler.core.design.Motion.enter()) +
+                    androidx.compose.animation.slideInVertically(com.cherry.butler.core.design.Motion.enter()) { it / 6 },
+                exit = fadeOut(com.cherry.butler.core.design.Motion.exit()) +
+                    androidx.compose.animation.slideOutVertically(com.cherry.butler.core.design.Motion.exit()) { it / 6 },
+            ) {
+                CommandList(lastOffered) { picked ->
                     field = TextFieldValue(picked.fill, TextRange(picked.fill.length))
                     onDraftChanged(picked.fill)
                 }
@@ -224,36 +364,38 @@ fun Composer(
         // Concentric: the box's corner is the keys' corner plus the 6 dp around them, so the send
         // key's curve runs parallel to the box's instead of jamming into it. On the 12 dp gutter
         // the cards keep, resting on the ground rather than hovering over it.
-        Row(
+        val showMode = open && onRichMode != null
+        Box(
             modifier = Modifier
-                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+                .padding(start = gutter, end = gutter, top = 6.dp, bottom = 10.dp)
                 .fillMaxWidth()
+                .then(LocalComposerSpot.current?.let { spot ->
+                    Modifier.onGloballyPositioned { spot.bounds = it.boundsInWindow() }
+                } ?: Modifier)
                 .heightIn(min = 48.dp)
-                .card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
+                .then(
+                    if (glass == null) {
+                        Modifier.card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
+                    } else {
+                        // Glass: lifted off the picture by its shadow, lit along its rim, as the nav island is.
+                        val shape = MaterialTheme.shapes.medium
+                        val look = com.cherry.butler.core.design.LocalDepthLook.current
+                        Modifier
+                            .liftShadow(shape, look, com.cherry.butler.core.design.Lift.Float)
+                            .clip(shape)
+                            .frosted(glass, shape)
+                            .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), shape)
+                    },
+                )
                 .padding(6.dp),
-            verticalAlignment = Alignment.Bottom,
         ) {
-            if (onPickPersona != null) {
-                PersonaChip(persona = persona, onClick = onPickPersona)
-                Spacer(Modifier.width(8.dp))
-            }
-            Box(modifier = Modifier.weight(1f).heightIn(min = 36.dp).padding(vertical = 6.dp), contentAlignment = Alignment.CenterStart) {
-                Column {
-                    // The three marks, over the words while the box has the keyboard.
-                    if (richNow && focused) {
-                        MarkKeys(
-                            lit = RichTyping.lit(field, typing),
-                            inSpeech = RichTyping.inSpeech(field, typing),
-                            innerQuote = typing.inner,
-                            onPress = { mark ->
-                                val (v, st) = RichTyping.press(field, mark, typing)
-                                field = v
-                                typing = st
-                                if (v.text != draft) onDraftChanged(v.text)
-                            },
-                            modifier = Modifier.padding(bottom = 6.dp),
-                        )
-                    }
+        // The words, in the room they are given: between the keys on a PC, over them on a phone.
+        val words: @Composable (Modifier) -> Unit = { room ->
+            Box(modifier = room, contentAlignment = if (open || !desk) Alignment.TopStart else Alignment.CenterStart) {
+                // While a reply is written the picture and write keys step aside, and the corner
+                // chip would sit over the words' first line: they leave it room then.
+                val keysNarrow = (onAddPicture == null || busy) && (onWrite == null || busy)
+                Column(Modifier.padding(end = if (showMode && keysNarrow) 64.dp else 0.dp)) {
                     // The field has drawn the marks' version: the keyboard has it now.
                     SideEffect { imeText.unseen = false }
                     val change: (TextFieldValue) -> Unit = { new ->
@@ -284,43 +426,310 @@ fun Composer(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         visualTransformation = if (richNow) marks else androidx.compose.ui.text.input.VisualTransformation.None,
-                        maxLines = 6,
+                        maxLines = if (open) 14 else 6,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .heightIn(min = wordsMin)
+                            .focusRequester(boxFocus)
                             .onFocusChanged { focused = it.isFocused }
+                            // Ctrl+' " , Ctrl+I * and Ctrl+B ** press the mark keys, exactly as a click
+                            // on them would: the mark opens at the caret for the words to come.
+                            .onPreviewKeyEvent { e ->
+                                // With nothing written, the arrows are the story's: ↑ edits your
+                                // last line, ← and → step through the last reply's versions.
+                                if (empty && editing == null && !e.isCtrlPressed && !e.isAltPressed && !e.isShiftPressed) {
+                                    val act: (() -> Unit)? = when (e.key) {
+                                        androidx.compose.ui.input.key.Key.DirectionUp -> onEditLast
+                                        androidx.compose.ui.input.key.Key.DirectionLeft -> onStepReply?.let { step -> { step(-1) } }
+                                        androidx.compose.ui.input.key.Key.DirectionRight -> onStepReply?.let { step -> { step(1) } }
+                                        else -> null
+                                    }
+                                    if (act != null) {
+                                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) act()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                }
+                                if (plainKey(e)) {
+                                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
+                                        val v = RichTyping.plainHere(field)
+                                        field = v
+                                        typing = TypingState(null)
+                                        if (v.text != draft) onDraftChanged(v.text)
+                                    }
+                                    return@onPreviewKeyEvent true
+                                }
+                                markKey(e)?.let { mark ->
+                                if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) {
+                                    val (v, st) = if (richNow) RichTyping.shortcut(field, mark, typing) else RichTyping.pair(field, mark) to typing
+                                    field = v
+                                    typing = st
+                                    if (v.text != draft) onDraftChanged(v.text)
+                                }
+                                true
+                            } ?: false }
                             // On a PC keyboard one of Enter and Shift+Enter sends, the other starts
                             // a new line; a phone's Enter stays a new line.
                             .then(
                                 if (LocalEnterSends.current) Modifier.onPreviewKeyEvent { e ->
-                                    enterKey(e, shiftEnterSends, field, change) { if (!busy && draft.isNotBlank()) onSend() }
+                                    enterKey(e, shiftEnterSends, field, change) { if (!busy && !empty) onSend() }
                                 } else Modifier,
                             ),
                         decorationBox = { inner ->
-                            if (field.text.isEmpty()) {
-                                Text(
-                                    text = "Write…",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = ButlerTheme.colors.textLow,
-                                )
+                            // Pinned to the top: in the opened box the words start at its first
+                            // line and run down, instead of floating in the middle of the room.
+                            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopStart) {
+                                if (field.text.isEmpty()) {
+                                    Text(
+                                        text = "Write…",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = ButlerTheme.colors.textLow,
+                                    )
+                                }
+                                inner()
                             }
-                            inner()
                         },
                     )
                 }
             }
-            if (onAddPicture != null && !busy) {
+        }
+        val tools: @Composable () -> Unit = {
+            // A line being edited is saved as it is written: no picture, no writing for it.
+            if (onAddPicture != null && !busy && editing == null) {
                 Spacer(Modifier.width(2.dp))
                 PictureKey(attached = picture != null, onClick = { onAddPicture(field.selection.end) })
             }
-            if (onWrite != null && !busy) {
+            if (onWrite != null && !busy && editing == null) {
                 Spacer(Modifier.width(2.dp))
-                WriteKey(rewrite = draft.isNotBlank(), onClick = onWrite)
+                WriteKey(rewrite = !empty, onClick = onWrite)
             }
             Spacer(Modifier.width(4.dp))
-            AdvanceKey(busy = busy, enabled = draft.isNotBlank(), onSend = onSend, onStop = onStop)
+            AdvanceKey(busy = busy, enabled = !empty && editing?.saving != true, onSend = onSend, onStop = onStop, saves = editing != null)
+        }
+        if (desk) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                if (onPickPersona != null) {
+                    PersonaChip(persona = persona, onClick = onPickPersona)
+                    Spacer(Modifier.width(8.dp))
+                }
+                words(Modifier.weight(1f).heightIn(min = roomMin).padding(vertical = 6.dp))
+                tools()
+            }
+        } else {
+            // On a phone the words have the box's whole width, and every key sits in one row
+            // under them: the face and the marks at its start, picture, write and send at its end.
+            Column(Modifier.fillMaxWidth()) {
+                words(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    if (onPickPersona != null) {
+                        PersonaChip(persona = persona, onClick = onPickPersona)
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    PhoneMarks(shown = richNow) {
+                        MarkKeys(
+                            lit = RichTyping.lit(field, typing),
+                            inSpeech = RichTyping.inSpeech(field, typing),
+                            innerQuote = typing.inner,
+                            onPress = { mark ->
+                                val (v, st) = RichTyping.press(field, mark, typing)
+                                field = v
+                                typing = st
+                                if (v.text != draft) onDraftChanged(v.text)
+                                // A mark pressed in a box at rest starts the writing.
+                                if (!focused) runCatching { boxFocus.requestFocus() }
+                            },
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    tools()
+                }
+            }
+        }
+        // The typing mode, floating in the open box's top corner over the keys' column, so the
+        // words still start at the box's first line. It comes and goes with the box.
+        CornerMode(
+            shown = showMode,
+            mode = if (rich) richDefault else null,
+            onPick = { onRichMode?.invoke(it) },
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
         }
     }
     }
+}
+
+/** A typing mode's icon: quote for speech, italic for action, bold, and clear for plain. */
+private fun Mark?.icon(): ImageVector = when (this) {
+    Mark.Speech -> Icons.Rounded.FormatQuote
+    Mark.Action -> Icons.Rounded.FormatItalic
+    Mark.Bold -> Icons.Rounded.FormatBold
+    null -> Icons.Rounded.FormatClear
+}
+
+/** The modes in the order the chip's menu and wheel go through them. */
+private val MODES: List<Mark?> = listOf(Mark.Speech, Mark.Action, Mark.Bold, null)
+
+private fun Mark?.label(): String = when (this) {
+    Mark.Speech -> "Speech"
+    Mark.Action -> "Action"
+    Mark.Bold -> "Bold"
+    null -> "Plain"
+}
+
+private fun Mark?.shortcut(): String = when (this) {
+    Mark.Speech -> "Ctrl '"
+    Mark.Action -> "Ctrl I"
+    Mark.Bold -> "Ctrl B"
+    null -> "Ctrl P"
+}
+
+/**
+ * What typing starts as, in the open box's top corner on a PC: a small chip with the mode's
+ * icon and name and the up-and-down chevron of a picker. Clicking it opens the four modes in
+ * the chat's own menu, each with its shortcut on a keycap. The menu never takes the keyboard,
+ * so the box stays open behind it.
+ */
+@Composable
+private fun ModeChip(mode: Mark?, onPick: (Mark?) -> Unit, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    // A click on the chip while the menu is open first closes the menu (a click outside it), and
+    // would open it again at once: a click that soon after closing leaves it closed.
+    var closedAt by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    val ink = if (open) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed
+    Box(modifier) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 26.dp, max = 26.dp)
+                .clip(MaterialTheme.shapes.small)
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+                .focusProperties { canFocus = false }
+                .clickable(onClickLabel = "Typing mode") { if (System.currentTimeMillis() - closedAt > 250) open = !open }
+                // The wheel steps through the modes, as the chevron says: down to the next, up back.
+                .pointerInput(mode) {
+                    var acc = 0f
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent()
+                            if (e.type != androidx.compose.ui.input.pointer.PointerEventType.Scroll) continue
+                            acc += e.changes.sumOf { it.scrollDelta.y.toDouble() }.toFloat()
+                            e.changes.forEach { it.consume() }
+                            if (kotlin.math.abs(acc) >= 1f) {
+                                val all = MODES
+                                val step = if (acc > 0) 1 else -1
+                                acc = 0f
+                                onPick(all[(all.indexOf(mode) + step).mod(all.size)])
+                            }
+                        }
+                    }
+                }
+                .semantics { contentDescription = "Typing mode: ${mode.label()}" }
+                .padding(start = 8.dp, end = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(mode.icon(), contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(mode.label(), style = MaterialTheme.typography.labelMedium, color = ink)
+            Spacer(Modifier.width(3.dp))
+            Icon(Icons.Rounded.UnfoldMore, contentDescription = null, tint = ButlerTheme.colors.textLow, modifier = Modifier.size(14.dp))
+        }
+        // The chat menu's look, with its own way in and out: it grows out of the chip's corner
+        // and shrinks back into it, the same both ways (the stock menu all but vanishes on close).
+        val shown = remember { androidx.compose.animation.core.MutableTransitionState(false) }
+        shown.targetState = open
+        if (shown.currentState || shown.targetState) androidx.compose.ui.window.Popup(
+            popupPositionProvider = AboveRightEdge,
+            onDismissRequest = { open = false; closedAt = System.currentTimeMillis() },
+            properties = androidx.compose.ui.window.PopupProperties(focusable = false),
+        ) {
+            val corner = androidx.compose.ui.graphics.TransformOrigin(1f, 1f)
+            AnimatedVisibility(
+                visibleState = shown,
+                enter = fadeIn(tween(MENU_MS)) + scaleIn(tween(MENU_MS, easing = com.cherry.butler.core.design.Motion.Glide), initialScale = 0.9f, transformOrigin = corner),
+                exit = fadeOut(tween(MENU_MS)) + androidx.compose.animation.scaleOut(tween(MENU_MS, easing = com.cherry.butler.core.design.Motion.Glide), targetScale = 0.9f, transformOrigin = corner),
+            ) {
+            androidx.compose.material3.Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shadowElevation = 3.dp,
+                modifier = Modifier.padding(4.dp),
+            ) { Column(Modifier.width(androidx.compose.foundation.layout.IntrinsicSize.Max).padding(vertical = 8.dp)) {
+            MODES.forEach { m ->
+                val on = m == mode
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(
+                            m.label(),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            m.icon(),
+                            contentDescription = null,
+                            tint = if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
+                    trailingIcon = { Keycap(m.shortcut()) },
+                    onClick = { onPick(m); open = false },
+                    modifier = Modifier.focusProperties { canFocus = false },
+                )
+            }
+            } }
+            }
+        }
+    }
+}
+
+private const val MENU_MS = 160
+
+/** Opens a popup just above its anchor, right edges lined up; below it when there is no room above. */
+private object AboveRightEdge : androidx.compose.ui.window.PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: androidx.compose.ui.unit.IntRect,
+        windowSize: androidx.compose.ui.unit.IntSize,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        popupContentSize: androidx.compose.ui.unit.IntSize,
+    ): androidx.compose.ui.unit.IntOffset {
+        val x = (anchorBounds.right - popupContentSize.width).coerceIn(0, maxOf(0, windowSize.width - popupContentSize.width))
+        val above = anchorBounds.top - popupContentSize.height
+        val y = if (above >= 0) above else anchorBounds.bottom
+        return androidx.compose.ui.unit.IntOffset(x, y)
+    }
+}
+
+/** The mode chip in the open box's corner, coming in with the box and going with it. */
+@Composable
+private fun CornerMode(shown: Boolean, mode: Mark?, onPick: (Mark?) -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = shown,
+        enter = fadeIn(tween(300)) + scaleIn(
+            tween(300, easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)),
+            initialScale = 0.9f,
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f),
+        ),
+        exit = fadeOut(tween(150)) + androidx.compose.animation.scaleOut(
+            tween(150, easing = com.cherry.butler.core.design.Motion.Glide),
+            targetScale = 0.9f,
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f),
+        ),
+        modifier = modifier,
+    ) {
+        ModeChip(mode = mode, onPick = onPick)
+    }
+}
+
+/** A shortcut, the way it is pressed: on a faint keycap. */
+@Composable
+private fun Keycap(keys: String) {
+    Text(
+        text = keys,
+        style = MaterialTheme.typography.labelSmall,
+        color = ButlerTheme.colors.textLow,
+        modifier = Modifier
+            .rim(1.dp, ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
 }
 
 /**
@@ -329,38 +738,47 @@ fun Composer(
  */
 @Composable
 private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress: (Mark) -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+    Row(modifier = modifier, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp)) {
         listOf(Mark.Speech, Mark.Action, Mark.Bold).forEach { mark ->
             // In speech the " key is the ' key, lit while its inner quote is open.
             val quoteKey = mark == Mark.Speech && inSpeech
             val on = if (quoteKey) innerQuote else mark == lit
+            val ground by animateColorAsState(
+                if (on) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                tween(com.cherry.butler.core.design.Motion.SHORT),
+                label = "mark key",
+            )
             Box(
                 modifier = Modifier
-                    .size(width = 36.dp, height = 28.dp)
+                    .size(width = 34.dp, height = KEY_HEIGHT)
                     .clip(MaterialTheme.shapes.small)
-                    .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
-                    .rim(1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.outlineFaint, MaterialTheme.shapes.small)
-                    // Never takes the focus: a click with a mouse moved it off the box, which hid
-                    // the keys (they show while the box has it) and lost the caret.
+                    .background(ground)
+                    // Never takes the focus: a click with a mouse moved it off the box and lost the caret.
                     .focusProperties { canFocus = false }
                     .clickable(onClickLabel = mark.key.replaceFirstChar { it.uppercase() }) { onPress(mark) }
                     .semantics { contentDescription = if (quoteKey) "Quote inside speech" else mark.key.replaceFirstChar { it.uppercase() } },
                 contentAlignment = Alignment.Center,
             ) {
-                // Just the mark: " * B, the way it is typed.
-                Text(
-                    text = when (mark) {
-                        Mark.Speech -> if (quoteKey) "'" else "\""
-                        Mark.Action -> "*"
-                        Mark.Bold -> "B"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (mark == Mark.Bold) androidx.compose.ui.text.font.FontWeight.Black else androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = if (on) ButlerTheme.colors.onAccentSoft else MaterialTheme.colorScheme.onSurface,
+                // The mark's icon; in speech the " key opens an inner quote, drawn smaller.
+                Icon(
+                    mark.icon(),
+                    contentDescription = null,
+                    tint = if (on) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textLow,
+                    modifier = Modifier.size(if (quoteKey) 16.dp else 20.dp),
                 )
             }
         }
     }
+}
+
+/** The mark keys' place in the phone's row: they fade away while a command is typed, and back. */
+@Composable
+private fun PhoneMarks(shown: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = shown,
+        enter = fadeIn(com.cherry.butler.core.design.Motion.enter()),
+        exit = fadeOut(com.cherry.butler.core.design.Motion.exit()),
+    ) { content() }
 }
 
 /**
@@ -482,7 +900,7 @@ private fun PictureStrip(picture: ChatViewModel.Picture, onUndo: () -> Unit, onA
  * control in its other state rather than an alarm.
  */
 @Composable
-private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onStop: () -> Unit) {
+private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onStop: () -> Unit, saves: Boolean = false) {
     val red = MaterialTheme.colorScheme.primary
     val live = busy || enabled
     // At rest the key is a quiet glyph on the field; it fills red the moment there is a draft.
@@ -495,7 +913,7 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
             .clip(MaterialTheme.shapes.small)
             .background(fill)
             .clickable(interactionSource = press, indication = androidx.compose.foundation.LocalIndication.current, enabled = live, onClick = if (busy) onStop else onSend)
-            .semantics { contentDescription = if (busy) "Stop" else "Send" },
+            .semantics { contentDescription = if (busy) "Stop" else if (saves) "Save" else "Send" },
         contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(
@@ -507,7 +925,7 @@ private fun AdvanceKey(busy: Boolean, enabled: Boolean, onSend: () -> Unit, onSt
                 Box(Modifier.size(13.dp).background(MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(3.dp)))
             } else {
                 Icon(
-                    Icons.AutoMirrored.Rounded.Send,
+                    if (saves) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.Send,
                     contentDescription = null,
                     tint = if (enabled) MaterialTheme.colorScheme.onPrimary else ButlerTheme.colors.textLow,
                     modifier = Modifier.size(20.dp),

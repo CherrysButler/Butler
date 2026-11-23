@@ -18,7 +18,7 @@ import com.cherry.butler.core.design.Pill
 @Composable
 fun WidgetNeededDialog(manual: Boolean, onAdd: () -> Unit, onDismiss: () -> Unit) {
     val maker = BackgroundReplies.maker
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,

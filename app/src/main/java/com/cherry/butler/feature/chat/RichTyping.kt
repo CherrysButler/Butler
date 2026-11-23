@@ -271,6 +271,49 @@ object RichTyping {
         return value to TypingState(mark, armed = true)
     }
 
+    /**
+     * A mark's keyboard shortcut on a PC, where the marks show as text instead of as keys: the
+     * pair goes in at the caret with the caret between them, so what the box holds is the state.
+     * A selection is wrapped; the shortcut of the mark the caret is in steps out of it; " in
+     * speech opens an inner 'quote', as the key does.
+     */
+    fun shortcut(value: TextFieldValue, mark: Mark, state: TypingState): Pair<TextFieldValue, TypingState> {
+        val sel = value.selection
+        if (!sel.collapsed) return press(value, mark, state)
+        val ctx = spanAt(value.text, sel.start)
+        if (ctx != null && ctx.contentStart == ctx.contentEnd) {
+            // An empty pair: its own shortcut takes it away (plain from here), another swaps it.
+            val t = value.text
+            val put = if (ctx.mark == mark) "" else mark.open + mark.close
+            val at = ctx.start + if (ctx.mark == mark) 0 else mark.open.length
+            return TextFieldValue(t.substring(0, ctx.start) + put + t.substring(ctx.end), TextRange(at)) to TypingState(null)
+        }
+        if (ctx != null && (ctx.mark == mark || (mark == Mark.Speech && quotesInside(ctx.mark)))) {
+            return press(value, mark, state.copy(armed = false))
+        }
+        return pair(value, mark) to state.copy(armed = false, inner = false)
+    }
+
+    /** Plain from here: an empty pair at the caret goes, a mark the caret is in is stepped out of. */
+    fun plainHere(value: TextFieldValue): TextFieldValue {
+        if (!value.selection.collapsed) return value
+        val t = value.text
+        val ctx = spanAt(t, value.selection.start) ?: return value
+        if (ctx.contentStart == ctx.contentEnd) return TextFieldValue(t.substring(0, ctx.start) + t.substring(ctx.end), TextRange(ctx.start))
+        return stepOut(t, ctx.end)
+    }
+
+    /**
+     * A mark's shortcut with Rich typing off: the pair goes in at the caret with the caret between
+     * them (a selection is wrapped, as the key does), since nothing would open an armed mark.
+     */
+    fun pair(value: TextFieldValue, mark: Mark): TextFieldValue {
+        if (!value.selection.collapsed) return press(value, mark, TypingState(null)).first
+        val at = value.selection.start
+        val t = value.text
+        return TextFieldValue(t.substring(0, at) + mark.open + mark.close + t.substring(at), TextRange(at + mark.open.length))
+    }
+
     /** The caret just past a mark, with one space after it (unless one is already there). */
     private fun stepOut(text: String, at: Int): TextFieldValue {
         val spaced = at < text.length && text[at].isWhitespace()

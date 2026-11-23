@@ -64,14 +64,7 @@ fun MemorySheet(
 ) {
     val compacting = run?.kind == MemoryService.Kind.Compact
     var draft by rememberSynced(summary.orEmpty())
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = com.cherry.butler.core.design.SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = com.cherry.butler.ui.components.SheetScrim,
-        dragHandle = { com.cherry.butler.ui.components.SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState())) {
             Row(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 PlateText(text = "Memory", level = PlateLevel.Name, color = if (running) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)

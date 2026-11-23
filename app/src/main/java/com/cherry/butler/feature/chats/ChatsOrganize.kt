@@ -138,9 +138,11 @@ fun GroupActionsSheet(
 ) {
     Sheet(onDismiss) {
         SheetTitle(group.characterName.ifBlank { "Character" })
-        if (!archived) ActionRow(Icons.Outlined.PushPin, if (group.pinned) "Unpin" else "Pin to the top", onPin)
-        ActionRow(Icons.Outlined.Folder, "Add to folder…", onFolders)
-        ActionRow(if (archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, if (archived) "Unarchive" else "Archive", onArchive)
+        // Each ends this sheet (the folders open one of their own): it slides away first.
+        val leave = com.cherry.butler.ui.components.LocalLeave.current
+        if (!archived) ActionRow(Icons.Outlined.PushPin, if (group.pinned) "Unpin" else "Pin to the top", onClick = { leave(onPin) })
+        ActionRow(Icons.Outlined.Folder, "Add to folder…", onClick = { leave(onFolders) })
+        ActionRow(if (archived) Icons.Outlined.Unarchive else Icons.Outlined.Archive, if (archived) "Unarchive" else "Archive", onClick = { leave(onArchive) })
     }
 }
 
@@ -220,14 +222,7 @@ fun FolderManageSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Sheet(onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) { content() }
     }
 }

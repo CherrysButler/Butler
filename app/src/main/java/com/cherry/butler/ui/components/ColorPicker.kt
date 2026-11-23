@@ -89,15 +89,7 @@ fun ColorPickerSheet(
     // A mouse and a wide window: a narrower panel, the wheel smaller and beside the controls
     // rather than over them. A phone keeps the tall sheet, the wheel under a thumb.
     val compact = LocalPointerMotion.current
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-        sheetMaxWidth = if (compact) 560.dp else androidx.compose.material3.BottomSheetDefaults.SheetMaxWidth,
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss, sheetMaxWidth = if (compact) 560.dp else androidx.compose.material3.BottomSheetDefaults.SheetMaxWidth) {
         Column(
             modifier = Modifier.navigationBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp),
         ) {
@@ -180,10 +172,11 @@ fun ColorPickerSheet(
             }
 
             Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
+                val leave = LocalLeave.current
                 Box(
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
-                        .clickable(onClick = onDismiss)
+                        .clickable { leave(onDismiss) }
                         .padding(horizontal = 16.dp, vertical = 11.dp),
                 ) { Text("Cancel", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface) }
                 Spacer(Modifier.width(8.dp))
@@ -191,7 +184,7 @@ fun ColorPickerSheet(
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable { onPick(color.toArgb().toLong() and 0xFFFFFFFFL) }
+                        .clickable { val picked = color.toArgb().toLong() and 0xFFFFFFFFL; leave { onPick(picked) } }
                         .padding(horizontal = 18.dp, vertical = 11.dp),
                 ) { Text("Use", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary) }
             }

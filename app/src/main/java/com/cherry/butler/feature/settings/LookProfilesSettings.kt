@@ -214,7 +214,7 @@ private fun ProfileMenuItem(icon: ImageVector, label: String, onClick: () -> Uni
 private fun ProfileNameDialog(title: String, initial: String, confirmLabel: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(initial) }
     val ok = name.isNotBlank()
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -233,6 +233,6 @@ private fun ProfileNameDialog(title: String, initial: String, confirmLabel: Stri
                 Text(confirmLabel, color = if (ok) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow, fontWeight = FontWeight.Bold)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
     )
 }

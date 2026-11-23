@@ -191,7 +191,7 @@ private fun ImportLorebookDialog(
             onImport(json, fileName)
         }
     }
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text("Import JSON") },
         text = {
@@ -217,6 +217,6 @@ private fun ImportLorebookDialog(
                 Text(if (busy) "Reading…" else "Continue")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), enabled = !busy) { Text("Cancel") } },
     )
 }

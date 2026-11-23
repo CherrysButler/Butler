@@ -143,7 +143,7 @@ fun CharacterEditorScreen(
         )
     }
     restore?.let { kept ->
-        AlertDialog(
+        com.cherry.butler.ui.components.ButlerAlertDialog(
             onDismissRequest = viewModel::restoreDraft,
             title = { Text("Continue where you left off?") },
             text = {

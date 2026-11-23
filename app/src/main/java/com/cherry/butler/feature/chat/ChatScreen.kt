@@ -1,6 +1,8 @@
 package com.cherry.butler.feature.chat
 
 import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.rim
+import com.cherry.butler.ui.components.liftShadow
 import com.cherry.butler.ui.components.frostSource
 import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.core.data.remote.dto.PronounsDto
@@ -31,6 +33,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +83,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ViewSidebar
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -183,6 +187,50 @@ fun ChatScreen(
     var lorebooksOpen by remember { mutableStateOf(false) }
     var memoryThoughtOpen by remember { mutableStateOf(false) }
     val summarizing = memoryRun != null && !memoryRun!!.done && memoryRun!!.error == null
+    var exporting by remember { mutableStateOf(false) }
+    var confirmDeleteChat by remember { mutableStateOf(false) }
+    // On a PC the chat's settings live in the panel beside the story (ChatPanel), not in sheets.
+    val panel = LocalChatPanelHost.current
+    if (panel != null) {
+        val openModelSettings by androidx.compose.runtime.rememberUpdatedState(onOpenModelSettings)
+        val openCustomize by androidx.compose.runtime.rememberUpdatedState(onOpenCustomize)
+        val editPersona by androidx.compose.runtime.rememberUpdatedState(onEditPersona)
+        val editLorebook by androidx.compose.runtime.rememberUpdatedState(onEditLorebook)
+        val pages: @Composable (ChatPanelTab) -> Unit = remember(viewModel) {
+            { tab ->
+                ChatPanelPages(
+                    tab = tab,
+                    viewModel = viewModel,
+                    onAllModelSettings = { openModelSettings() },
+                    onCustomize = { openCustomize() },
+                    onEditPersona = { editPersona(it) },
+                    onEditLorebook = { id, scope -> editLorebook(id, scope) },
+                    onOpenMemoryThought = { memoryThoughtOpen = true },
+                )
+            }
+        }
+        val characterId = chat?.characterId
+        val openChat by androidx.compose.runtime.rememberUpdatedState(onOpenChat)
+        val actions = remember(viewModel) {
+            ChatPanelActions(
+                onNewChat = { viewModel.startNewChat { openChat(it) } },
+                onExport = { exporting = true },
+                onDelete = { confirmDeleteChat = true },
+            )
+        }
+        androidx.compose.runtime.DisposableEffect(panel, characterId) {
+            panel.pages = pages
+            panel.actions = actions
+            panel.characterId = characterId
+            onDispose {
+                if (panel.pages === pages) {
+                    panel.pages = null
+                    panel.actions = null
+                    panel.characterId = null
+                }
+            }
+        }
+    }
     val compacting = memoryRun?.kind == MemoryService.Kind.Compact
     // A compact shows at the foot of the log while it runs, and stays there if it failed.
     val compactShown = memoryRun?.takeIf { compacting && !it.done }
@@ -210,8 +258,6 @@ fun ChatScreen(
     }
 
     // Export: pick a format, then where the file goes (the system's own save screen).
-    var exporting by remember { mutableStateOf(false) }
-    var confirmDeleteChat by remember { mutableStateOf(false) }
     if (confirmDeleteChat) {
         DeleteConfirmDialog(
             count = 1,
@@ -281,10 +327,20 @@ fun ChatScreen(
             onAllSettings = { modelsOpen = false; onOpenModelSettings() },
             onDismiss = { modelsOpen = false },
             jllmAllowance = viewModel.jllmAllowance.collectAsStateWithLifecycle().value,
+            models = viewModel.models.collectAsStateWithLifecycle().value,
+            onLoadModels = viewModel::loadModels,
         )
     }
 
-    val name = chat?.shownName?.ifBlank { null } ?: "Chat"
+    // A chat kept on this device is on screen within a few frames of opening: the database
+    // answers that fast. Until it has, nothing stands in for it (no "Chat" for its name, no
+    // letter for its face, no skeleton for its story), or every chat opened as a loading
+    // screen for a blink. Only a chat still not there after a moment is one being fetched,
+    // and gets those.
+    var waited by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(250); waited = true }
+    val known = chat != null || waited
+    val name = chat?.shownName?.ifBlank { null } ?: if (waited) "Chat" else ""
     val avatarUrl = JanitorConfig.avatarUrl(chat?.characterAvatar)
     viewing?.let { url -> ImageViewer(url = url, name = name, onDismiss = { viewing = null }) }
     val openCharacter = { chat?.characterId?.let(onOpenCharacter); Unit }
@@ -444,6 +500,46 @@ fun ChatScreen(
     }
 
     LocalTranscriptHost.current?.let { host -> LaunchedEffect(busy) { host.onBusy(busy) } }
+
+    // The line in the message box to be edited, if one is. Back (Esc on a PC) lets it go.
+    val editingLine = transcript.firstOrNull { it.localId == editingId }
+    androidx.activity.compose.BackHandler(enabled = editingLine != null) { viewModel.cancelEdit() }
+    // ↑: your last line, into the box.
+    val editLast: () -> Unit = {
+        if (!busy && editingLine == null) transcript.lastOrNull { !it.isBot && it.serverId != null }?.let(viewModel::startEdit)
+    }
+    // ← and → (a swipe on the phone): the last reply's other versions, a new one past the last;
+    // on an opening nobody has answered, the character's other intros.
+    val stepReply: (Int) -> Unit = step@{ delta ->
+        if (busy || editingLine != null) return@step
+        val turns = foldTurns(transcript, jobs, live.keys)
+        val last = turns.lastOrNull() as? Turn.Bot ?: return@step
+        val shown = last.shown
+        val intros = chat?.intros.orEmpty()
+        if (turns.size == 1 && !last.answersUser && intros.size > 1) {
+            val at = intros.indexOfFirst { it.trim() == shown.text.trim() }
+            if (at >= 0) intros.getOrNull(at + delta)?.let { viewModel.pickIntro(shown, it) }
+            return@step
+        }
+        val cutShort = shown.streamState == MessageStreamState.PARTIAL && shown.text.isNotEmpty()
+        if (!last.answersUser || !(shown.serverId != null || last.variants.size > 1 || cutShort)) return@step
+        val target = last.index + delta
+        when {
+            target < 0 -> Unit
+            target >= last.variants.size -> viewModel.askAgain()
+            else -> viewModel.select(last.variants, last.variants[target])
+        }
+    }
+    // The same keys for a PC's chat column, when the box does not have the keyboard.
+    LocalChatKeys.current?.let { keys ->
+        val edit by androidx.compose.runtime.rememberUpdatedState(editLast)
+        val step by androidx.compose.runtime.rememberUpdatedState(stepReply)
+        androidx.compose.runtime.DisposableEffect(keys) {
+            keys.onEditLast = { edit() }
+            keys.onStepReply = { step(it) }
+            onDispose { keys.onEditLast = null; keys.onStepReply = null }
+        }
+    }
     // On the PC the background may go across the window: handed to the window, none drawn here.
     val backdropHost = com.cherry.butler.ui.components.LocalBackdropHost.current
     val acrossWindow by viewModel.backgroundAcrossWindow.collectAsStateWithLifecycle()
@@ -457,10 +553,12 @@ fun ChatScreen(
             onDispose { if (backdropHost.shown === mine) backdropHost.shown = null }
         }
     }
-    // Frosted: over a background picture the top bar and composer frost it (the PC's window
-    // frosts its own when the picture spreads across it). Without a picture they stay as they were.
-    val frost = com.cherry.butler.ui.components.glassOn() && background != null
-    val ownHaze = remember { dev.chrisbanes.haze.HazeState() }
+    // Glass: the top bar and the message box float over the chat as panes of glass, and the
+    // story runs on under them, so the glass always has something passing beneath it: the
+    // background picture when there is one (the PC's window's own when it spreads across it),
+    // and the story's own lines either way.
+    val frost = com.cherry.butler.ui.components.glassOn()
+    val ownHaze = io.github.fletchmckee.liquid.rememberLiquidState()
     val chromeHaze = if (!frost) null else if (spread) com.cherry.butler.ui.components.LocalBackdropHaze.current else ownHaze
     Box(modifier = Modifier.fillMaxSize().then(if (spread) Modifier else Modifier.background(MaterialTheme.colorScheme.background))) {
     if (!spread) background?.let { com.cherry.butler.ui.components.Backdrop(dim = it.dim, parallax = it.parallax, file = it.file, fileKey = it.key, modifier = Modifier.frostSource(ownHaze.takeIf { frost })) }
@@ -483,7 +581,24 @@ fun ChatScreen(
             }
         },
         topBar = {
-            Column(modifier = Modifier.frosted(chromeHaze).statusBarsPadding()) {
+            // Over a background picture with the frame as glass, the bar floats over it as a
+            // rounded pane of glass, as the message box does; otherwise it is the plain strip.
+            val barGlass = chromeHaze
+            Column(
+                modifier = if (barGlass == null) {
+                    Modifier.statusBarsPadding()
+                } else {
+                    val shape = MaterialTheme.shapes.medium
+                    val look = com.cherry.butler.core.design.LocalDepthLook.current
+                    Modifier
+                        .statusBarsPadding()
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp)
+                        .liftShadow(shape, look, com.cherry.butler.core.design.Lift.Float)
+                        .clip(shape)
+                        .frosted(barGlass, shape)
+                        .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), shape)
+                },
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -491,10 +606,14 @@ fun ChatScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
-                    Avatar(
-                        url = avatarUrl, name = name, size = 36.dp, initialStyle = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = "Show picture", onClick = showPortrait),
-                    )
+                    if (known) {
+                        Avatar(
+                            url = avatarUrl, name = name, size = 36.dp, initialStyle = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.clip(MaterialTheme.shapes.small).clickable(onClickLabel = "Show picture", onClick = showPortrait),
+                        )
+                    } else {
+                        Spacer(Modifier.size(36.dp))
+                    }
                     Spacer(Modifier.width(12.dp))
                     Column(
                         modifier = Modifier
@@ -512,31 +631,42 @@ fun ChatScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = if (summarizing) (if (compacting) "Compacting" else "Summarizing") else statusCaption(activeJob, streaming, refreshing, transcript.size, now),
+                            text = if (!known) "" else if (summarizing) (if (compacting) "Compacting" else "Summarizing") else statusCaption(activeJob, streaming, refreshing, transcript.size, now),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (busy || summarizing) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textLow,
                         )
                     }
                     providerLabel?.let { label ->
-                        ProviderChip(label = label, percent = contextPercent, onClick = { viewModel.openModels(); modelsOpen = true })
+                        ProviderChip(label = label, percent = contextPercent, onClick = { viewModel.openModels(); if (panel != null) panel.show(ChatPanelTab.Model) else modelsOpen = true })
                     }
-                    ChatMenu(
+                    panel?.let { p ->
+                        androidx.compose.material3.IconButton(onClick = { p.toggle() }) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Rounded.ViewSidebar,
+                                contentDescription = if (p.open) "Close the chat panel" else "Open the chat panel",
+                                tint = if (p.open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    // On a PC the panel holds everything the menu did, so the menu is not shown.
+                    if (panel == null) ChatMenu(
                         onModelSettings = if (providerLabel == null) onOpenModelSettings else null,
-                        onMemory = { memoryOpen = true },
-                        onLorebooks = { lorebooksOpen = true },
+                        onMemory = { if (panel != null) panel.show(ChatPanelTab.Memory) else memoryOpen = true },
+                        onLorebooks = { if (panel != null) panel.show(ChatPanelTab.Lore) else lorebooksOpen = true },
                         onCustomize = onOpenCustomize,
                         onCharacter = openCharacter,
                         onNewChat = { viewModel.startNewChat(onOpenChat) },
                         hasSummary = !chat?.summary.isNullOrBlank(),
                         onExport = { exporting = true },
                         onDelete = { confirmDeleteChat = true },
-                        onBackground = { backgroundOpen = true },
+                        onBackground = { if (panel != null) panel.show(ChatPanelTab.Look) else backgroundOpen = true },
                         richOn = richOn,
                         onRich = { viewModel.setRich(!richOn) },
                     )
                 }
                 // No progress bar: the caption says what is happening, the reply shows it.
-                HairlineRule(color = ButlerTheme.colors.outlineFaint)
+                // The glass bar has its own rim; a rule under it would cut across the pane.
+                if (barGlass == null) HairlineRule(color = ButlerTheme.colors.outlineFaint)
                 // On a proxy, with a character whose creator switched proxies off: said here,
                 // with the way out, before a message is turned away.
                 val aiNow by viewModel.aiSettingsState.collectAsStateWithLifecycle()
@@ -568,19 +698,34 @@ fun ChatScreen(
                     note?.let { NoteForNextReply(it, onDrop = viewModel::dropNote) }
                     com.cherry.butler.feature.lessons.LessonsStrip()
                 },
-                draft = draft,
-                onDraftChanged = viewModel::onDraftChanged,
+                // A line being edited is edited here, in the box; what was being written waits.
+                draft = if (editingLine != null) editDraft else draft,
+                onDraftChanged = if (editingLine != null) viewModel::onEditChanged else viewModel::onDraftChanged,
                 busy = busy,
-                onSend = send,
+                onSend = if (editingLine != null) viewModel::saveEdit else send,
                 onStop = viewModel::stop,
+                editing = editingLine?.let { line ->
+                    ComposerEdit(
+                        label = if (line.isBot) "Editing $name's line" else "Editing your line",
+                        saving = editStatus.saving,
+                        error = editStatus.error?.let { "Not saved. ${it.userMessage()}" },
+                    )
+                },
+                onCancelEdit = viewModel::cancelEdit,
+                onEditLast = editLast,
+                onStepReply = stepReply,
                 persona = activePersona,
-                onPickPersona = { pickingPersona = true },
+                onPickPersona = { if (panel != null) panel.show(ChatPanelTab.Persona) else pickingPersona = true },
                 suggestion = suggestion,
                 onWrite = viewModel::openWritePanel,
                 onUndoWrite = viewModel::undoWrite,
                 onWriteAgain = viewModel::writeAgain,
                 rich = richOn,
                 richDefault = Mark.of(richDefault),
+                onRichMode = { mark ->
+                    if (mark != null && !richOn) viewModel.setRich(true)
+                    viewModel.setRichDefault(mark?.key)
+                },
                 picture = picture,
                 onAddPicture = if (!pictureKey) null else { cursor ->
                     pictureCursor = cursor
@@ -589,17 +734,32 @@ fun ChatScreen(
                 onUndoPicture = viewModel::undoPicture,
                 onDescribeAgain = viewModel::describeAgain,
                 onRemovePicture = viewModel::removePicture,
-                modifier = Modifier.frosted(chromeHaze).onSizeChanged { composerHeight = it.height },
+                glass = chromeHaze,
+                modifier = Modifier.onSizeChanged { composerHeight = it.height },
             )
         },
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        // Under glass the story fills the screen and is what the glass looks through; its first
+        // and last lines keep the bars' room (the list's own padding), so they rest clear of them.
+        // With no picture behind it the story is sampled on its own ground: on nothing, the
+        // blurred lines were see-through and the sharp ones under the glass read through them.
+        val underGlass = chromeHaze != null
+        val ground = MaterialTheme.colorScheme.background
+        Box(
+            modifier = when {
+                !underGlass -> Modifier.fillMaxSize().padding(innerPadding)
+                background == null -> Modifier.fillMaxSize().frostSource(chromeHaze).background(ground)
+                else -> Modifier.fillMaxSize().frostSource(chromeHaze)
+            },
+        ) {
             when {
-                transcript.isEmpty() && refreshing -> TranscriptSkeleton()
+                // Nothing yet, in the blink before the database answers: the ground alone.
+                transcript.isEmpty() && !waited -> Unit
+                transcript.isEmpty() && refreshing -> Box(if (underGlass) Modifier.padding(innerPadding) else Modifier) { TranscriptSkeleton() }
                 transcript.isEmpty() && refreshError != null -> InlineErrorCard(
                     error = refreshError!!,
                     onRetry = viewModel::refresh,
-                    modifier = Modifier.padding(16.dp),
+                    modifier = (if (underGlass) Modifier.padding(innerPadding) else Modifier).padding(16.dp),
                 )
                 else -> androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.core.design.LocalButterTint provides butterTint) { Transcript(
                     messages = transcript,
@@ -645,6 +805,7 @@ fun ChatScreen(
                     intros = chat?.intros.orEmpty(),
                     unanswered = activeJob == null && transcript.lastOrNull()?.isBot == false,
                     showScene = background == null,
+                    under = if (underGlass) innerPadding else PaddingValues(0.dp),
                 ) }
             }
         }
@@ -769,6 +930,8 @@ private fun Transcript(
     showScene: Boolean = true,
     /** A compact running, or one that failed, shown at the foot of the log. */
     compact: MemoryService.Run? = null,
+    /** The room the glass bars take over the log, which runs under them: kept clear at its head and foot. */
+    under: PaddingValues = PaddingValues(0.dp),
 ) {
     val listState = rememberFlingListState(ahead = 2)
     val jobByUser = remember(jobs) { jobs.filter { it.userMessageLocalId != null }.associateBy { it.userMessageLocalId!! } }
@@ -830,7 +993,7 @@ private fun Transcript(
             // Drawn with this frame's layout: growth the scroll offset hasn't taken in yet is
             // offset here, so the words don't rise a line and drop back.
             .graphicsLayer { translationY = absorber.unabsorbed().toFloat() },
-        contentPadding = PaddingValues(bottom = 12.dp),
+        contentPadding = PaddingValues(top = under.calculateTopPadding(), bottom = 12.dp + under.calculateBottomPadding()),
     ) {
         // The first item of a reversed list is the foot of the log.
         if (compact != null) item(key = "compact", contentType = "compact") {
@@ -992,9 +1155,50 @@ private fun BotTurn(
         }
     }
 
+    // A swipe across the last reply, on a touch screen: right for the next version (a new one
+    // past the last), left for the one before. It has to be a real swipe, a third of the way
+    // across and far more sideways than up or down: a brush while reading used to change the
+    // reply or ask for a new one, which is why this was once taken out.
+    val touch = !com.cherry.butler.ui.components.LocalPointerMotion.current
+    val swipeable = touch && isLast && !editing && !writing && !busy && (canSwipe || intros.size > 1)
+    var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    val pulled by androidx.compose.animation.core.animateFloatAsState(pull, Motion.enter(Motion.SHORT), label = "reply swipe")
+    fun swipe(delta: Int) {
+        if (intros.size > 1) {
+            val at = intros.indexOfFirst { it.trim() == shown.text.trim() }
+            if (at >= 0) { intros.getOrNull(at + delta)?.let { actions.onPickIntro(shown, it) }; return }
+        }
+        if (canSwipe) step(delta)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .editingMark(editing)
+            .then(
+                if (!swipeable) Modifier else Modifier
+                    .graphicsLayer { translationX = pulled }
+                    .pointerInput(shown.localId, turn.variants.size) {
+                        var across = 0f
+                        var along = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { across = 0f; along = 0f },
+                            onDragCancel = { pull = 0f },
+                            onDragEnd = {
+                                val far = kotlin.math.abs(across) > size.width / 3f && kotlin.math.abs(across) > kotlin.math.abs(along) * 2f
+                                if (far) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    swipe(if (across > 0f) 1 else -1)
+                                }
+                                pull = 0f
+                            },
+                        ) { change, drag ->
+                            across += drag
+                            along += change.position.y - change.previousPosition.y
+                            // The line gives a little under the finger, to show it has hold of it.
+                            pull = across * 0.35f
+                        }
+                    },
+            )
             .padding(horizontal = 20.dp, vertical = 10.dp)
             .pointerInput(shown.localId, editing) {
                 detectTapGestures(onLongPress = {
@@ -1005,8 +1209,6 @@ private fun BotTurn(
                 })
             }
             .secondaryClick { if (!editing && !writing) actions.onLongPress(shown) }
-            // No swipe: a sideways brush while reading changed the reply or asked for a new
-            // one. Variants move only by the arrows under it.
     ) {
         val janitor = LocalChatStyle.current == ChatStyle.Janitor
         val bubbles = LocalChatStyle.current == ChatStyle.Bubbles
@@ -1041,15 +1243,7 @@ private fun BotTurn(
             onAvatar = onAvatarClick,
             tools = if (!editing && !writing) ({ LineTools(onMore = { actions.onLongPress(shown) }, butter = if (hasButter) skim else null, onButter = { skim = !skim }) }) else null,
         ) {
-        if (editing) {
-            LineEditor(
-                text = editDraft,
-                onChange = actions.onEditChanged,
-                status = editStatus,
-                onSave = actions.onEditSave,
-                onCancel = actions.onEditCancel,
-            )
-        } else {
+        run {
             // Bubbles: the reply in a bubble too, its sharp corner up toward the character's name,
             // as yours points toward you.
             Box(if (bubbles) Modifier.fillMaxWidth().card(shape = BotBubble).padding(horizontal = 16.dp, vertical = 12.dp) else Modifier) {
@@ -1326,6 +1520,7 @@ private fun UserTurn(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .editingMark(editing)
             .padding(horizontal = 20.dp, vertical = if (janitor) 10.dp else 8.dp),
         horizontalAlignment = if (janitor) Alignment.Start else Alignment.End,
     ) {
@@ -1338,15 +1533,7 @@ private fun UserTurn(
             onAvatar = persona?.avatarUrl?.takeIf { it.isNotBlank() && viewer != null }?.let { face -> { viewer!!(face, persona.name) } },
             tools = if (!editing && message.serverId != null) ({ LineTools(onMore = { actions.onLongPress(message) }) }) else null,
         ) {
-        if (editing) {
-            LineEditor(
-                text = editDraft,
-                onChange = actions.onEditChanged,
-                status = editStatus,
-                onSave = actions.onEditSave,
-                onCancel = actions.onEditCancel,
-            )
-        } else {
+        run {
         Row(verticalAlignment = Alignment.Top) {
         Box(
             modifier = Modifier
@@ -1534,3 +1721,8 @@ private fun NoteForNextReply(note: String, onDrop: () -> Unit) {
         }
     }
 }
+
+/** The line whose words are in the message box to be edited: a faint band of the accent behind it. */
+@Composable
+private fun Modifier.editingMark(editing: Boolean): Modifier =
+    if (editing) background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)) else this

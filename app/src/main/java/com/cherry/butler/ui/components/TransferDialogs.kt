@@ -57,7 +57,7 @@ fun PersonaExportDialog(title: String, onPick: (PersonaExportFormat) -> Unit, on
 /** A list of formats to export in, each with a line on what it's for. */
 @Composable
 private fun <T> FormatDialog(title: String, formats: List<T>, describe: (T) -> Pair<String, String>, onPick: (T) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -77,7 +77,7 @@ private fun <T> FormatDialog(title: String, formats: List<T>, describe: (T) -> P
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss, shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
     )
 }
 
@@ -133,7 +133,7 @@ fun rememberBytesSaver(onError: (String) -> Unit, onSaved: () -> Unit = {}, onCa
 /** A copy being written line by line; the bar fills as it goes. Not dismissable mid-way. */
 @Composable
 fun TransferProgressDialog(title: String, done: Int, total: Int, unit: String = "messages") {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         shape = MaterialTheme.shapes.extraLarge,
@@ -162,7 +162,7 @@ fun TransferProgressDialog(title: String, done: Int, total: Int, unit: String = 
 /** Before an import: what's in the file and where it goes. */
 @Composable
 fun ImportConfirmDialog(count: Int, from: String, into: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
         shape = MaterialTheme.shapes.extraLarge,
@@ -177,9 +177,9 @@ fun ImportConfirmDialog(count: Int, from: String, into: String, onConfirm: () ->
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, shape = Pill) { Text("Import", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = com.cherry.butler.ui.components.leaving(onConfirm), shape = Pill) { Text("Import", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
     )
 }
 
@@ -190,7 +190,7 @@ fun ImportConfirmDialog(count: Int, from: String, into: String, onConfirm: () ->
  */
 @Composable
 fun PersonaImportConfirmDialog(personas: List<com.cherry.butler.core.data.TransferPersona>, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         // Only its own keys answer it: a stray click as a file dialog closed used to dismiss it unseen.
         properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
@@ -221,9 +221,9 @@ fun PersonaImportConfirmDialog(personas: List<com.cherry.butler.core.data.Transf
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, shape = Pill) { Text("Import", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = com.cherry.butler.ui.components.leaving(onConfirm), shape = Pill) { Text("Import", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
+        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), shape = Pill) { Text("Cancel", color = MaterialTheme.colorScheme.onSurface) } },
     )
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
@@ -22,6 +23,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
@@ -131,6 +133,8 @@ fun main(args: Array<String>) {
                     e.key == Key.F && e.isCtrlPressed && e.isShiftPressed -> { FrameLog.toggle(); true }
                     // Ctrl+H: the Chats archive, which the phone opens with a short pull.
                     e.key == Key.H && e.isCtrlPressed && !e.isShiftPressed -> DesktopKeys.archive?.invoke() ?: false
+                    // Alt+I: the open chat's panel.
+                    e.key == Key.I && e.isAltPressed && !e.isCtrlPressed -> DesktopKeys.chatPanel?.invoke() ?: false
                     // Ctrl+R or F5: refresh what's on show, as a pull does on the phone.
                     (e.key == Key.R && e.isCtrlPressed && !e.isShiftPressed) || e.key == Key.F5 ->
                         DesktopKeys.refresh?.invoke() ?: false
@@ -273,8 +277,13 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
                             com.cherry.butler.ui.components.QueueBanner(Modifier.align(androidx.compose.ui.Alignment.TopCenter))
                         }
                     }
-                    if (locked) LockScreen(appLock)
-                    else com.cherry.butler.feature.settings.UpdatePrompt(graph.updates())
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = locked,
+                        // It covers at once (nothing shows through a lock coming up) and lifts softly.
+                        enter = androidx.compose.animation.EnterTransition.None,
+                        exit = androidx.compose.animation.fadeOut(com.cherry.butler.core.design.Motion.exit(com.cherry.butler.core.design.Motion.MEDIUM)),
+                    ) { LockScreen(appLock) }
+                    if (!locked) com.cherry.butler.feature.settings.UpdatePrompt(graph.updates())
                     // The splash until there is something to show (DesktopStartup), then the hand-over.
                     val session by graph.supabase().auth.sessionStatus.collectAsState()
                     val contentReady by com.cherry.butler.desktop.ui.DesktopStartup.ready.collectAsState()
@@ -293,18 +302,31 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
 @androidx.compose.runtime.Composable
 private fun ToastLine(modifier: Modifier) {
     val shown by DesktopToasts.current.collectAsState()
-    val now = shown ?: return
-    LaunchedEffect(now) {
+    // What it said last, kept while it goes: it rises from the window's foot and sinks back,
+    // fading both ways, where it used to stand there and be gone.
+    var kept by remember { mutableStateOf(shown) }
+    shown?.let { kept = it }
+    LaunchedEffect(shown) {
+        val now = shown ?: return@LaunchedEffect
         delay(2_500)
         DesktopToasts.clear(now)
     }
-    Surface(
-        modifier = modifier.padding(bottom = 28.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.inverseSurface,
-        contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+    androidx.compose.animation.AnimatedVisibility(
+        visible = shown != null,
+        modifier = modifier,
+        enter = androidx.compose.animation.fadeIn(com.cherry.butler.core.design.Motion.enter()) +
+            androidx.compose.animation.slideInVertically(com.cherry.butler.core.design.Motion.enter()) { it / 2 },
+        exit = androidx.compose.animation.fadeOut(com.cherry.butler.core.design.Motion.exit()) +
+            androidx.compose.animation.slideOutVertically(com.cherry.butler.core.design.Motion.exit()) { it / 2 },
     ) {
-        Text(now.text, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium)
+        Surface(
+            modifier = Modifier.padding(bottom = 28.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        ) {
+            Text(kept?.text.orEmpty(), modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 

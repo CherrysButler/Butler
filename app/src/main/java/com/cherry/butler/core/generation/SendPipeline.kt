@@ -121,6 +121,15 @@ class SendPipeline @Inject constructor(
         val chat = chatDao.get(chatId) ?: error("send: unknown chat $chatId")
         val now = System.currentTimeMillis()
         val jobId = db.withTransaction {
+            // Writing on past a failed or stopped reply is the answer to it: its warning and
+            // its empty leftover go, as Dismiss would take them (the user's line stays).
+            for (old in jobDao.inStates(chatId, setOf(SendJobState.FAILED))) {
+                old.botMessageLocalId?.let { id ->
+                    val row = messageDao.get(id)
+                    if (row != null && row.serverId == null && row.text.isEmpty()) messageDao.delete(id)
+                }
+                jobDao.update(old.copy(state = SendJobState.CANCELLED, updatedAt = now))
+            }
             val userLocalId = messageDao.insert(
                 MessageEntity(
                     serverId = null, chatId = chatId, isBot = false, isMain = true, text = text,
@@ -687,6 +696,34 @@ class SendPipeline @Inject constructor(
      * user message; CONTINUE sends up to and including the reply being extended. Only
      * confirmed, main rows — alternates the user swiped away are not context.
      */
+    /**
+     * What Butler would send with the next reply, from the same pieces [generate] sends: the
+     * memory, who is played, the lore the scene brings in, the standing instructions and the
+     * lines of the story. Nothing is sent; the character's own definition is Janitor's, added
+     * on its side, and is not part of this.
+     */
+    suspend fun preview(chatId: Long): ContextPreview? {
+        val chat = chatDao.get(chatId) ?: return null
+        val confirmed = messageDao.observeTranscriptOnce(chatId).filter { it.serverId != null }
+        val history = Variants.collapse(confirmed)
+        val profile = runCatching { profileRepository.profile() }.getOrNull() ?: return null
+        val played = profileRepository.playedPersona(chat, history)
+        val lore = runCatching { lorebooks.activatedFor(chat, profile, played.persona, history) }.getOrDefault(emptyList())
+        val summary = chat.summary?.takeIf { it.isNotBlank() }
+        val replaces = memoryPrefs.replacesHistory.value && summary != null
+        val userName = played.persona?.name ?: profile.name
+        return ContextPreview(
+            percent = gauge.percent(chatId),
+            memory = summary,
+            memoryReplacesHistory = replaces,
+            personaName = userName,
+            personaAppearance = played.appearance,
+            lore = lore.map { ContextPreview.Lore(it.name.ifBlank { it.keys.firstOrNull().orEmpty() }, it.content, it.constant, it.probability) },
+            instructions = listOfNotNull(addons.instruction(GenerateMode.New), lessons.instructionFor(chat.characterId)).joinToString("\n\n").takeIf { it.isNotEmpty() },
+            lines = history.map { ContextPreview.Line(it.isBot, it.text) },
+        )
+    }
+
     private suspend fun historyFor(chatId: Long, mode: GenerateMode, target: MessageEntity): List<MessageEntity> {
         val confirmed = messageDao.observeTranscriptOnce(chatId).filter { it.serverId != null || it.localId == target.localId }
         val all = Variants.collapse(confirmed, prefer = target.localId).filter { it.serverId != null }

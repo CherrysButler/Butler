@@ -53,7 +53,7 @@ fun CardExportDialog(
     onStartChat: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    com.cherry.butler.ui.components.ButlerAlertDialog(
         onDismissRequest = onDismiss,
         shape = MaterialTheme.shapes.extraLarge,
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -120,7 +120,7 @@ fun CardExportDialog(
             if (state is CardExportState.NeedsChat) KeyButton("Start a chat", onClick = onStartChat, primary = true)
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, shape = Pill) {
+            TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), shape = Pill) {
                 Text(if (state is CardExportState.Ready || state is CardExportState.Reading) "Cancel" else "Close", color = MaterialTheme.colorScheme.onSurface)
             }
         },

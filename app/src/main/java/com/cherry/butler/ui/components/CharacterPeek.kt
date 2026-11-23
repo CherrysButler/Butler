@@ -42,13 +42,7 @@ import com.cherry.butler.feature.chats.KeyButton
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CharacterPeekSheet(character: Character, onOpen: () -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(
             modifier = Modifier
                 .navigationBarsPadding()
@@ -87,7 +81,8 @@ fun CharacterPeekSheet(character: Character, onOpen: () -> Unit, onDismiss: () -
             if (character.blurb.isNotBlank()) {
                 Text(character.blurb, style = MaterialTheme.typography.bodyMedium, color = ButlerTheme.colors.textMed, maxLines = 6, overflow = TextOverflow.Ellipsis)
             }
-            KeyButton("Open", onClick = onOpen, primary = true, modifier = Modifier.fillMaxWidth().height(48.dp))
+            val leave = LocalLeave.current
+            KeyButton("Open", onClick = { leave(onOpen) }, primary = true, modifier = Modifier.fillMaxWidth().height(48.dp))
         }
     }
 }

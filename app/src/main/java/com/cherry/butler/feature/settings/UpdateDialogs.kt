@@ -65,14 +65,7 @@ fun UpdateSheet(
     onStopAsking: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
@@ -103,17 +96,19 @@ fun UpdateSheet(
                 modifier = Modifier.fillMaxWidth().padding(top = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                KeyButton("Later", onClick = onDismiss, modifier = Modifier.weight(1f).heightIn(min = 48.dp))
+                val leave = com.cherry.butler.ui.components.LocalLeave.current
+                KeyButton("Later", onClick = { leave(onDismiss) }, modifier = Modifier.weight(1f).heightIn(min = 48.dp))
                 KeyButton(
                     "Get it on GitHub",
-                    onClick = { openReleasePage(context, url); onDismiss() },
+                    onClick = { openReleasePage(context, url); leave(onDismiss) },
                     primary = true,
                     modifier = Modifier.weight(1.6f).heightIn(min = 48.dp),
                 )
             }
             if (onStopAsking != null) {
+                val leave = com.cherry.butler.ui.components.LocalLeave.current
                 TextButton(
-                    onClick = { onStopAsking(); onDismiss() },
+                    onClick = { onStopAsking(); leave(onDismiss) },
                     shape = MaterialTheme.shapes.small,
                     modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp),
                 ) { Text("Stop checking on open", style = MaterialTheme.typography.labelLarge, color = ButlerTheme.colors.textLow) }

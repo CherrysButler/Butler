@@ -191,14 +191,7 @@ fun BackgroundsSheet(chatId: Long?, onDismiss: () -> Unit, viewModel: Background
     val desktop = com.cherry.butler.ui.components.LocalBackdropHost.current != null
     val tileRatio = if (desktop) 16f / 10f else 9f / 16f
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
             Text("Background", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp))
             Spacer(Modifier.height(12.dp))
@@ -434,7 +427,7 @@ private fun BackgroundEditor(
         }
     }
 
-    Dialog(
+    com.cherry.butler.ui.components.ButlerDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
@@ -460,29 +453,30 @@ private fun BackgroundEditor(
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                BarKey("Cancel", emphasis = false, onClick = onDismiss)
+                val leave = com.cherry.butler.ui.components.LocalLeave.current
+                BarKey("Cancel", emphasis = false, onClick = { leave(onDismiss) })
                 Spacer(Modifier.weight(1f))
-                BarKey(saveLabel, emphasis = true, enabled = source != null) { onSave(blur, dim, parallax) }
+                BarKey(saveLabel, emphasis = true, enabled = source != null) { leave { onSave(blur, dim, parallax) } }
             }
 
-            if (panel == Panel.Blur) {
+            EdgeSliderSpot(panel == Panel.Blur, fromStart = true, Modifier.align(Alignment.CenterStart)) {
                 EdgeSlider(
                     value = blur,
                     max = 1f,
                     label = if (blur <= 0f) "Off" else "${(blur * 100).toInt()}%",
                     onChange = { blur = it },
                     onDragging = { dragging = it },
-                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                    modifier = Modifier.padding(start = 12.dp),
                 )
             }
-            if (panel == Panel.Dim) {
+            EdgeSliderSpot(panel == Panel.Dim, fromStart = false, Modifier.align(Alignment.CenterEnd)) {
                 EdgeSlider(
                     value = dim,
                     max = ChatBackgrounds.MAX_DIM,
                     label = "${(dim * 100).toInt()}%",
                     onChange = { dim = it },
                     onDragging = { },
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp),
+                    modifier = Modifier.padding(end = 12.dp),
                 )
             }
 
@@ -518,6 +512,20 @@ private fun BackgroundEditor(
             }
         }
     }
+}
+
+/** Where an edge slider stands: it slides in from its edge and back out to it. */
+@Composable
+private fun EdgeSliderSpot(shown: Boolean, fromStart: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    val side = if (fromStart) -1 else 1
+    androidx.compose.animation.AnimatedVisibility(
+        visible = shown,
+        modifier = modifier,
+        enter = androidx.compose.animation.fadeIn(com.cherry.butler.core.design.Motion.enter()) +
+            androidx.compose.animation.slideInHorizontally(com.cherry.butler.core.design.Motion.enter()) { side * it / 2 },
+        exit = androidx.compose.animation.fadeOut(com.cherry.butler.core.design.Motion.exit()) +
+            androidx.compose.animation.slideOutHorizontally(com.cherry.butler.core.design.Motion.exit()) { side * it / 2 },
+    ) { content() }
 }
 
 /**

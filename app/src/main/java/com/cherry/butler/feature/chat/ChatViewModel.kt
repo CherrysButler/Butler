@@ -70,6 +70,7 @@ data class EditStatus(val saving: Boolean = false, val error: ApiError? = null)
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    private val modelCatalog: com.cherry.butler.core.data.ModelCatalog,
     private val lessonsLearner: com.cherry.butler.core.generation.LessonsLearner,
     private val lessonsStore: com.cherry.butler.core.data.LessonsStore,
     private val agentPrefs: com.cherry.butler.core.data.AgentPrefs,
@@ -193,6 +194,8 @@ class ChatViewModel @Inject constructor(
     val richOn: StateFlow<Boolean> = richTyping.enabled
     val richDefault: StateFlow<String?> = richTyping.defaultMark
     fun setRich(on: Boolean) = richTyping.setEnabled(on)
+    /** What typing starts as (null: plain), from the composer's mode box as well as Settings. */
+    fun setRichDefault(key: String?) = richTyping.setDefaultMark(key)
 
     /** A branch or copy being written: (done, total), or null when none is. */
     private val _copying = MutableStateFlow<Pair<Int, Int>?>(null)
@@ -422,6 +425,13 @@ class ChatViewModel @Inject constructor(
     /** Outbox jobs that still matter to this screen: everything active plus terminal failures. */
     val jobs: StateFlow<List<SendJobEntity>> = pipeline.observeJobs(chatId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** OpenRouter's models, for the model picker; fetched when a picker first opens. */
+    val models: StateFlow<com.cherry.butler.core.data.ModelCatalog.State> = modelCatalog.openRouter
+    fun loadModels(force: Boolean) { viewModelScope.launch { modelCatalog.load(force) } }
+
+    /** What goes with the next reply, for the chat panel's Context page; built when asked. */
+    suspend fun contextPreview(): com.cherry.butler.core.generation.ContextPreview? = pipeline.preview(chatId)
 
     /** The reply being written, per bot row, at token rate. */
     val live: StateFlow<Map<Long, SendPipeline.LiveReply>> = pipeline.live

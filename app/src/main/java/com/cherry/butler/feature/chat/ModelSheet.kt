@@ -123,15 +123,11 @@ fun ModelSheet(
     onDismiss: () -> Unit,
     /** (remaining, total) of JLLM's allowance, when Janitor gives the account one. */
     jllmAllowance: Pair<Int, Int>? = null,
+    /** OpenRouter's models, for picking one on an OpenRouter proxy, and the call that fetches them. */
+    models: com.cherry.butler.core.data.ModelCatalog.State = com.cherry.butler.core.data.ModelCatalog.State(),
+    onLoadModels: (force: Boolean) -> Unit = {},
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = SheetShape,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        scrimColor = SheetScrim,
-        dragHandle = { SheetHandle() },
-    ) {
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
         Column(modifier = Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
             Text(
                 "Model",
@@ -165,7 +161,17 @@ fun ModelSheet(
                 var model by remember(selected.id) { mutableStateOf(selected.model) }
                 LaunchedEffect(selected.model) { model = selected.model }
                 Spacer(Modifier.height(8.dp))
-                FieldBlock("Model for ${selected.name}", model, { model = it }, placeholder = "provider/model-name")
+                // On OpenRouter the model is picked from its list, and a pick is used at once;
+                // any other proxy has no list Butler can read, so its id is typed.
+                val pickable = OpenRouterOptions.isOpenRouter(selected.apiUrl)
+                com.cherry.butler.feature.settings.ModelField(
+                    label = "Model for ${selected.name}",
+                    value = if (pickable) selected.model else model,
+                    onChoose = { id -> onSaveModel(selected.id, id) },
+                    catalog = models.takeIf { pickable },
+                    onLoad = onLoadModels,
+                    onType = { model = it },
+                )
                 if (OpenRouterOptions.isOpenRouter(selected.apiUrl) && presetFor(selected.id).isNotBlank()) {
                     Text(
                         "A preset is set for this proxy, so OpenRouter uses ${presetFor(selected.id)} instead.",
@@ -174,7 +180,7 @@ fun ModelSheet(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
-                if (model.trim() != selected.model && model.isNotBlank()) {
+                if (!pickable && model.trim() != selected.model && model.isNotBlank()) {
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.End) {
                         KeyButton(
                             label = if (busy) "Saving…" else "Use this model",
@@ -194,7 +200,8 @@ fun ModelSheet(
                 )
             }
             Spacer(Modifier.height(4.dp))
-            LinkRow(title = "All model settings", subtitle = null, onClick = onAllSettings)
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            LinkRow(title = "All model settings", subtitle = null, onClick = { leave(onAllSettings) })
         }
     }
 }
