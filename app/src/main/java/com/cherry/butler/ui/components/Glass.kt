@@ -2,7 +2,17 @@ package com.cherry.butler.ui.components
 
 import android.content.Context
 import android.os.PowerManager
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.luminance
+import com.cherry.butler.core.design.Lift
+import com.cherry.butler.core.design.LocalDepthLook
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
@@ -93,6 +103,62 @@ fun Modifier.frostSource(state: LiquidState?): Modifier = if (state == null) thi
 @Composable
 fun Modifier.frosted(state: LiquidState?, shape: Shape = RectangleShape): Modifier =
     if (state == null) this else liquid(state, chromeGlass(shape))
+
+/**
+ * What a page's panes are glass over: its ambient ground ([AmbientGround]). Null, as nearly
+ * everywhere, and a pane is a card.
+ */
+val LocalPaneGlass = compositionLocalOf<LiquidState?> { null }
+
+/**
+ * A pane of a page: a card, or glass over the page's ambient ground where it has one, lifted
+ * and lit along its rim as a card is. Glass over flat ground shows nothing of itself, which is
+ * why the ground is given light to pass under it.
+ */
+@Composable
+fun Modifier.pane(shape: Shape? = null, color: Color? = null): Modifier {
+    val glass = LocalPaneGlass.current ?: return card(shape = shape, color = color)
+    val s = shape ?: MaterialTheme.shapes.medium
+    val look = LocalDepthLook.current
+    val outline = ButlerTheme.colors.cardOutline
+    val lit = this.liftShadow(s, look, Lift.Rest).clip(s).frosted(glass, s)
+    return if (outline.isSpecified) lit.rim(1.dp, rimBrush(outline, look, Lift.Rest), s) else lit
+}
+
+/**
+ * Light on a page's ground for its glass to show: the accent, soft, from the upper corner, and
+ * its fainter return low on the other side. It stays where it is while the page scrolls, so a
+ * pane passing over it changes as glass does. [state] is what the panes look through.
+ */
+@Composable
+fun AmbientGround(state: LiquidState, modifier: Modifier = Modifier) {
+    val ground = MaterialTheme.colorScheme.background
+    val light = MaterialTheme.colorScheme.primary
+    // Light shows less on a pale ground, and a pale ground needs less of it.
+    val strength = if (ground.luminance() < 0.5f) 0.36f else 0.22f
+    Box(
+        modifier.frostSource(state).drawBehind {
+            drawRect(ground)
+            drawRect(
+                Brush.radialGradient(
+                    0f to light.copy(alpha = strength),
+                    0.45f to light.copy(alpha = strength * 0.4f),
+                    1f to Color.Transparent,
+                    center = Offset(size.width * 0.95f, size.height * 0.08f),
+                    radius = size.width * 1.05f,
+                ),
+            )
+            drawRect(
+                Brush.radialGradient(
+                    0f to light.copy(alpha = strength * 0.55f),
+                    1f to Color.Transparent,
+                    center = Offset(size.width * 0.02f, size.height * 0.72f),
+                    radius = size.width * 0.85f,
+                ),
+            )
+        },
+    )
+}
 
 /** A gap the size of the frame at a list's foot. */
 @Composable

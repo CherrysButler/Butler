@@ -123,6 +123,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import com.cherry.butler.ui.components.SkeletonRosterRow
 import com.cherry.butler.ui.components.card
+import com.cherry.butler.ui.components.pane
 import com.cherry.butler.ui.components.isRetryable
 import com.cherry.butler.ui.components.userMessage
 import com.cherry.butler.ui.components.userTitle
@@ -217,6 +218,14 @@ fun SettingsScreen(
         )
     }
 
+    // The front page's panes are glass (Depth Lifted): the ground is lit for them to show it.
+    val paneGlass = io.github.fletchmckee.liquid.rememberLiquidState()
+    val glassPanes = page == SettingsPage.Main && com.cherry.butler.ui.components.glassOn()
+    Box(Modifier.fillMaxSize()) {
+    if (glassPanes) com.cherry.butler.ui.components.AmbientGround(paneGlass, Modifier.fillMaxSize())
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.cherry.butler.ui.components.LocalPaneGlass provides paneGlass.takeIf { glassPanes },
+    ) {
     Box(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (onBack != null) {
@@ -283,6 +292,8 @@ fun SettingsScreen(
             )
         }
     }
+    }
+    }
 }
 
 @Composable
@@ -339,7 +350,7 @@ private fun SettingsHome(onOpenPage: (SettingsPage) -> Unit, onOpenLorebooks: ()
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .card(color = ButlerTheme.colors.surfaceHigh),
+            .pane(color = ButlerTheme.colors.surfaceHigh),
     ) {
         pages.forEachIndexed { i, p ->
             SettingsHomeRow(p.title, p.blurb, p.icon) { onOpenPage(p) }
