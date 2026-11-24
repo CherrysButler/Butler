@@ -37,11 +37,15 @@ class ComposerShot {
         for ((name, draft) in drafts) {
             for (theme in listOf(AppTheme.JanitorClassic, AppTheme.Daylight)) {
                 shot(File(out, "composer-$name-${theme.name}.png"), 780, 520, 2f, theme, draft, desk = false)
+                // Written in: a tap in the box opens it.
+                shot(File(out, "composer-$name-${theme.name}-open.png"), 780, 520, 2f, theme, draft, desk = false, tap = 100)
+                // Part of the way open (with no keyboard here, it opens on a timer after a pause).
+                shot(File(out, "composer-$name-${theme.name}-mid.png"), 780, 520, 2f, theme, draft, desk = false, tap = 38)
             }
         }
     }
 
-    private fun shot(file: File, width: Int, height: Int, density: Float, theme: AppTheme, draft: String, desk: Boolean) {
+    private fun shot(file: File, width: Int, height: Int, density: Float, theme: AppTheme, draft: String, desk: Boolean, tap: Int = 0) {
                 val scene = ImageComposeScene(width = width, height = height, density = Density(density)) {
                     ButlerTheme(theme = theme, depth = Depth.Lifted) {
                       androidx.compose.runtime.CompositionLocalProvider(com.cherry.butler.feature.chat.LocalEnterSends provides desk) {
@@ -65,6 +69,12 @@ class ComposerShot {
                 }
                 var image = scene.render(0)
                 for (t in 1..40) image = scene.render(t * 16_000_000L)
+                if (tap > 0) {
+                    val at = androidx.compose.ui.geometry.Offset(width * 0.4f, height - 68f)
+                    scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, at)
+                    scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Release, at)
+                    for (t in 41..(40 + tap)) image = scene.render(t * 16_000_000L)
+                }
                 file.writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 scene.close()
     }

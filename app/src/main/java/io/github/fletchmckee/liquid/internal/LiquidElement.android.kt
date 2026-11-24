@@ -79,5 +79,8 @@ internal class LiquidNode(
     setFloatUniform("saturation", saturation)
     setFloatUniform("dispersion", dispersion)
     setFloatUniform("contrast", contrast)
+    setFloatUniform("adapt", adapt)
+    setFloatUniform("light", light.x, light.y)
+    setFloatUniform("glow", glowAt.x, glowAt.y, glow.x, glow.y)
   }
 }

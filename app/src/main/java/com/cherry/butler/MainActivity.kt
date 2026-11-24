@@ -136,7 +136,12 @@ class MainActivity : FragmentActivity() {
                         modifier = (if (locked) androidx.compose.ui.Modifier.clearAndSetSemantics { } else androidx.compose.ui.Modifier)
                             .sheetPushBack(),
                     ) {
-                        CompositionLocalProvider(LocalLastPlace provides lastPlace) {
+                        // The glass turns to the light as the phone is tilted (Depth Lifted only).
+                        val glassTilt = com.cherry.butler.core.platform.rememberGlassTilt(on = com.cherry.butler.ui.components.glassOn())
+                        CompositionLocalProvider(
+                            LocalLastPlace provides lastPlace,
+                            com.cherry.butler.ui.components.LocalGlassLight provides glassTilt,
+                        ) {
                             AuthGate()
                         }
                         // Cloudflare's browser check, when a call meets one.

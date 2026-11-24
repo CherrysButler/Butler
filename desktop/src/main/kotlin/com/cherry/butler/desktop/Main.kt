@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
@@ -259,8 +260,25 @@ private fun ButlerWindow(graph: DesktopComponent, onGround: (Int) -> Unit) {
             androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                 com.cherry.butler.desktop.ui.DesktopTitleBar()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    Box(modifier = if (locked) Modifier.clearAndSetSemantics { } else Modifier) {
+                    // The glass turns to the pointer, as a phone's turns to its tilt: where it is in
+                    // the window, -1 to 1 from the middle, in small steps so only real moves redraw.
+                    val glassLight = androidx.compose.runtime.remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                    Box(
+                        modifier = (if (locked) Modifier.clearAndSetSemantics { } else Modifier).pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val at = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial).changes.firstOrNull()?.position ?: continue
+                                    if (size.width <= 0 || size.height <= 0) continue
+                                    val x = ((at.x / size.width * 2f - 1f) * 0.6f / 0.04f).toInt() * 0.04f
+                                    val y = ((at.y / size.height * 2f - 1f) * 0.6f / 0.04f).toInt() * 0.04f
+                                    val now = androidx.compose.ui.geometry.Offset(x.coerceIn(-1f, 1f), y.coerceIn(-1f, 1f))
+                                    if (now != glassLight.value) glassLight.value = now
+                                }
+                            }
+                        },
+                    ) {
                         CompositionLocalProvider(
+                            com.cherry.butler.ui.components.LocalGlassLight provides glassLight,
                             // Clicks answer with a hover wash, not the phone's ripple.
                             androidx.compose.foundation.LocalIndication provides com.cherry.butler.desktop.ui.HoverWash(MaterialTheme.colorScheme.onSurface),
                             // A mouse and a wide window everywhere, the first start's guide included.

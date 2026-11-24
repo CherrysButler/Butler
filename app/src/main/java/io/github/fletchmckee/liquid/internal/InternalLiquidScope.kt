@@ -126,6 +126,39 @@ internal class LiquidScopeImpl : InternalLiquidScope {
       }
     }
 
+  // Butler: adapt, light and the inner glow (see LiquidScope).
+  override var adapt: Float = 0f
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Adapt
+        field = value
+      }
+    }
+
+  override var light: Offset = Offset(-0.15f, -0.15f)
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Light
+        field = value
+      }
+    }
+
+  override var glowAt: Offset = Offset.Zero
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Glow
+        field = value
+      }
+    }
+
+  override var glow: Offset = Offset.Zero
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Glow
+        field = value
+      }
+    }
+
   override var density: Density = Density(1f)
     set(value) {
       if (field != value) {
@@ -280,6 +313,11 @@ internal object Fields {
   const val Liquefiables: Int = 0b1 shl 14
   const val BoundsInRoot: Int = 0b1 shl 15
 
+  // Butler's additions.
+  const val Adapt: Int = 0b1 shl 16
+  const val Light: Int = 0b1 shl 17
+  const val Glow: Int = 0b1 shl 18
+
   const val RenderEffectFields: Int =
     Frost or
       Shape or
@@ -290,7 +328,10 @@ internal object Fields {
       Tint or
       Saturation or
       Dispersion or
-      Contrast
+      Contrast or
+      Adapt or
+      Light or
+      Glow
 
   const val InvalidateFlags: Int =
     RenderEffectFields or

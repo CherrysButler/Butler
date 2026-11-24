@@ -34,6 +34,10 @@ val androidOnly = listOf(
     "feature/auth/TurnstileSheet.kt",
     // The desktop says "PC" where the phone says "phone".
     "core/platform/Device.kt",
+    // The phone's tilt, read off its gravity sensor; a PC's glass follows the pointer instead.
+    "core/platform/GlassTilt.kt",
+    // Where the on-screen keyboard is headed; a PC has none.
+    "core/platform/Keyboard.kt",
     // Loads through Coil 2's request options and View geometry; the desktop has its own.
     "ui/components/LoadingPicture.kt",
 )

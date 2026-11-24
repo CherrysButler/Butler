@@ -76,6 +76,7 @@ import androidx.compose.material.icons.rounded.ShortText
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.StickyNote2
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.SolidColor
@@ -91,7 +92,7 @@ import androidx.compose.foundation.layout.widthIn
 import com.cherry.butler.ui.components.HairlineRule
 import com.cherry.butler.ui.components.hairlineFrame
 import com.cherry.butler.ui.components.card
-import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.glassSurface
 import com.cherry.butler.ui.components.liftShadow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -255,7 +256,37 @@ fun Composer(
     // On a PC the box opens up while it has the keyboard: a line at rest, three when writing,
     // wider by its gutters. Only the opening animates; lines typed past that grow it at once.
     val desk = LocalEnterSends.current
-    val open = desk && focused
+    val open = focused
+    // The phone's box does the same, a slim line at rest and opened out while it is written in,
+    // but not on a clock of its own: it is as open as the keyboard is up (0 to 1), so the two
+    // rise and fall as one thing. Without an on-screen keyboard (keys plugged in, or one that
+    // floats) it opens on the PC's beat a moment after it is given the keyboard.
+    val rise = if (desk) 0f else com.cherry.butler.core.platform.keyboardRise()
+    var keysOnly by remember { mutableStateOf(false) }
+    val riseNow by androidx.compose.runtime.rememberUpdatedState(rise)
+    if (!desk) {
+        LaunchedEffect(focused) {
+            if (!focused) keysOnly = false
+            else { kotlinx.coroutines.delay(450); if (riseNow == 0f) keysOnly = true }
+        }
+    }
+    val timed by androidx.compose.animation.core.animateFloatAsState(
+        if (keysOnly && focused) 1f else 0f,
+        androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f)),
+        label = "composer opened by keys",
+    )
+    val opened = if (desk) 0f else maxOf(rise, timed)
+    if (!desk) {
+        // The keyboard put away is the writing put away: the box closes with it, as it starts
+        // down and not once it has landed, so the two move together.
+        val keyboardUp = com.cherry.butler.core.platform.keyboardStaying()
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        var keyboardSeen by remember { mutableStateOf(false) }
+        LaunchedEffect(keyboardUp) {
+            if (keyboardUp) keyboardSeen = true
+            else if (keyboardSeen) { keyboardSeen = false; focusManager.clearFocus() }
+        }
+    }
     val opening = androidx.compose.animation.core.tween<androidx.compose.ui.unit.Dp>(
         durationMillis = 300,
         easing = androidx.compose.animation.core.CubicBezierEasing(0f, 0f, 0.2f, 1f),
@@ -287,9 +318,12 @@ fun Composer(
         }
     }
     // The words take the room the box opened, so the mark keys sit at its bottom.
-    val wordsMin by androidx.compose.animation.core.animateDpAsState(if (open) 76.dp else 0.dp, opening, label = "composer words")
+    // Three lines' room on a PC, two on a phone, where the keyboard has half the screen.
+    val wordsMinDesk by androidx.compose.animation.core.animateDpAsState(if (desk && open) 76.dp else 0.dp, opening, label = "composer words")
+    val wordsMin = if (desk) wordsMinDesk else 52.dp * opened
     // At rest the box sits in from the column's edges; writing, it opens out to them.
-    val gutter by androidx.compose.animation.core.animateDpAsState(if (open || !desk) 12.dp else 44.dp, opening, label = "composer gutter")
+    val gutterDesk by androidx.compose.animation.core.animateDpAsState(if (open) 12.dp else 44.dp, opening, label = "composer gutter")
+    val gutter = if (desk) gutterDesk else 28.dp - 16.dp * opened
     val marks = RichMarks(
         mark = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
         speech = com.cherry.butler.core.design.LocalRpLook.current.speech?.let { androidx.compose.ui.graphics.Color(it) } ?: ButlerTheme.colors.speech,
@@ -364,7 +398,7 @@ fun Composer(
         // Concentric: the box's corner is the keys' corner plus the 6 dp around them, so the send
         // key's curve runs parallel to the box's instead of jamming into it. On the 12 dp gutter
         // the cards keep, resting on the ground rather than hovering over it.
-        val showMode = open && onRichMode != null
+        val showMode = desk && open && onRichMode != null
         Box(
             modifier = Modifier
                 .padding(start = gutter, end = gutter, top = 6.dp, bottom = 10.dp)
@@ -378,20 +412,14 @@ fun Composer(
                         Modifier.card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
                     } else {
                         // Glass: lifted off the picture by its shadow, lit along its rim, as the nav island is.
-                        val shape = MaterialTheme.shapes.medium
-                        val look = com.cherry.butler.core.design.LocalDepthLook.current
-                        Modifier
-                            .liftShadow(shape, look, com.cherry.butler.core.design.Lift.Float)
-                            .clip(shape)
-                            .frosted(glass, shape)
-                            .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), shape)
+                        Modifier.glassSurface(glass, MaterialTheme.shapes.medium)
                     },
                 )
                 .padding(6.dp),
         ) {
         // The words, in the room they are given: between the keys on a PC, over them on a phone.
         val words: @Composable (Modifier) -> Unit = { room ->
-            Box(modifier = room, contentAlignment = if (open || !desk) Alignment.TopStart else Alignment.CenterStart) {
+            Box(modifier = room, contentAlignment = if (if (desk) open else opened > 0f) Alignment.TopStart else Alignment.CenterStart) {
                 // While a reply is written the picture and write keys step aside, and the corner
                 // chip would sit over the words' first line: they leave it room then.
                 val keysNarrow = (onAddPicture == null || busy) && (onWrite == null || busy)
@@ -426,7 +454,7 @@ fun Composer(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         visualTransformation = if (richNow) marks else androidx.compose.ui.text.input.VisualTransformation.None,
-                        maxLines = if (open) 14 else 6,
+                        maxLines = if (desk) { if (open) 14 else 6 } else { if (opened > 0f) 8 else 3 },
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = wordsMin)
@@ -515,11 +543,27 @@ fun Composer(
                 tools()
             }
         } else {
-            // On a phone the words have the box's whole width, and every key sits in one row
-            // under them: the face and the marks at its start, picture, write and send at its end.
+            // On a phone the box is a slim line at rest, the face and the keys in the line with
+            // the words. Written in, it opens: the words take its whole width, and every key
+            // sits in one row under them, the face and the marks at its start, picture, write
+            // and send at its end.
+            val side = 8.dp * opened
+            val over = 6.dp + 2.dp * opened
             Column(Modifier.fillMaxWidth()) {
-                words(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                    if (opened < 1f && onPickPersona != null) {
+                        Row(Modifier.folded(1f - opened, vertical = false), verticalAlignment = Alignment.CenterVertically) {
+                            PersonaChip(persona = persona, onClick = onPickPersona)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                    }
+                    words(Modifier.weight(1f).heightIn(min = 36.dp).padding(horizontal = side, vertical = over))
+                    if (opened < 1f) {
+                        Row(Modifier.folded(1f - opened, vertical = false), verticalAlignment = Alignment.CenterVertically) { tools() }
+                    }
+                }
+                if (opened > 0f) {
+                Row(modifier = Modifier.fillMaxWidth().folded(opened, vertical = true), verticalAlignment = Alignment.CenterVertically) {
                     if (onPickPersona != null) {
                         PersonaChip(persona = persona, onClick = onPickPersona)
                         Spacer(Modifier.width(6.dp))
@@ -541,6 +585,7 @@ fun Composer(
                     }
                     Spacer(Modifier.weight(1f))
                     tools()
+                }
                 }
             }
         }
@@ -770,6 +815,20 @@ private fun MarkKeys(lit: Mark?, inSpeech: Boolean, innerQuote: Boolean, onPress
         }
     }
 }
+
+/**
+ * Folds what it holds away along one axis: all of it at 1, none of it at 0, fading as it goes.
+ * The room it takes shrinks with it, so its neighbours close up; what is left of it is its
+ * near edge, the rest cut off.
+ */
+private fun Modifier.folded(shown: Float, vertical: Boolean): Modifier = this
+    .graphicsLayer { alpha = shown; clip = true }
+    .layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val width = if (vertical) placeable.width else (placeable.width * shown).toInt()
+        val height = if (vertical) (placeable.height * shown).toInt() else placeable.height
+        layout(width, height) { placeable.place(0, 0) }
+    }
 
 /** The mark keys' place in the phone's row: they fade away while a command is typed, and back. */
 @Composable

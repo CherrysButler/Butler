@@ -47,6 +47,8 @@ class GlassPaneShot {
         for (theme in listOf(AppTheme.JanitorClassic, AppTheme.LightsOut, AppTheme.Daylight)) {
             val scene = ImageComposeScene(width = 824, height = 1500, density = Density(2f)) {
                 ButlerTheme(theme = theme, depth = Depth.Lifted) {
+                  // The ground steps only while its screen is in front; a bare scene has no screen.
+                  CompositionLocalProvider(androidx.lifecycle.compose.LocalLifecycleOwner provides InFront) {
                     val glass = rememberLiquidState()
                     Box(Modifier.fillMaxSize()) {
                         AmbientGround(glass, Modifier.fillMaxSize())
@@ -79,6 +81,7 @@ class GlassPaneShot {
                             }
                         }
                     }
+                  }
                 }
             }
             var image = scene.render(0)
@@ -87,4 +90,12 @@ class GlassPaneShot {
             scene.close()
         }
     }
+}
+
+/** A screen that is always in front, for scenes drawn offscreen. */
+private object InFront : androidx.lifecycle.LifecycleOwner {
+    private val registry = androidx.lifecycle.LifecycleRegistry.createUnsafe(this).apply {
+        handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME)
+    }
+    override val lifecycle: androidx.lifecycle.Lifecycle get() = registry
 }

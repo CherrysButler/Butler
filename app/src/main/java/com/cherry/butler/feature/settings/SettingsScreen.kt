@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.Unfold
 import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.Layers
 import com.cherry.butler.core.design.orDefaultFor
@@ -218,9 +219,10 @@ fun SettingsScreen(
         )
     }
 
-    // The front page's panes are glass (Depth Lifted): the ground is lit for them to show it.
+    // The phone's settings are panes of glass (Depth Lifted) over a ground that moves a
+    // little, for the glass to show: the front page and every page behind it.
     val paneGlass = io.github.fletchmckee.liquid.rememberLiquidState()
-    val glassPanes = page == SettingsPage.Main && com.cherry.butler.ui.components.glassOn()
+    val glassPanes = !windowed && com.cherry.butler.ui.components.glassOn()
     Box(Modifier.fillMaxSize()) {
     if (glassPanes) com.cherry.butler.ui.components.AmbientGround(paneGlass, Modifier.fillMaxSize())
     androidx.compose.runtime.CompositionLocalProvider(
@@ -438,7 +440,7 @@ private fun ChatSection(viewModel: SettingsViewModel) {
     val picturesAuto by viewModel.picturesAuto.collectAsStateWithLifecycle()
     SettingsSection(title = "Pictures", special = true, icon = Icons.Rounded.Image) {
         SwitchRow("Picture key in the chat", null, picturesOn, viewModel::setPicturesOn, icon = Icons.Rounded.Image)
-        if (picturesOn) Branch { SwitchRow("Write it in right away", null, picturesAuto, viewModel::setPicturesAuto) }
+        Unfold(picturesOn) { Branch { SwitchRow("Write it in right away", null, picturesAuto, viewModel::setPicturesAuto) } }
     }
     ThinkingListsSection(viewModel)
 }
@@ -463,7 +465,7 @@ private fun CompactSection(viewModel: SettingsViewModel) {
             icon = Icons.Rounded.History,
             tag = { ButlerSpecialTag() },
         )
-        if (compact) {
+        Unfold(compact) {
             Branch(last = false) {
                 NumberRow("Keep the last messages", null, keep, viewModel::setCompactKeep, com.cherry.butler.core.data.MemoryPrefs.KEEP_RANGE)
             }
@@ -1013,9 +1015,9 @@ private fun AgentSection(viewModel: SettingsViewModel, onProxy: Boolean, setting
         icon = Icons.Rounded.Loop,
         info = { InfoMark(open = showSteps) { showSteps = !showSteps } },
     ) {
-        androidx.compose.animation.AnimatedVisibility(visible = showSteps) { AgentSteps() }
+        Unfold(showSteps) { AgentSteps() }
         SwitchRow("Agent mode", null, on, viewModel::setAgentOn, icon = Icons.Rounded.Loop)
-        if (on) {
+        Unfold(on) {
             Branch(last = false) {
                 DropRow(title = "Effort", value = effort.label) { close ->
                     com.cherry.butler.core.data.AgentPrefs.Effort.entries.forEach { e ->
@@ -1602,7 +1604,7 @@ internal fun RichTypingSection(viewModel: SettingsViewModel) {
             viewModel::setRich,
             icon = Icons.Rounded.FormatQuote,
         )
-        if (on) Branch { Column {
+        Unfold(on) { Branch { Column {
             Text(
                 "Typing starts as",
                 style = MaterialTheme.typography.labelMedium,
@@ -1616,7 +1618,7 @@ internal fun RichTypingSection(viewModel: SettingsViewModel) {
                 onSelect = { i -> viewModel.setRichDefault(keys[i]) },
                 modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 10.dp),
             )
-        } }
+        } } }
     }
 }
 
@@ -1645,14 +1647,14 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
             { on -> if (on) asking = true else viewModel.setButter(false) },
             icon = Icons.Rounded.Star,
         )
-        if (butter) Branch {
+        Unfold(butter) { Branch {
             SwitchRow(
                 "Tint the butter",
                 null,
                 tint,
                 viewModel::setButterTint,
             )
-        }
+        } }
         SwitchRow(
             "Highlights",
             null,
@@ -1660,12 +1662,12 @@ private fun SpecialsSection(viewModel: SettingsViewModel) {
             { on -> if (on) askingHighlights = true else viewModel.setHighlights(false) },
             icon = Icons.Rounded.Highlight,
         )
-        if (highlights) Branch { Column {
+        Unfold(highlights) { Branch { Column {
             MoodChips(moods, viewModel::setMood)
             val custom by viewModel.highlightsPrompt.collectAsStateWithLifecycle()
             HighlightsPromptField(custom, viewModel::setHighlightsPrompt)
-        } }
-        if (butter || highlights) {
+        } } }
+        Unfold(butter || highlights) {
             DropRow(title = "Tags", value = if (strip) "Kept on this ${com.cherry.butler.core.platform.Device.NAME}" else "Saved to Janitor too", icon = Icons.Rounded.Label) { close ->
                 DropItem(title = "Kept on this ${com.cherry.butler.core.platform.Device.NAME}", subtitle = null, selected = strip, onClick = { close(); viewModel.setStripTags(true) })
                 DropItem(title = "Saved to Janitor too", subtitle = null, selected = !strip, onClick = { close(); viewModel.setStripTags(false) })
@@ -2213,12 +2215,12 @@ private fun AppSection(onOpenNotifications: () -> Unit, onOpenBlocked: () -> Uni
                 }
             },
         )
-        if (locked) Branch {
+        Unfold(locked) { Branch {
             val graces = listOf(0L to "Right away", 60_000L to "After 1 minute away", 300_000L to "After 5 minutes away", 900_000L to "After 15 minutes away")
             DropRow(title = "Lock", value = graces.firstOrNull { it.first == grace }?.second ?: "Right away") { close ->
                 graces.forEach { (ms, label) -> DropItem(title = label, selected = grace == ms, onClick = { close(); lock.setGrace(ms) }) }
             }
-        }
+        } }
     }
 }
 

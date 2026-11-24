@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.lessons
 
+import com.cherry.butler.ui.components.Unfold
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import com.cherry.butler.ui.components.card
@@ -242,7 +243,7 @@ fun LessonsSection(viewModel: LessonsViewModel = androidx.hilt.navigation.compos
             }
             Switch(checked = on, onCheckedChange = viewModel::setOn)
         }
-        AnimatedVisibility(visible = on) {
+        Unfold(on) {
             Column {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     KeyButton("Learn now", onClick = { viewModel.learn() }, primary = true, modifier = Modifier.weight(1f))

@@ -1,6 +1,7 @@
 package com.cherry.butler.feature.chat
 
-import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.Unfold
+import com.cherry.butler.ui.components.glassSurface
 import com.cherry.butler.ui.components.rim
 import com.cherry.butler.ui.components.liftShadow
 import com.cherry.butler.ui.components.frostSource
@@ -587,15 +588,10 @@ fun ChatScreen(
                 modifier = if (barGlass == null) {
                     Modifier.statusBarsPadding()
                 } else {
-                    val shape = MaterialTheme.shapes.medium
-                    val look = com.cherry.butler.core.design.LocalDepthLook.current
                     Modifier
                         .statusBarsPadding()
                         .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp)
-                        .liftShadow(shape, look, com.cherry.butler.core.design.Lift.Float)
-                        .clip(shape)
-                        .frosted(barGlass, shape)
-                        .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), shape)
+                        .glassSurface(barGlass, MaterialTheme.shapes.medium)
                 },
             ) {
                 Row(
@@ -672,7 +668,7 @@ fun ChatScreen(
                 val proxyRules by com.cherry.butler.core.data.ProxyPolicy.allowed.collectAsStateWithLifecycle()
                 val refused = aiNow?.provider == com.cherry.butler.core.data.Provider.Proxy &&
                     chat?.characterId?.let { proxyRules[it] } == false
-                androidx.compose.animation.AnimatedVisibility(visible = refused) {
+                Unfold(refused) {
                     val switching by viewModel.modelBusy.collectAsStateWithLifecycle()
                     com.cherry.butler.feature.character.NoProxyNotice(
                         body = "Janitor won't take ${aiNow?.selectedProxy?.name ?: "a proxy"} for this one. Chat on JLLM instead.",

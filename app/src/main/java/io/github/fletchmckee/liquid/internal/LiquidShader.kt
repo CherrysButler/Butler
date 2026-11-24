@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.internal
 
+// Butler: `adapt`, `light` and `glow` are Butler's additions (LiquidScope says what each does);
+// the light on the rim was a constant here.
 internal const val LiquidShader = """
   uniform shader content;
   uniform float2 size;
@@ -13,6 +15,9 @@ internal const val LiquidShader = """
   uniform float saturation;
   uniform float dispersion;
   uniform float contrast;
+  uniform float adapt;
+  uniform float2 light;
+  uniform float4 glow;
 
   const float AA_WIDTH_PX = 1.5;
 
@@ -106,14 +111,30 @@ internal const val LiquidShader = """
     fragColor.rgb = applyColorAdjustments(fragColor.rgb);
     // Apply the provided tint before the lighting effects but after color adjustments.
     // Otherwise we saturate/contrast the user's provided tint instead of the source content.
-    fragColor.rgb = mix(fragColor.rgb, tint.rgb, tint.a);
+    float tintAlpha = tint.a;
+    if (adapt > 0.0) {
+      // How far what is behind sits from the glass's own tone: near it the glass clears and lets
+      // the colour through, far from it the glass thickens so what is on it still reads.
+      float behind = dot(fragColor.rgb, half3(0.2126, 0.7152, 0.0722));
+      float own = dot(tint.rgb, half3(0.2126, 0.7152, 0.0722));
+      float apart = smoothstep(0.04, 0.5, abs(behind - own));
+      tintAlpha = saturate(tint.a * mix(1.0 - 0.6 * adapt, 1.0 + 0.5 * adapt, apart));
+    }
+    fragColor.rgb = mix(fragColor.rgb, tint.rgb, tintAlpha);
+
+    // A light inside the glass, falling off from where it was touched.
+    if (glow.w > 0.0) {
+      float2 away = (fragCoord - glow.xy) / max(glow.z, 1.0);
+      fragColor.rgb += glow.w * exp(-dot(away, away));
+    }
 
     float edgeSmooth = smoothstep(-edge, 0.0, shapeSdf);
-    // Eventually this will become a uniform.
-    float2 lightDirection = float2(-0.15, -0.15);
-    float nDotL = abs(dot(sdfNormal, lightDirection));
+    float nDotL = abs(dot(sdfNormal, light));
     float edgeLighting = edgeSmooth * nDotL;
     fragColor.rgb += edgeLighting;
+    // Butler: light added to ground that was already bright ran past 1, and a colour past its
+    // alpha came out as stray red, blue and yellow pixels along the rim.
+    fragColor.rgb = saturate(fragColor.rgb);
 
     // Centers the AA gradient to the edge of our shape.
     float aaAlpha = 1.0 - smoothstep(-aaWidth * 0.5, aaWidth * 0.5, shapeSdf);

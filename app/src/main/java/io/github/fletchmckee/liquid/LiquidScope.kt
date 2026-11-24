@@ -4,6 +4,7 @@ package io.github.fletchmckee.liquid
 
 import androidx.annotation.FloatRange
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -107,4 +108,26 @@ public interface LiquidScope {
    * Defaults to [CircleShape].
    */
   public var shape: Shape
+
+  // Butler: the four below are Butler's additions to Liquid (the shader's too).
+
+  /**
+   * How much the tint gives way to what is behind it, 0 (the same tint everywhere, Liquid's own
+   * behaviour) to 1. The glass clears where the ground already sits near the tint's own tone and
+   * thickens where it would fight what is written on the glass.
+   */
+  @setparam:FloatRange(from = 0.0, to = 1.0)
+  public var adapt: Float
+
+  /**
+   * Where the light on the rim comes from: its direction, and its strength as its length.
+   * Liquid's fixed light was (-0.15, -0.15).
+   */
+  public var light: Offset
+
+  /** A light inside the glass, as under a finger: where, in the glass's own pixels. */
+  public var glowAt: Offset
+
+  /** That light's reach in pixels (x) and strength (y); a strength of 0 is no light. */
+  public var glow: Offset
 }

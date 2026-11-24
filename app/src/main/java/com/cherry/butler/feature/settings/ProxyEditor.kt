@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.Unfold
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.outlined.Delete
@@ -432,7 +433,7 @@ private fun OpenRouterSection(form: ProxyForm, update: ((ProxyForm) -> ProxyForm
             modifier = Modifier.graphicsLayer { rotationZ = turn },
         )
     }
-    androidx.compose.animation.AnimatedVisibility(visible = open) {
+    Unfold(open) {
         Column { OpenRouterFields(form, update) }
     }
 }

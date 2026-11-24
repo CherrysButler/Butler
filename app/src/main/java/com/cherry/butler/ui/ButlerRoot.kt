@@ -3,7 +3,7 @@ package com.cherry.butler.ui
 import com.cherry.butler.ui.components.rim
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.clip
-import com.cherry.butler.ui.components.frosted
+import com.cherry.butler.ui.components.glassSurface
 import com.cherry.butler.ui.components.frostSource
 import com.cherry.butler.ui.components.card
 import com.cherry.butler.ui.components.liftShadow
@@ -448,10 +448,7 @@ private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestinat
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
-                .liftShadow(island, look, com.cherry.butler.core.design.Lift.Float)
-                .clip(island)
-                .frosted(haze, island)
-                .rim(1.dp, com.cherry.butler.ui.components.rimBrush(ButlerTheme.colors.cardOutline, look, com.cherry.butler.core.design.Lift.Float), island)
+                .glassSurface(haze, island)
                 .height(56.dp)
         } else if (lifted) {
             // An island on the ground: chrome, rounded, lit along its top edge, a shadow under it.
@@ -484,7 +481,7 @@ private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestinat
                         onClick = { onSelect(dest) },
                         role = Role.Tab,
                         interactionSource = null,
-                        indication = ripple(bounded = false, radius = 28.dp),
+                        indication = if (lifted && haze != null) null else ripple(bounded = false, radius = 28.dp),
                     )
                     .semantics { contentDescription = label },
                 contentAlignment = Alignment.Center,

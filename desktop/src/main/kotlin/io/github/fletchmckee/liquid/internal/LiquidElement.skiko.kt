@@ -72,5 +72,8 @@ internal class LiquidNode(
     uniform("saturation", saturation)
     uniform("dispersion", dispersion)
     uniform("contrast", contrast)
+    uniform("adapt", adapt)
+    uniform("light", light.x, light.y)
+    uniform("glow", glowAt.x, glowAt.y, glow.x, glow.y)
   }
 }
