@@ -126,6 +126,33 @@ internal class LiquidScopeImpl : InternalLiquidScope {
       }
     }
 
+  // Butler: the frost's reach up and down against across. A change makes the blur anew, as a
+  // change of frost does.
+  override var stretch: Float = 1f
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Frost
+        field = value
+      }
+    }
+
+  // Butler: the outer mix and the face's range (see LiquidScope).
+  override var outer: Float = 0f
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Adapt
+        field = value
+      }
+    }
+
+  override var range: Offset = Offset(0f, 1f)
+    set(value) {
+      if (field != value) {
+        mutatedFields = mutatedFields or Fields.Adapt
+        field = value
+      }
+    }
+
   // Butler: adapt, light and the inner glow (see LiquidScope).
   override var adapt: Float = 0f
     set(value) {

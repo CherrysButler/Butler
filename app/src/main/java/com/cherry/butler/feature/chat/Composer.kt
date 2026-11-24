@@ -322,6 +322,8 @@ fun Composer(
     val wordsMinDesk by androidx.compose.animation.core.animateDpAsState(if (desk && open) 76.dp else 0.dp, opening, label = "composer words")
     val wordsMin = if (desk) wordsMinDesk else 52.dp * opened
     // At rest the box sits in from the column's edges; writing, it opens out to them.
+    /** One line of the box's words. */
+    val wordsLine = with(androidx.compose.ui.platform.LocalDensity.current) { MaterialTheme.typography.bodyLarge.lineHeight.toDp() }
     val gutterDesk by androidx.compose.animation.core.animateDpAsState(if (open) 12.dp else 44.dp, opening, label = "composer gutter")
     val gutter = if (desk) gutterDesk else 28.dp - 16.dp * opened
     val marks = RichMarks(
@@ -412,7 +414,7 @@ fun Composer(
                         Modifier.card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
                     } else {
                         // Glass: lifted off the picture by its shadow, lit along its rim, as the nav island is.
-                        Modifier.glassSurface(glass, MaterialTheme.shapes.medium)
+                        Modifier.glassSurface(glass, MaterialTheme.shapes.medium, still = true)
                     },
                 )
                 .padding(6.dp),
@@ -454,10 +456,14 @@ fun Composer(
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         visualTransformation = if (richNow) marks else androidx.compose.ui.text.input.VisualTransformation.None,
-                        maxLines = if (desk) { if (open) 14 else 6 } else { if (opened > 0f) 8 else 3 },
+                        // On a phone the words' room is a height, not a count of lines that
+                        // flips at the end: three lines at rest, eight opened, and between the
+                        // two it follows the box. A count held the full draft until the box had
+                        // closed and then let go, so the box stood tall and dropped at the last.
+                        maxLines = if (desk) { if (open) 14 else 6 } else 8,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = wordsMin)
+                            .heightIn(min = wordsMin, max = if (desk) androidx.compose.ui.unit.Dp.Unspecified else wordsLine * (3f + 5f * opened))
                             .focusRequester(boxFocus)
                             .onFocusChanged { focused = it.isFocused }
                             // Ctrl+' " , Ctrl+I * and Ctrl+B ** press the mark keys, exactly as a click

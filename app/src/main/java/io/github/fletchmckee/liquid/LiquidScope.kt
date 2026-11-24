@@ -130,4 +130,24 @@ public interface LiquidScope {
 
   /** That light's reach in pixels (x) and strength (y); a strength of 0 is no light. */
   public var glow: Offset
+
+  /**
+   * How many times further the frost reaches up and down than across. 1 (Liquid's own) is the
+   * same both ways; above it, what is behind is drawn out into soft columns.
+   */
+  @setparam:FloatRange(from = 0.0)
+  public var stretch: Float
+
+  /**
+   * How much of the outward-bent picture is laid over the last point of the rim (Apple's
+   * "outer refraction" mix: 0.3 on regular glass, 0 on clear).
+   */
+  @setparam:FloatRange(from = 0.0, to = 1.0)
+  public var outer: Float
+
+  /**
+   * The face's black (x) and white (y): what the darkest and the brightest thing behind the
+   * glass become before the fill ([tint]) is laid over them.
+   */
+  public var range: Offset
 }

@@ -314,9 +314,13 @@ object RichTyping {
         return TextFieldValue(t.substring(0, at) + mark.open + mark.close + t.substring(at), TextRange(at + mark.open.length))
     }
 
-    /** The caret just past a mark, with one space after it (unless one is already there). */
+    /**
+     * The caret just past a mark, with one space after it (unless one is already there). A line
+     * break after the mark is not that space: counted as one, the caret stepped over it and
+     * landed at the start of the line below instead of beside the mark it had just left.
+     */
     private fun stepOut(text: String, at: Int): TextFieldValue {
-        val spaced = at < text.length && text[at].isWhitespace()
+        val spaced = at < text.length && text[at].isWhitespace() && text[at] != '\n' && text[at] != '\r'
         val t = if (spaced) text else text.substring(0, at) + " " + text.substring(at)
         return TextFieldValue(t, TextRange(at + 1))
     }

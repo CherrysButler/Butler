@@ -47,8 +47,9 @@ internal class LiquidNode(
         cachedBlurImageFilter
           ?.takeUnless { mutatedFields has Fields.Frost }
           ?: ImageFilter.makeBlur(
-            sigmaX = sigma,
-            sigmaY = sigma,
+            // Butler: across, then up and down (LiquidScope.stretch).
+            sigmaX = (sigma / stretch).coerceAtLeast(0.5f),
+            sigmaY = sigma * stretch,
             mode = FilterTileMode.CLAMP,
           )
 
@@ -65,14 +66,16 @@ internal class LiquidNode(
   private fun RuntimeShaderBuilder.updateLiquidUniforms() = with(reusableScope) {
     uniform("size", size.width, size.height)
     uniform("cornerRadii", cornerRadii)
+    // Butler: the uniforms of Apple's recipe (LiquidShader.kt says what each is).
+    uniform("density", density.density)
     uniform("refraction", refraction)
     uniform("curve", curve)
-    uniform("edge", edge)
-    uniform("tint", colorComponents)
-    uniform("saturation", saturation)
+    uniform("outer", outer)
     uniform("dispersion", dispersion)
-    uniform("contrast", contrast)
-    uniform("adapt", adapt)
+    uniform("tint", colorComponents)
+    uniform("range", range.x, range.y)
+    uniform("saturation", saturation)
+    uniform("edge", edge)
     uniform("light", light.x, light.y)
     uniform("glow", glowAt.x, glowAt.y, glow.x, glow.y)
   }

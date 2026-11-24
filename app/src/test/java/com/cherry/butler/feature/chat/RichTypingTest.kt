@@ -103,6 +103,20 @@ class RichTypingTest {
     }
 
     @Test
+    fun `stepping out before a line break stays on the line`() {
+        // Two paragraphs, the caret in the first: out of it is beside it, not on the line below.
+        val value = v("*nods*\n*waits*", caret = 5)
+        val (out, _) = RichTyping.press(value, Mark.Action, TypingState(Mark.Action))
+        assertEquals("*nods* \n*waits*", out.text)
+        assertEquals(7, out.selection.start)
+        // A space already there is stepped over, as before.
+        val spaced = v("*nods* and", caret = 5)
+        val (kept, _) = RichTyping.press(spaced, Mark.Action, TypingState(Mark.Action))
+        assertEquals("*nods* and", kept.text)
+        assertEquals(7, kept.selection.start)
+    }
+
+    @Test
     fun `a selection is wrapped by the key`() {
         val value = TextFieldValue("I really mean it", TextRange(2, 8))
         val (out, _) = RichTyping.press(value, Mark.Bold, TypingState(null))

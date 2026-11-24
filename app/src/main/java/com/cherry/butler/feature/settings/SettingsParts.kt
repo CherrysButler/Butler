@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import com.cherry.butler.ui.components.card
-import com.cherry.butler.ui.components.pane
 import com.cherry.butler.ui.components.dropLastPixel
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -134,7 +133,7 @@ fun SettingsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)
-                .pane(shape = MaterialTheme.shapes.large)
+                .card(shape = MaterialTheme.shapes.large)
                 .dropLastPixel(),
         ) { content() }
         if (footnote != null) {

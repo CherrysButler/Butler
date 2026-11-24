@@ -2,24 +2,42 @@
 // SPDX-License-Identifier: Apache-2.0
 package io.github.fletchmckee.liquid.internal
 
-// Butler: `adapt`, `light` and `glow` are Butler's additions (LiquidScope says what each does);
-// the light on the rim was a constant here.
+// Butler: the body of `main` is no longer Liquid's. It follows Apple's own glass, as recovered
+// from QuartzCore's `glass_background_lpf` (macOS 26) and transcribed in spacedouut/liquid-glass
+// (github.com/spacedouut/liquid-glass, app.js): the same steps in the same order, with the
+// numbers AppKit sets on a regular NSGlassEffectView. What each step is for is said where it is.
+// Liquid's signed-distance functions and its anti-aliased edge are kept as they were.
+//
+// Left out, because one pass over one blurred picture cannot do them: the blur that thins a
+// little toward the rim (Apple reads a different mip for every pixel), the "bleed" of far, very
+// blurred colour onto large panes, and the shadow, which Butler draws with the platform's own.
 internal const val LiquidShader = """
   uniform shader content;
   uniform float2 size;
   uniform float4 cornerRadii;
+  // Pixels in a point: Apple's amounts are in points.
+  uniform float density;
+  // The rim: how deep it runs in from the edge, and how far the picture is pulled at the edge
+  // itself (points). Apple: 20 and 60.
   uniform float refraction;
   uniform float curve;
-  uniform float edge;
-  layout(color) uniform half4 tint;
-  uniform float saturation;
+  // How much of the outward-bent picture is laid over the last point of the rim. Apple: 0.3.
+  uniform float outer;
+  // Colour fringing: how far apart red and blue are read at the edge (points). 0, as Apple
+  // leaves it on macOS, is none.
   uniform float dispersion;
-  uniform float contrast;
-  uniform float adapt;
+  // The fill the face is laid under, and how thick (its alpha).
+  layout(color) uniform half4 tint;
+  // The face's black and white: what the darkest and the brightest thing behind become.
+  uniform float2 range;
+  uniform float saturation;
+  // The rim highlight: how strong, and where its key light comes from (a unit vector, y down).
+  uniform float edge;
   uniform float2 light;
   uniform float4 glow;
 
   const float AA_WIDTH_PX = 1.5;
+  const half3 LUMA = half3(0.2126, 0.7152, 0.0722);
 
   float computeSdf(in float2 p, in float2 b, in half4 r) {
     r.xy = (p.x > 0.0) ? r.xy : r.zw; // xy is right quadrant, zw is left
@@ -44,10 +62,19 @@ internal const val LiquidShader = """
     return s * ((g > 0.0) ? q / l : ((w.x > w.y) ? float2(1.0, 0.0) : float2(0.0, 1.0)));
   }
 
-  half3 applyColorAdjustments(half3 color) {
-    float lum = dot(color, half3(0.2126, 0.7152, 0.0722));
-    color = saturate(mix(half3(lum), color, saturation));
-    return saturate((color - 0.5) * contrast + 0.5);
+  // Apple's `edgeOffset`: how far the picture is moved at a point `d` from the edge (negative
+  // inside). All of `amount` at the edge, none `1 / edgeInv` in, and between the two the fall
+  // of a quarter circle, so nearly all of the bend sits in the last few points before the edge.
+  float edgeOffset(float d, float edgeInv, float amount) {
+    float s = saturate(edgeInv * -d);
+    return amount - amount * saturate(sqrt(s * (2.0 - s)));
+  }
+
+  // One of the highlight's two lights: full where the edge faces `toward`, none from 80
+  // degrees off it (Apple's cone, 160 degrees wide).
+  float cone(float2 n, float2 toward) {
+    float off = acos(clamp(dot(n, toward), -1.0, 1.0));
+    return max(cos(min(off / 1.3962634, 1.0) * 1.5707963), 0.0);
   }
 
   half4 main(float2 fragCoord) {
@@ -65,79 +92,77 @@ internal const val LiquidShader = """
       return half4(0.0);
     }
 
-    half4 lensVr = min(shapeVr * 1.5, half4(min(shapeSize.x, shapeSize.y) * 0.5));
-    float2 sdfNormal = computeSdfNormal(shapeCoord, halfShapeSize, lensVr);
+    // The distance to the edge in points (negative inside), the way the edge faces there, and
+    // the pane's short side in points, which Apple scales the outer bend by.
+    float d = shapeSdf * minDimension / density;
+    float2 n = computeSdfNormal(shapeCoord, halfShapeSize, shapeVr);
+    float side = minDimension / density;
 
-    half4 fragColor;
-    float2 baseCoord = fragCoord;
-    // Applies the lens effect.
-    if (refraction > 0.0 && curve > 0.0) {
-      float lensDepth = 1.0 - saturate(-shapeSdf / refraction);
-      float distortion = 1.0 - sqrt(1.0 - lensDepth * lensDepth);
-      float normalDisplacement = distortion * -curve * minDimension;
-      baseCoord = fragCoord + normalDisplacement * sdfNormal;
+    // 1. The picture behind, pulled in at the rim: at the edge it is read from `curve` points
+    //    further in, and by `refraction` points in it is where it would be anyway. The rim so
+    //    shows what is under the middle of the pane, squeezed toward the edge.
+    half4 behind = content.eval(fragCoord);
+    half4 seen = behind;
+    if (curve > 0.0 && refraction > 0.0) {
+      float pull = edgeOffset(d, 1.0 / refraction, -curve);
+      seen = content.eval(fragCoord + pull * density * n);
+      // The fringe, as Apple's foreground pass splits it: red read a step further out along
+      // the edge's normal, blue a step further in, green where it was. The step is whole at
+      // the edge and gone where the rim ends, so the flat of the pane has none.
+      if (dispersion > 0.0) {
+        float split = edgeOffset(d, 1.0 / refraction, dispersion);
+        half4 red = content.eval(fragCoord + (pull + split) * density * n);
+        half4 blue = content.eval(fragCoord + (pull - split) * density * n);
+        if (red.a > 0.0 && blue.a > 0.0) {
+          seen = half4(red.r, seen.g, blue.b, seen.a);
+        }
+      }
+      // 2. Over the last point before the edge, some of the picture bent the other way: from a
+      //    fifth of the pane's short side outward. A thin line of what lies just past the edge.
+      if (outer > 0.0) {
+        float push = edgeOffset(d, 1.0 / max(0.125 * side, 0.001), 0.2 * side);
+        float2 at = clamp(fragCoord + push * density * n, float2(0.5), size - 0.5);
+        seen = mix(seen, content.eval(at), outer * saturate(d + 1.0));
+      }
+      if (seen.a <= 0.0) {
+        seen = behind;
+      }
     }
+    half3 rgb = seen.rgb / max(seen.a, 0.0001);
 
-    // Applies the dispersion effect.
-    if (dispersion > 0.0) {
-      float2 distFromCenter = (fragCoord - center) / size;
-      // Cubic multiply is more efficient than pow() for integer exponents.
-      // Also pow() didn't work for screenshot tests while this does.
-      float2 aberration = dispersion * distFromCenter * distFromCenter * distFromCenter * minDimension;
+    // 3. The face. What is behind keeps its colour but its light and dark are brought into a
+    //    band, `range`: the darkest thing becomes the band's black and the brightest its white.
+    //    Then the fill is laid over it. This is why the glass is never as dark or as bright as
+    //    what is behind it, and why what is written on it can always be read.
+    float span = range.y - range.x - 1.0;
+    half3 face = rgb + span * dot(rgb, LUMA);
+    face = mix(half3(dot(face, LUMA)), face, saturation);
+    rgb = (1.0 - tint.a) * (face + range.x) + tint.rgb * tint.a;
 
-      float2 coordR = baseCoord - aberration;
-      float2 coordG = baseCoord;
-      float2 coordB = baseCoord + aberration;
+    // 4. A shade less light everywhere but the last point before the edge, which is left as it
+    //    is: the rim is a breath brighter than the face.
+    rgb *= mix(1.0, 0.97, saturate(-(d + 1.0)));
+    rgb = saturate(rgb);
 
-      // Check if aberrated samples fall outside the shape.
-      float2 shapeCoordR = (coordR - center) / minDimension;
-      float2 shapeCoordB = (coordB - center) / minDimension;
-      bool validR = computeSdf(shapeCoordR, halfShapeSize, shapeVr) <= 0.0;
-      bool validB = computeSdf(shapeCoordB, halfShapeSize, shapeVr) <= 0.0;
-
-      // Use the existing coord (which is colorG) if the red or blue coord fall outside of the shape.
-      half4 colorG = content.eval(coordG);
-      half4 colorR = validR ? content.eval(coordR) : colorG;
-      half4 colorB = validB ? content.eval(coordB) : colorG;
-      fragColor = half4(colorR.r, colorG.g, colorB.b, colorG.a);
-    } else {
-      fragColor = content.eval(baseCoord);
-    }
-
-    if (fragColor.a <= 0.0) {
-      fragColor = content.eval(fragCoord);
-    }
-
-    fragColor.rgb = applyColorAdjustments(fragColor.rgb);
-    // Apply the provided tint before the lighting effects but after color adjustments.
-    // Otherwise we saturate/contrast the user's provided tint instead of the source content.
-    float tintAlpha = tint.a;
-    if (adapt > 0.0) {
-      // How far what is behind sits from the glass's own tone: near it the glass clears and lets
-      // the colour through, far from it the glass thickens so what is on it still reads.
-      float behind = dot(fragColor.rgb, half3(0.2126, 0.7152, 0.0722));
-      float own = dot(tint.rgb, half3(0.2126, 0.7152, 0.0722));
-      float apart = smoothstep(0.04, 0.5, abs(behind - own));
-      tintAlpha = saturate(tint.a * mix(1.0 - 0.6 * adapt, 1.0 + 0.5 * adapt, apart));
-    }
-    fragColor.rgb = mix(fragColor.rgb, tint.rgb, tintAlpha);
-
-    // A light inside the glass, falling off from where it was touched.
+    // Butler: a light inside the glass, falling off from where it was touched.
     if (glow.w > 0.0) {
       float2 away = (fragCoord - glow.xy) / max(glow.z, 1.0);
-      fragColor.rgb += glow.w * exp(-dot(away, away));
+      rgb = saturate(rgb + glow.w * exp(-dot(away, away)));
     }
 
-    float edgeSmooth = smoothstep(-edge, 0.0, shapeSdf);
-    float nDotL = abs(dot(sdfNormal, light));
-    float edgeLighting = edgeSmooth * nDotL;
-    fragColor.rgb += edgeLighting;
-    // Butler: light added to ground that was already bright ran past 1, and a colour past its
-    // alpha came out as stray red, blue and yellow pixels along the rim.
-    fragColor.rgb = saturate(fragColor.rgb);
+    // 5. The rim's highlight: a white line one point wide just inside the edge, lit by two
+    //    lights opposite each other, the key and its fill. Each lights the edge that faces it
+    //    and fades to nothing 80 degrees round, so the two leave a gap on either side between
+    //    them. On a macOS pane the key comes from the lower right and the fill from the upper
+    //    left: the upper right and the lower left of the rim are the gaps.
+    if (edge > 0.0) {
+      float into = saturate(-d);
+      float band = 1.0 - mix(into, sqrt(into * (2.0 - into)), 0.7);
+      rgb = mix(rgb, half3(1.0), saturate(band * edge * (cone(n, light) + cone(n, -light))));
+    }
 
     // Centers the AA gradient to the edge of our shape.
     float aaAlpha = 1.0 - smoothstep(-aaWidth * 0.5, aaWidth * 0.5, shapeSdf);
-    return fragColor * aaAlpha;
+    return half4(rgb, 1.0) * aaAlpha;
   }
 """

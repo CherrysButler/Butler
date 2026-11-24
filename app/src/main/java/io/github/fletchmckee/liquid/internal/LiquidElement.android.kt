@@ -61,8 +61,9 @@ internal class LiquidNode(
     val blurEffect = cachedBlurEffect
       ?.takeUnless { mutatedFields has Fields.Frost }
       ?: createBlurEffect(
-        frostRadius,
-        frostRadius,
+        // Butler: across, then up and down (LiquidScope.stretch).
+        (frostRadius / stretch).coerceAtLeast(0.5f),
+        frostRadius * stretch,
         Shader.TileMode.CLAMP,
       ).also { cachedBlurEffect = it }
 
@@ -72,14 +73,16 @@ internal class LiquidNode(
   private fun RuntimeShader.updateLiquidUniforms() = with(reusableScope) {
     setFloatUniform("size", size.width, size.height)
     setFloatUniform("cornerRadii", cornerRadii)
+    // Butler: the uniforms of Apple's recipe (LiquidShader.kt says what each is).
+    setFloatUniform("density", density.density)
     setFloatUniform("refraction", refraction)
     setFloatUniform("curve", curve)
-    setFloatUniform("edge", edge)
-    setColorUniform("tint", argbColor)
-    setFloatUniform("saturation", saturation)
+    setFloatUniform("outer", outer)
     setFloatUniform("dispersion", dispersion)
-    setFloatUniform("contrast", contrast)
-    setFloatUniform("adapt", adapt)
+    setColorUniform("tint", argbColor)
+    setFloatUniform("range", range.x, range.y)
+    setFloatUniform("saturation", saturation)
+    setFloatUniform("edge", edge)
     setFloatUniform("light", light.x, light.y)
     setFloatUniform("glow", glowAt.x, glowAt.y, glow.x, glow.y)
   }

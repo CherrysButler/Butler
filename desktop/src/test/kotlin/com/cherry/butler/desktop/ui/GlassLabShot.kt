@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -52,13 +53,14 @@ class GlassLabShot {
 
     private fun shot(file: File, theme: AppTheme, tilt: Offset, press: Boolean) {
         val light = mutableStateOf(tilt)
-        val scene = ImageComposeScene(width = 824, height = 1040, density = Density(2f)) {
+        val scene = ImageComposeScene(width = 824, height = 1340, density = Density(2f)) {
             ButlerTheme(theme = theme, depth = Depth.Lifted) {
                 CompositionLocalProvider(LocalGlassLight provides light) {
                     val glass = rememberLiquidState()
                     Box(Modifier.fillMaxSize()) {
                         // Ground of four kinds, top to bottom.
                         Column(Modifier.fillMaxSize().frostSource(glass)) {
+                            Box(Modifier.fillMaxWidth().height(150.dp).background(Brush.horizontalGradient(listOf(Color(0xFF5FA8A8), Color(0xFF8FC7C4), Color(0xFF4E8F92)))))
                             Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.horizontalGradient(listOf(Color(0xFFFFF4D6), Color(0xFFFFFFFF), Color(0xFFBFE3FF)))))
                             Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.horizontalGradient(listOf(Color(0xFF050608), Color(0xFF16181D), Color(0xFF000000)))))
                             Box(Modifier.fillMaxWidth().height(130.dp).background(Brush.horizontalGradient(listOf(Color(0xFFE5484D), Color(0xFF7B61FF), Color(0xFF2BB673), Color(0xFFF5A524)))))
@@ -74,6 +76,10 @@ class GlassLabShot {
                             }
                         }
                         Column(Modifier.fillMaxSize()) {
+                            // A round key, as a call button is: the rim's two gaps are most of what shows on one.
+                            Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+                                Box(Modifier.size(104.dp).glassSurface(glass, androidx.compose.foundation.shape.CircleShape))
+                            }
                             repeat(4) {
                                 Box(Modifier.fillMaxWidth().height(130.dp), contentAlignment = Alignment.Center) {
                                     val shape = MaterialTheme.shapes.extraLarge
