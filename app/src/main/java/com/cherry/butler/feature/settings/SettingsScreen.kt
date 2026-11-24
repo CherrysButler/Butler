@@ -1318,6 +1318,17 @@ private fun LookSection(viewModel: SettingsViewModel, onOpenCustomize: () -> Uni
                 DropItem(title = d.label, subtitle = null, selected = d == depth, onClick = { close(); viewModel.setDepth(d) })
             }
         }
+        // For settling the glass by eye; it goes once its numbers are settled (GlassTuner.kt).
+        Unfold(depth == com.cherry.butler.core.design.Depth.Lifted) {
+            Branch {
+                SwitchRow(
+                    "Glass tuner",
+                    null,
+                    com.cherry.butler.ui.components.GlassTuning.shown,
+                    { com.cherry.butler.ui.components.GlassTuning.shown = it },
+                )
+            }
+        }
     }
 
     SettingsSection(title = "Layout", icon = Icons.Rounded.ViewAgenda) {

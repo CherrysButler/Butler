@@ -34,14 +34,19 @@ internal class LiquidNode(
   liquidState: LiquidState,
   block: LiquidScope.() -> Unit,
 ) : AbstractLiquidNode(liquidState, block) {
+  // Butler: Apple's blur is not one radius (LiquidShader.kt). The shader runs over two copies
+  // of the picture, one blurred by the whole radius and one by half, and its two results are
+  // added.
   private val liquidShader = RuntimeShaderBuilder(RuntimeEffect.makeForShader(LiquidShader))
+  private val sharperShader = RuntimeShaderBuilder(RuntimeEffect.makeForShader(LiquidShader))
   private var cachedBlurImageFilter: ImageFilter? = null
 
   override fun createRenderEffect(): RenderEffect? = with(reusableScope) {
     // We shouldn't have empty bounds at this point, but set the RenderEffect to null if we do.
     if (size.isUnspecified) return null
 
-    liquidShader.updateLiquidUniforms()
+    liquidShader.updateLiquidUniforms(level = 0f)
+    sharperShader.updateLiquidUniforms(level = 1f)
     val blurEffect = when {
       sigma > 0f ->
         cachedBlurImageFilter
@@ -56,14 +61,28 @@ internal class LiquidNode(
       else -> null
     }.also { cachedBlurImageFilter = it }
 
-    return ImageFilter.makeRuntimeShader(
+    val whole = ImageFilter.makeRuntimeShader(
       runtimeShaderBuilder = liquidShader,
       shaderNames = arrayOf("content"),
       inputs = arrayOf(blurEffect),
-    ).asComposeRenderEffect()
+    )
+    // Half the radius; under a pixel of blur it is the picture as it is.
+    val halfSigma = if (sigma > 0f) 0.57735f * (frostRadius / 2f) + 0.5f else 0f
+    val sharperBlur = if (frostRadius / 2f < 1f) null else ImageFilter.makeBlur(
+      sigmaX = (halfSigma / stretch).coerceAtLeast(0.5f),
+      sigmaY = halfSigma * stretch,
+      mode = FilterTileMode.CLAMP,
+    )
+    val sharper = ImageFilter.makeRuntimeShader(
+      runtimeShaderBuilder = sharperShader,
+      shaderNames = arrayOf("content"),
+      inputs = arrayOf(sharperBlur),
+    )
+    return ImageFilter.makeBlend(org.jetbrains.skia.BlendMode.PLUS, whole, sharper, null).asComposeRenderEffect()
   }
 
-  private fun RuntimeShaderBuilder.updateLiquidUniforms() = with(reusableScope) {
+  private fun RuntimeShaderBuilder.updateLiquidUniforms(level: Float) = with(reusableScope) {
+    uniform("level", level)
     uniform("size", size.width, size.height)
     uniform("cornerRadii", cornerRadii)
     // Butler: the uniforms of Apple's recipe (LiquidShader.kt says what each is).

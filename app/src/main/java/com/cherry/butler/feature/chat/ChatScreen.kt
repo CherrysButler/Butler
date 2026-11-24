@@ -591,7 +591,8 @@ fun ChatScreen(
                     Modifier
                         .statusBarsPadding()
                         .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp)
-                        .glassSurface(barGlass, MaterialTheme.shapes.medium)
+                        // A capsule while it is one row tall, as the nav bar is; round corners if it grows.
+                        .glassSurface(barGlass, androidx.compose.foundation.shape.RoundedCornerShape(28.dp))
                 },
             ) {
                 Row(

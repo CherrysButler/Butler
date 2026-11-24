@@ -248,16 +248,17 @@ private fun Modifier.frosted(state: LiquidState, shape: Shape, touch: GlassTouch
             val least = minOf(touch.size.width, touch.size.height) / density
             val side = if (least > 0f) least else 56f
             val face = faceFor(side, dark)
-            frost = frostFor(side)
+            // Read from the tuner while it exists (GlassTuner.kt); its numbers start as these.
+            frost = if (GlassTuning.blur < 0f) frostFor(side) else GlassTuning.blur.dp
             // Without a blur what is behind would read through the pane: nearly solid then.
             tint = if (canFrost) face.fill else face.fill.copy(alpha = 0.94f)
             range = Offset(face.black, face.white)
             saturation = 1f
-            refraction = if (floating) RIM_DEPTH else 0f
-            curve = if (floating) RIM_PULL else 0f
-            outer = if (floating) OUTER_MIX else 0f
-            dispersion = if (floating) FRINGE else 0f
-            edge = if (floating) HIGHLIGHT else 0f
+            refraction = if (floating) GlassTuning.depth else 0f
+            curve = if (floating) GlassTuning.pull else 0f
+            outer = if (floating) GlassTuning.outer else 0f
+            dispersion = if (floating) GlassTuning.fringe else 0f
+            edge = if (floating) GlassTuning.highlight else 0f
             // Read here, so the glass alone is redrawn when any of them changes.
             light = keyLight(tilt?.value ?: Offset.Zero)
             glowAt = touch.at

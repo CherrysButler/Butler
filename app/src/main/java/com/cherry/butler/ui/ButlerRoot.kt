@@ -442,8 +442,9 @@ private fun BottomBar(selected: TopLevelDestination, onSelect: (TopLevelDestinat
     Row(
         modifier = if (lifted && haze != null) {
             // Frosted: the island over the lists, frosting what passes under it, lit along its top edge.
-            val island = MaterialTheme.shapes.extraLarge
-            val look = com.cherry.butler.core.design.LocalDepthLook.current
+            // A capsule: its ends are half circles, as an iPhone's bar has. The round ends are
+            // most of what makes the bent rim read as glass.
+            val island = androidx.compose.foundation.shape.RoundedCornerShape(percent = 50)
             Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()

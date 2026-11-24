@@ -89,11 +89,21 @@ android {
             matchingFallbacks += listOf("release")
             isDebuggable = false
         }
+        // For trying a change on a phone quickly: the release app under the release key, so it
+        // installs over the release Butler and keeps its sign-in and chats, but without R8 and
+        // the resource shrinker, which are most of a release build's minute. Never shipped.
+        create("quick") {
+            initWith(getByName("release"))
+            isMinifyEnabled = false
+            isShrinkResources = false
+            matchingFallbacks += listOf("release")
+        }
     }
 
     sourceSets {
         // perf is a release build in all but signing: same no-op dev session sink.
         getByName("perf") { java.srcDirs("src/release/java") }
+        getByName("quick") { java.srcDirs("src/release/java") }
     }
 
     compileOptions {

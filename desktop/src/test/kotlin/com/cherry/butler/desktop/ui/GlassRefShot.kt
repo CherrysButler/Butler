@@ -32,6 +32,9 @@ class GlassRefShot {
     @Test
     fun shots() {
         val (wall, out) = (System.getenv("GLASS_REF") ?: return).split(",")
+        // Apple's own numbers, whatever the tuner starts on: this is laid beside Apple's shader.
+        com.cherry.butler.ui.components.GlassTuning.blur = com.cherry.butler.ui.components.GlassTuning.BLUR_BY_SIZE
+        com.cherry.butler.ui.components.GlassTuning.fringe = 0f
         val picture = org.jetbrains.skia.Image.makeFromEncoded(File(wall).readBytes()).toComposeImageBitmap()
         data class Pane(val name: String, val theme: AppTheme, val w: Int, val h: Int, val r: Int)
         val panes = listOf(

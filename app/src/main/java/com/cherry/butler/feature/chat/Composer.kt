@@ -414,7 +414,9 @@ fun Composer(
                         Modifier.card(shape = MaterialTheme.shapes.medium, color = ButlerTheme.colors.surfaceHigh)
                     } else {
                         // Glass: lifted off the picture by its shadow, lit along its rim, as the nav island is.
-                        Modifier.glassSurface(glass, MaterialTheme.shapes.medium, still = true)
+                        // Round enough to be a capsule while it is one line; a box with round
+                        // corners once it has grown.
+                        Modifier.glassSurface(glass, androidx.compose.foundation.shape.RoundedCornerShape(24.dp), still = true)
                     },
                 )
                 .padding(6.dp),

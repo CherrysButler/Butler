@@ -8,13 +8,25 @@ package io.github.fletchmckee.liquid.internal
 // numbers AppKit sets on a regular NSGlassEffectView. What each step is for is said where it is.
 // Liquid's signed-distance functions and its anti-aliased edge are kept as they were.
 //
-// Left out, because one pass over one blurred picture cannot do them: the blur that thins a
-// little toward the rim (Apple reads a different mip for every pixel), the "bleed" of far, very
-// blurred colour onto large panes, and the shadow, which Butler draws with the platform's own.
+//
+// It is one pane of glass and one rule for all of it: the picture is moved only where the
+// surface curves, which is the rim, so the middle is a dead zone by itself, not by decree.
+//
+// Apple's blur is not the same all over the pane either. It reads a smaller, softer copy of
+// the picture (a mip) for each pixel, chosen by how far in the thing it is looking at lies:
+// the whole blur at the pane's middle, down to half of it a point from the edge. Butler has no
+// mips, but the blur never falls below half, so two copies do: one blurred by the whole radius
+// and one by half. The shader runs once over each (`level`), takes from each the share Apple's
+// curve gives it, and the two are added. That is what reading between two mips is.
+//
+// Left out: the "bleed" of far, very blurred colour onto large panes, which wants a third and
+// much softer copy, and the shadow, which Butler draws with the platform's own.
 internal const val LiquidShader = """
   uniform shader content;
   uniform float2 size;
   uniform float4 cornerRadii;
+  // Which copy of the picture `content` is: 0 blurred by the whole radius, 1 by half of it.
+  uniform float level;
   // Pixels in a point: Apple's amounts are in points.
   uniform float density;
   // The rim: how deep it runs in from the edge, and how far the picture is pulled at the edge
@@ -70,6 +82,17 @@ internal const val LiquidShader = """
     return amount - amount * saturate(sqrt(s * (2.0 - s)));
   }
 
+  // Apple's blur for a thing lying `x` points from the edge (negative inside), as this copy's
+  // share of it. Apple's curve (BlurDistance and BlurOpacity on a regular pane): the whole
+  // radius from the pane's middle line inward, falling evenly to half of it one point from the
+  // edge. A radius between the half and the whole is read between the two copies, by its
+  // logarithm, as between two mips.
+  float share(float x, float side) {
+    float thin = saturate((x + 0.5 * side) / max(0.5 * side - 1.0, 0.001));
+    float whole = log2(2.0 - thin);
+    return level < 0.5 ? whole : 1.0 - whole;
+  }
+
   // One of the highlight's two lights: full where the edge faces `toward`, none from 80
   // degrees off it (Apple's cone, 160 degrees wide).
   float cone(float2 n, float2 toward) {
@@ -101,11 +124,15 @@ internal const val LiquidShader = """
     // 1. The picture behind, pulled in at the rim: at the edge it is read from `curve` points
     //    further in, and by `refraction` points in it is where it would be anyway. The rim so
     //    shows what is under the middle of the pane, squeezed toward the edge.
+    //    `part` is how much of this pixel comes from this copy of the picture: the blur is
+    //    chosen by where the thing looked at lies, which is where the pull lands.
     half4 behind = content.eval(fragCoord);
     half4 seen = behind;
+    float part = share(d, side);
     if (curve > 0.0 && refraction > 0.0) {
       float pull = edgeOffset(d, 1.0 / refraction, -curve);
       seen = content.eval(fragCoord + pull * density * n);
+      part = share(pull + d, side);
       // The fringe, as Apple's foreground pass splits it: red read a step further out along
       // the edge's normal, blue a step further in, green where it was. The step is whole at
       // the edge and gone where the rim ends, so the flat of the pane has none.
@@ -122,11 +149,22 @@ internal const val LiquidShader = """
       if (outer > 0.0) {
         float push = edgeOffset(d, 1.0 / max(0.125 * side, 0.001), 0.2 * side);
         float2 at = clamp(fragCoord + push * density * n, float2(0.5), size - 0.5);
-        seen = mix(seen, content.eval(at), outer * saturate(d + 1.0));
+        // Each of the two is taken at its own blur, so they are joined by their shares.
+        float mixed = outer * saturate(d + 1.0);
+        float far = share(push + d, side);
+        float both = (1.0 - mixed) * part + mixed * far;
+        if (both > 0.0) {
+          seen = (seen * ((1.0 - mixed) * part) + content.eval(at) * (mixed * far)) / both;
+        }
+        part = both;
       }
       if (seen.a <= 0.0) {
         seen = behind;
       }
+    }
+    // Nothing of this pixel is this copy's.
+    if (part <= 0.0) {
+      return half4(0.0);
     }
     half3 rgb = seen.rgb / max(seen.a, 0.0001);
 
@@ -163,6 +201,7 @@ internal const val LiquidShader = """
 
     // Centers the AA gradient to the edge of our shape.
     float aaAlpha = 1.0 - smoothstep(-aaWidth * 0.5, aaWidth * 0.5, shapeSdf);
-    return half4(rgb, 1.0) * aaAlpha;
+    // This copy's share of the pixel; the other copy's is added to it.
+    return half4(rgb, 1.0) * (aaAlpha * part);
   }
 """
