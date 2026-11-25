@@ -29,6 +29,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ViewList
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.foundation.layout.Arrangement
+import com.cherry.butler.ui.components.card
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
@@ -110,7 +116,13 @@ fun ChatsScreen(
         else -> allGroups
     }
     // A keyboard's refresh (the desktop's Ctrl+R) does what a pull does.
-    com.cherry.butler.ui.components.RegisterRefresh { groups.refresh() }
+    // A refresh that was asked for (a pull, or the key for it) shows that it is working. The
+    // list also reloads by itself whenever what is saved changes (opening a character's chats
+    // saves what Janitor says of them), and that is not something to show: the mark slid in
+    // every time a character's chats were opened.
+    var refreshAsked by remember { mutableStateOf(false) }
+    val refreshByHand: () -> Unit = { refreshAsked = true; groups.refresh() }
+    com.cherry.butler.ui.components.RegisterRefresh { refreshByHand() }
     com.cherry.butler.ui.components.RegisterArchive {
         viewModel.selectTab(if (tab == ChatsTab.Archived) ChatsTab.All else ChatsTab.Archived)
     }
@@ -118,6 +130,15 @@ fun ChatsScreen(
     val allListState = rememberFlingListState()
     val searchListState = rememberFlingListState()
     val tabListState = rememberFlingListState()
+    // The same three as cards: a layout keeps its own place, so switching back finds it.
+    val allGridState = com.cherry.butler.ui.components.rememberFlingGridState()
+    val searchGridState = com.cherry.butler.ui.components.rememberFlingGridState()
+    val tabGridState = com.cherry.butler.ui.components.rememberFlingGridState()
+    val asCards by viewModel.asCards.collectAsStateWithLifecycle()
+    val latestChat by viewModel.latestChat.collectAsStateWithLifecycle()
+    val personaOptions by viewModel.personaOptions.collectAsStateWithLifecycle()
+    // The profile's own picture: a chat with no persona of its own is played as the profile.
+    val profileAvatarUrl = personaOptions.firstOrNull { it.id == null }?.avatarUrl
 
     val acting by viewModel.acting.collectAsStateWithLifecycle()
     val picking by viewModel.picking.collectAsStateWithLifecycle()
@@ -158,9 +179,10 @@ fun ChatsScreen(
     val sheet by viewModel.sheet.collectAsStateWithLifecycle()
     val fallbackPersona by viewModel.fallbackPersonaName.collectAsStateWithLifecycle()
     val persona by viewModel.persona.collectAsStateWithLifecycle()
-    val personaOptions by viewModel.personaOptions.collectAsStateWithLifecycle()
     var pickingPersona by remember { mutableStateOf(false) }
     val status = PagingStatus(groups)
+    // The refresh that was asked for is over when the list stops loading.
+    LaunchedEffect(status.refreshing) { if (!status.refreshing) refreshAsked = false }
 
     if (pickingPersona) {
         PersonaPickerSheet(
@@ -203,6 +225,8 @@ fun ChatsScreen(
             onNewChat = { viewModel.newChat { id -> viewModel.close(); onChatClick(id) } },
             onImport = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) },
             onDeleteChat = viewModel::deleteChat,
+            onRenameChat = viewModel::renameChat,
+            profileAvatarUrl = profileAvatarUrl,
         )
     }
 
@@ -212,10 +236,24 @@ fun ChatsScreen(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val letGo = com.cherry.butler.ui.components.rememberLetGoOfField(focusManager)
     // A new search starts its results at the top.
-    LaunchedEffect(search) { if (search.isNotBlank()) searchListState.scrollToItem(0) }
+    LaunchedEffect(search) {
+        if (search.isNotBlank()) {
+            searchListState.scrollToItem(0)
+            searchGridState.scrollToItem(0)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(contentPadding).nestedScroll(letGo)) {
-        ScreenHead(title = "Chats")
+        // Cards or the list: switched here, where it shows at once which it is.
+        ScreenHead(title = "Chats") {
+            androidx.compose.material3.IconButton(onClick = { viewModel.setAsCards(!asCards) }) {
+                Icon(
+                    if (asCards) androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ViewList else androidx.compose.material.icons.Icons.Rounded.GridView,
+                    contentDescription = if (asCards) "Show as a list" else "Show as cards",
+                    tint = ButlerTheme.colors.textMed,
+                )
+            }
+        }
         var searchFocused by remember { mutableStateOf(false) }
         SearchBox(
             value = search,
@@ -253,8 +291,8 @@ fun ChatsScreen(
         }
 
         PullToRefreshBox(
-            isRefreshing = status.refreshing && status.itemCount > 0,
-            onRefresh = groups::refresh,
+            isRefreshing = refreshAsked && status.itemCount > 0,
+            onRefresh = refreshByHand,
             modifier = Modifier.fillMaxSize(),
         ) {
             val refreshError = status.refreshError
@@ -293,6 +331,29 @@ fun ChatsScreen(
                     Spacer(Modifier.height(16.dp))
                     KeyButton(label = "Browse characters", onClick = onBrowse)
                 }
+                asCards -> SlotGrid(
+                    groups = groups,
+                    status = status,
+                    gridState = when {
+                        searching -> searchGridState
+                        tab != ChatsTab.All -> tabGridState
+                        else -> allGridState
+                    },
+                    // The chat last written in, over everyone: only where everyone is shown.
+                    latest = latestChat.takeIf { !searching && tab == ChatsTab.All },
+                    fallbackPersonaName = fallbackPersona,
+                    profileAvatarUrl = profileAvatarUrl,
+                    onOpenChat = onChatClick,
+                    // Always the character's chats, one or many: a card that sometimes opened a
+                    // chat and sometimes a list could not be learned, and the one chat it went
+                    // straight into had nowhere to be renamed from.
+                    onOpen = viewModel::open,
+                    onLongPress = viewModel::actOn,
+                    archivedCount = archivedCount,
+                    showArchive = !searching && tab == ChatsTab.All,
+                    onOpenArchive = { viewModel.selectTab(ChatsTab.Archived) },
+                    onRefresh = refreshByHand,
+                )
                 else -> SlotList(
                     groups = groups,
                     status = status,
@@ -307,7 +368,7 @@ fun ChatsScreen(
                     archivedCount = archivedCount,
                     showArchive = !searching && tab == ChatsTab.All,
                     onOpenArchive = { viewModel.selectTab(ChatsTab.Archived) },
-                    onRefresh = groups::refresh,
+                    onRefresh = refreshByHand,
                 )
             }
         }
@@ -417,6 +478,186 @@ private fun SlotList(
     }
 }
 
+/**
+ * The same characters as cards, and the cards are Browse's own: the name on the card's glass
+ * over the picture, the picture, and one line under it (how many chats, and when the last
+ * was written in). Two to a row on a phone, set as Browse sets its own. Over them, where
+ * everyone is shown, the chat last written in, to go straight back to. The pull, the
+ * archive and the paging are the list's own.
+ *
+ * (Tried first: nothing but the picture with the name laid on it, then the name on a strip
+ * under it, then the same set further apart. A wall of bare pictures jammed the eye each
+ * way; a card with a head and a foot of its own gives each picture its frame.)
+ */
+@Composable
+private fun SlotGrid(
+    groups: LazyPagingItems<ChatGroup>,
+    status: PagingStatus,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
+    latest: com.cherry.butler.core.model.ChatSummary?,
+    fallbackPersonaName: String?,
+    profileAvatarUrl: String?,
+    onOpenChat: (Long) -> Unit,
+    onOpen: (ChatGroup) -> Unit,
+    onLongPress: (ChatGroup) -> Unit,
+    archivedCount: Int = 0,
+    onOpenArchive: () -> Unit = {},
+    showArchive: Boolean = false,
+    onRefresh: () -> Unit = {},
+) {
+    StickToTop(gridState, firstKey = if (groups.itemCount > 0) groups.peek(0)?.characterId else null)
+    val pull = rememberChatsPull(archive = showArchive, onRefresh = onRefresh)
+    val pullable = !com.cherry.butler.ui.components.LocalPointerMotion.current
+    val columns = com.cherry.butler.ui.components.TileGrid.columns()
+    val tileWidth = com.cherry.butler.ui.components.TileGrid.tileWidth()
+    val whole: androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope.() -> androidx.compose.foundation.lazy.grid.GridItemSpan =
+        { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }
+    Box(modifier = Modifier.fillMaxSize().then(if (pullable) Modifier.nestedScroll(pull.connection) else Modifier)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = pull.archiveOpen,
+                enter = androidx.compose.animation.expandVertically(com.cherry.butler.core.design.Motion.enter()) + androidx.compose.animation.fadeIn(com.cherry.butler.core.design.Motion.enter()),
+                exit = androidx.compose.animation.shrinkVertically(com.cherry.butler.core.design.Motion.exit()) + androidx.compose.animation.fadeOut(com.cherry.butler.core.design.Motion.exit()),
+            ) {
+                ArchivedRow(archivedCount, onOpenArchive)
+            }
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(columns),
+                state = gridState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = com.cherry.butler.ui.components.TileGrid.gutter,
+                    end = com.cherry.butler.ui.components.TileGrid.gutter,
+                    top = 4.dp,
+                    bottom = 16.dp + com.cherry.butler.ui.components.bottomChrome(),
+                ),
+                horizontalArrangement = Arrangement.spacedBy(com.cherry.butler.ui.components.TileGrid.gap),
+                verticalArrangement = Arrangement.spacedBy(com.cherry.butler.ui.components.TileGrid.gap),
+            ) {
+                if (latest != null) {
+                    item(key = "latest", span = whole, contentType = "latest") {
+                        JumpBackIn(latest, fallbackPersonaName, profileAvatarUrl, onClick = { onOpenChat(latest.id) })
+                    }
+                }
+                items(
+                    count = groups.itemCount,
+                    key = { index -> groups.peek(index)?.characterId ?: index },
+                    contentType = { "card" },
+                ) { index ->
+                    groups[index]?.let { group ->
+                        com.cherry.butler.ui.components.CharacterTile(
+                            name = group.characterName.ifBlank { "Character" },
+                            avatarUrl = group.avatarUrl,
+                            width = tileWidth,
+                            onClick = { onOpen(group) },
+                            onLongClick = { onLongPress(group) },
+                            longClickLabel = "Pin, file or archive",
+                        ) {
+                            // One line: how many chats, and when the last was written in.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (group.pinned) {
+                                    Icon(
+                                        androidx.compose.material.icons.Icons.Outlined.PushPin,
+                                        contentDescription = "Pinned",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(end = 5.dp).size(14.dp),
+                                    )
+                                }
+                                Text(
+                                    text = when {
+                                        group.characterDeleted -> "Unavailable"
+                                        group.chatCount == 1 -> "1 chat"
+                                        else -> "${group.chatCount} chats"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                    color = ButlerTheme.colors.textMed,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                group.lastMessageAt?.let { at ->
+                                    Text(
+                                        RelativeTime.short(at),
+                                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                        color = ButlerTheme.colors.textLow,
+                                        maxLines = 1,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (status.appending) {
+                    item(span = whole, contentType = "skeleton") { SkeletonRosterRow(withMargin = false) }
+                }
+                status.appendError?.let { error ->
+                    item(span = whole, contentType = "error") {
+                        InlineErrorCard(error, onRetry = groups::retry, modifier = Modifier.padding(vertical = 8.dp))
+                    }
+                }
+            }
+        }
+        if (pullable) PullBadge(pull)
+    }
+}
+
+/**
+ * The chat last written in, to go straight back into: whose it is, what it is called if it
+ * has a name of its own, who it is played as, when, and its last line.
+ */
+@Composable
+private fun JumpBackIn(chat: com.cherry.butler.core.model.ChatSummary, fallbackPersonaName: String?, profileAvatarUrl: String?, onClick: () -> Unit) {
+    // A chat with no persona of its own is played as the profile.
+    val personaName = if (chat.personaId != null) chat.personaName else fallbackPersonaName ?: chat.personaName
+    val personaAvatar = if (chat.personaId != null) chat.personaAvatarUrl else profileAvatarUrl
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .card()
+            .clickable(onClickLabel = "Jump back in", onClick = onClick)
+            .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.cherry.butler.ui.components.Avatar(url = chat.avatarUrl, name = chat.characterName, size = 56.dp, modifier = Modifier.clip(MaterialTheme.shapes.small))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = chat.shownTitle.ifBlank { "Character" },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
+                if (!personaName.isNullOrBlank()) {
+                    com.cherry.butler.ui.components.Avatar(url = personaAvatar, name = personaName, size = 18.dp, initialStyle = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    // A chat with a name of its own still says whose it is.
+                    text = listOfNotNull(
+                        chat.characterName.takeIf { !chat.title.isNullOrBlank() && it.isNotBlank() },
+                        personaName?.takeIf { it.isNotBlank() },
+                        chat.lastMessageAt?.let { RelativeTime.short(it) },
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = ButlerTheme.colors.textMed,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+            chat.lastMessagePreview?.takeIf { it.isNotBlank() }?.let { preview ->
+                Spacer(Modifier.height(4.dp))
+                PreviewText(
+                    text = remember(preview, personaName, chat.nameInChat) { preview.fillNames(user = personaName, char = chat.nameInChat, markUser = true) },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        Icon(androidx.compose.material.icons.Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = ButlerTheme.colors.textLow, modifier = Modifier.padding(start = 6.dp).size(20.dp))
+    }
+}
+
 @Composable
 private fun SlotLine(group: ChatGroup, fallbackPersonaName: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
     RosterRow(
@@ -431,7 +672,7 @@ private fun SlotLine(group: ChatGroup, fallbackPersonaName: String?, onClick: ()
         if (preview != null) {
             PreviewText(
                 text = remember(preview, group.personaName, fallbackPersonaName) {
-                    preview.fillNames(user = group.personaName ?: fallbackPersonaName, char = group.characterName, markUser = true)
+                    preview.fillNames(user = group.personaName ?: fallbackPersonaName, char = group.nameInChat, markUser = true)
                 },
                 style = MaterialTheme.typography.bodySmall,
             )

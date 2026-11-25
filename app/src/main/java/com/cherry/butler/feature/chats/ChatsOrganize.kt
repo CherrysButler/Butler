@@ -57,6 +57,8 @@ import com.cherry.butler.core.design.SheetShape
 import com.cherry.butler.core.model.ChatGroup
 import com.cherry.butler.feature.settings.FieldBlock
 import com.cherry.butler.ui.components.HairlineRule
+import com.cherry.butler.ui.components.glassPane
+import com.cherry.butler.ui.components.rim
 import com.cherry.butler.ui.components.SheetHandle
 import com.cherry.butler.ui.components.SheetScrim
 
@@ -83,7 +85,8 @@ fun FolderTabs(
     if (folders.isEmpty()) return
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp).padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Tab("All", selected == ChatsTab.All, onClick = { onSelect(ChatsTab.All) })
@@ -96,34 +99,38 @@ fun FolderTabs(
                 )
             }
         }
-        HairlineRule(color = ButlerTheme.colors.outlineFaint)
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Tab(label: String, on: Boolean, onClick: () -> Unit, onLongClick: (() -> Unit)? = null) {
-    val ink by animateColorAsState(if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.textMed, label = "tab")
-    val bar by animateColorAsState(if (on) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent, label = "tab-bar")
-    Column(
+    // A pill, as Browse's chips are: a pane of glass with Depth Lifted, lit with the accent
+    // when it is the one chosen. (It was a word over a short underline on a ruled line: a
+    // row of tabs from before the cards under it were glass.)
+    val glass = com.cherry.butler.ui.components.glassAvailable()
+    val lit = MaterialTheme.colorScheme.primaryContainer
+    val ink by animateColorAsState(if (on) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textMed, label = "tab")
+    Box(
         modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
+            .then(
+                if (glass) Modifier.glassPane(Pill, lift = null, tint = if (on) lit else androidx.compose.ui.graphics.Color.Unspecified)
+                else Modifier.clip(Pill).background(if (on) lit else androidx.compose.ui.graphics.Color.Transparent),
+            )
+            .then(if (glass && !on) Modifier else Modifier.rim(if (on) 1.5.dp else 1.dp, if (on) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule, Pill))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp)
-            .heightIn(min = 44.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom,
+            .heightIn(min = 36.dp)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
             color = ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 12.dp, bottom = 9.dp),
         )
-        Box(Modifier.width(24.dp).height(3.dp).clip(Pill).background(bar))
     }
 }
 

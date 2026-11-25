@@ -145,6 +145,15 @@ class ChatRepository @Inject constructor(
                         ),
                     )
                 }
+                // Who the chat is played as, and what it is called: this list is the one that says.
+                val playedAs = c.personas.firstOrNull { it.id == c.personaId } ?: c.personas.firstOrNull()
+                chatDao.updatePlayedAs(
+                    id = c.id,
+                    personaId = c.personaId,
+                    personaName = playedAs?.name?.takeIf { c.personaId != null && it.isNotBlank() },
+                    personaAvatar = playedAs?.avatar?.takeIf { c.personaId != null },
+                    title = c.title?.takeIf { it.isNotBlank() },
+                )
             }
             if (!response.hasMore) {
                 val keep = response.chats.map { it.id }.toSet()
@@ -155,6 +164,19 @@ class ChatRepository @Inject constructor(
                 }
             }
         }
+    }
+
+    /** The chat last written in, whoever it is with; null when there is none. */
+    fun observeLatestChat(): Flow<ChatSummary?> = chatDao.observeLatest().map { it?.toSummary() }
+
+    /**
+     * Gives the chat a name of its own on Janitor (`PATCH /chats/{id} {title}`, as the
+     * website's rename does), then here.
+     */
+    suspend fun renameChat(chatId: Long, title: String) {
+        val name = title.trim()
+        remote.patchChat(chatId, kotlinx.serialization.json.buildJsonObject { put("title", kotlinx.serialization.json.JsonPrimitive(name)) })
+        chatDao.setTitle(chatId, name.ifEmpty { null })
     }
 
     /** Deletes the chat on Janitor, then from the phone. */
@@ -313,11 +335,16 @@ private fun ChatEntity.toSummary() = ChatSummary(
     lastMessagePreview = lastMessagePreview,
     messageCount = messageCount,
     personaName = personaName,
+    title = title,
+    personaId = personaId,
+    personaAvatar = personaAvatar,
+    chatName = chatName,
 )
 
 private fun ChatGroupRow.toGroup() = ChatGroup(
     characterId = characterId,
     characterName = characterName,
+    chatName = chatName,
     characterAvatar = characterAvatar,
     characterDeleted = characterDeleted,
     latestChatId = latestChatId,
@@ -356,6 +383,9 @@ private fun ChatDetailDto.toEntity(existing: ChatEntity?, now: Long): ChatEntity
         cachedAt = now,
         // The detail doesn't carry folders; the row is replaced whole, so keep what the list said.
         folderIds = existing?.folderIds.orEmpty(),
+        // Likewise what the chat is called and whose picture it is played under.
+        title = chat.title?.takeIf { it.isNotBlank() } ?: existing?.title,
+        personaAvatar = if (chat.personaId == null) null else persona?.takeIf { it.id == chat.personaId }?.avatar ?: existing?.personaAvatar,
         intros = character.firstMessages.filterNotNull().filter { it.isNotBlank() }
             .ifEmpty { listOfNotNull(character.firstMessage?.takeIf { it.isNotBlank() }) },
     )
@@ -462,6 +492,21 @@ private suspend fun storeChatRows(db: ButlerDatabase, items: List<ChatSummaryDto
                 cachedAt = now,
             )
             if (updated == 0) chatDao.upsert(item.toEntity(now))
+            val title = item.title?.takeIf { it.isNotBlank() }
+            // The list says who each chat is played as (one persona, or none for the profile).
+            val playedAs = item.personas
+            if (playedAs == null) {
+                chatDao.learnTitle(item.id, title)
+            } else {
+                val persona = playedAs.firstOrNull()
+                chatDao.updatePlayedAs(
+                    id = item.id,
+                    personaId = persona?.id,
+                    personaName = persona?.name?.takeIf { it.isNotBlank() },
+                    personaAvatar = persona?.avatar,
+                    title = title,
+                )
+            }
         }
     }
 }
@@ -485,4 +530,5 @@ private fun ChatSummaryDto.toEntity(now: Long) = ChatEntity(
     detailLoaded = false,
     cachedAt = now,
     folderIds = encodeFolderIds(folderIds),
+    title = title?.takeIf { it.isNotBlank() },
 )

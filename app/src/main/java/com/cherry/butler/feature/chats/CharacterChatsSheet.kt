@@ -72,7 +72,19 @@ fun CharacterChatsSheet(
     onNewChat: () -> Unit,
     onImport: () -> Unit = {},
     onDeleteChat: (Long) -> Unit = {},
+    /** Gives a chat a name of its own. */
+    onRenameChat: (Long, String) -> Unit = { _, _ -> },
+    /** The profile's own picture, for chats played as the profile. */
+    profileAvatarUrl: String? = null,
 ) {
+    var renaming by remember { mutableStateOf<com.cherry.butler.core.model.ChatSummary?>(null) }
+    renaming?.let { chat ->
+        RenameChatDialog(
+            current = chat.title.orEmpty(),
+            onSave = { name -> renaming = null; onRenameChat(chat.id, name) },
+            onDismiss = { renaming = null },
+        )
+    }
     var deleting by remember { mutableStateOf<Long?>(null) }
     deleting?.let { id ->
         com.cherry.butler.feature.chat.DeleteConfirmDialog(
@@ -232,13 +244,18 @@ fun CharacterChatsSheet(
                             number = if (oldestFirst) i + 1 else shown.size - i,
                             preview = chat.lastMessagePreview?.fillNames(
                                 user = chat.personaName ?: fallbackPersonaName,
-                                char = state.group.characterName,
+                                char = state.group.nameInChat,
                                 markUser = true,
                             ),
                             messageCount = chat.messageCount,
                             updatedAt = chat.lastMessageAt,
                             onClick = { leave { onOpenChat(chat.id) } },
-                            onLongClick = { deleting = chat.id },
+                            title = chat.title,
+                            // A chat with no persona of its own is played as the profile.
+                            personaName = if (chat.personaId != null) chat.personaName else fallbackPersonaName ?: chat.personaName,
+                            personaAvatarUrl = if (chat.personaId != null) chat.personaAvatarUrl else profileAvatarUrl,
+                            onRename = { renaming = chat },
+                            onDelete = { deleting = chat.id },
                         )
                     }
                     state.refreshError?.let { error ->
@@ -259,3 +276,37 @@ fun CharacterChatsSheet(
 
 /** How long the sheet takes to fold away before the screen it leaves for opens. */
 private const val FOLD_MS = 140
+
+/** A chat's own name: what Janitor calls it, changed here as on the website. */
+@Composable
+private fun RenameChatDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large)
+                .padding(vertical = 16.dp),
+        ) {
+            Text(
+                "Rename chat",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            com.cherry.butler.feature.settings.FieldBlock(
+                label = "Name",
+                value = name,
+                onChange = { name = it.take(80) },
+                onSubmit = { if (name.isNotBlank()) onSave(name.trim()) },
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                KeyButton(label = "Cancel", onClick = onDismiss)
+                KeyButton(label = "Rename", onClick = { onSave(name.trim()) }, enabled = name.isNotBlank() && name.trim() != current, primary = true)
+            }
+        }
+    }
+}

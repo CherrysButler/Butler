@@ -55,6 +55,17 @@ data class ChatEntity(
      * chat's detail only, so a list refresh can't put the title back in its place.
      */
     val chatName: String? = null,
+    /**
+     * The chat's own name. Janitor gives every chat one and it can be renamed
+     * (`PATCH /chats/{id} {title}`). Null until one is known; lists then fall back to the
+     * character's.
+     */
+    val title: String? = null,
+    /**
+     * The picture of the persona this chat is played as, from the per-character chat list
+     * (`personas[0].avatar`); null for the profile's own (a chat with no `persona_id`).
+     */
+    val personaAvatar: String? = null,
 ) {
     /** What the chat calls the character: its in-chat name, else its title. */
     val shownName: String get() = chatName?.takeIf { it.isNotBlank() } ?: characterName
@@ -83,7 +94,14 @@ data class GroupMarkEntity(
  */
 data class ChatGroupRow(
     val characterId: String,
+    /**
+     * The character's own name, as Janitor lists it. Every chat's row carries it, so a list
+     * of characters reads the same whether or not a chat with one has been opened. (It was
+     * `chat_name` where that was known and this where it was not: a list of two kinds of name.)
+     */
     val characterName: String,
+    /** The name it goes by in chat, where a chat with it has been opened: what `{{char}}` means in a preview. */
+    val chatName: String? = null,
     val characterAvatar: String?,
     val characterDeleted: Boolean,
     val latestChatId: Long,

@@ -53,7 +53,18 @@ class ChatsViewModel @Inject constructor(
     private val personas: PersonaRepository,
     private val folderRepo: FolderRepository,
     private val transfer: ChatTransfer,
+    private val chatPrefs: com.cherry.butler.core.data.ChatPrefs,
 ) : ViewModel() {
+
+    // ---- how the tab is laid out ----
+
+    /** Cards (a picture with its name on it), or the list as it always was. */
+    val asCards: StateFlow<Boolean> = chatPrefs.chatsAsCards
+    fun setAsCards(on: Boolean) = chatPrefs.setChatsAsCards(on)
+
+    /** The chat last written in, whoever it is with: what "Jump back in" offers. */
+    val latestChat: StateFlow<com.cherry.butler.core.model.ChatSummary?> =
+        repository.observeLatestChat().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // ---- import ----
 
@@ -317,6 +328,14 @@ class ChatsViewModel @Inject constructor(
         sheetJob?.cancel()
         sheetJob = null
         _sheet.value = null
+    }
+
+    /** Gives a chat a name of its own, on Janitor and here. */
+    fun renameChat(chatId: Long, title: String) {
+        viewModelScope.launch {
+            runCatching { repository.renameChat(chatId, title) }
+                .onFailure { e -> _sheet.update { it?.copy(createError = e as? ApiError ?: ApiError.Unknown(e)) } }
+        }
     }
 
     fun deleteChat(chatId: Long) {

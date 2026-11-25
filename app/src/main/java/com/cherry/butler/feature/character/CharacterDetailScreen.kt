@@ -305,6 +305,9 @@ fun CharacterDetailScreen(
                 onPickPersona = { pickingPersona = true },
                 onStart = { viewModel.startChat(onOpenChat) },
                 modifier = Modifier.align(Alignment.BottomCenter),
+                // The chat with this character last written in, to go straight back to.
+                continueAt = state.chats.maxByOrNull { it.updatedAt ?: 0L }?.updatedAt,
+                onContinue = state.chats.maxByOrNull { it.updatedAt ?: 0L }?.let { last -> { onOpenChat(last.id) } },
             )
         }
     }
@@ -744,6 +747,10 @@ private fun StartChatBar(
     onPickPersona: () -> Unit,
     onStart: () -> Unit,
     modifier: Modifier = Modifier,
+    /** When the last chat with this character was written in; with [onContinue]. */
+    continueAt: Long? = null,
+    /** Opens the last chat with this character; null when there is none yet. */
+    onContinue: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -770,6 +777,30 @@ private fun StartChatBar(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 )
             }
+            // Already talking to this one: going back in is the main thing, a new chat the other.
+            if (onContinue != null) {
+                Button(
+                    onClick = onContinue,
+                    enabled = !starting,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).heightIn(min = 50.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ),
+                ) {
+                    Text("Continue last chat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                    continueAt?.let { at ->
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            com.cherry.butler.core.util.RelativeTime.short(at),
+                            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.78f),
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PersonaSwitch(current = persona, onClick = onPickPersona, modifier = Modifier.widthIn(max = 190.dp).heightIn(min = 50.dp))
                 Spacer(Modifier.width(8.dp))
@@ -778,12 +809,20 @@ private fun StartChatBar(
                     enabled = !starting,
                     shape = MaterialTheme.shapes.medium,
                     modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                    // With a chat to continue, starting another steps back to a quiet key.
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        containerColor = if (onContinue != null) ButlerTheme.colors.surfaceHigh else MaterialTheme.colorScheme.primary,
+                        contentColor = if (onContinue != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
                     ),
                 ) {
-                    Text(if (starting) "Starting…" else "Start chat", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(
+                        when {
+                            starting -> "Starting…"
+                            onContinue != null -> "New chat"
+                            else -> "Start chat"
+                        },
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1,
+                    )
                 }
             }
         }

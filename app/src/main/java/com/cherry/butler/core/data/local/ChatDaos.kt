@@ -19,9 +19,15 @@ interface ChatDao {
      *
      * [archived] picks the archive or the main list; [folder] narrows to one Janitor folder
      * (and then counts only the chats in it).
+     *
+     * The columns that are not aggregates (the latest chat's id, its preview, its persona)
+     * are the newest chat's because the query has exactly one MAX: SQLite takes them from
+     * the row that holds it. A second MIN or MAX would make them any row's, which is why the
+     * in-chat name is read by a subquery and not as MAX(chatName). The same holds for the
+     * two searches below.
      */
     @Query(
-        """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
+        """SELECT c.characterId, c.characterName, (SELECT x.chatName FROM chats x WHERE x.characterId = c.characterId AND x.chatName IS NOT NULL AND x.chatName != '' LIMIT 1) AS chatName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
@@ -40,7 +46,7 @@ interface ChatDao {
      * (case-insensitive for ASCII).
      */
     @Query(
-        """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
+        """SELECT c.characterId, c.characterName, (SELECT x.chatName FROM chats x WHERE x.characterId = c.characterId AND x.chatName IS NOT NULL AND x.chatName != '' LIMIT 1) AS chatName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
@@ -55,7 +61,7 @@ interface ChatDao {
      * so a chat never opened is found too. A character shows its latest chat with that persona.
      */
     @Query(
-        """SELECT c.characterId, COALESCE(NULLIF(c.chatName, ''), c.characterName) AS characterName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
+        """SELECT c.characterId, c.characterName, (SELECT x.chatName FROM chats x WHERE x.characterId = c.characterId AND x.chatName IS NOT NULL AND x.chatName != '' LIMIT 1) AS chatName, c.characterAvatar, c.characterDeleted, c.id AS latestChatId,
            c.lastMessagePreview, c.personaName, MAX(COALESCE(c.lastMessageAt, 0)) AS lastMessageAt, COUNT(*) AS chatCount,
            (m.pinnedAt IS NOT NULL) AS pinned
            FROM chats c LEFT JOIN group_marks m ON m.characterId = c.characterId
@@ -77,9 +83,44 @@ interface ChatDao {
     @Query("DELETE FROM chats WHERE id IN (:ids)")
     suspend fun deleteAll(ids: List<Long>)
 
-    /** What the per-character endpoint knows: activity only; it never carries a name. */
-    @Query("UPDATE chats SET lastMessageAt = :lastMessageAt, lastMessagePreview = :lastMessagePreview, messageCount = :messageCount, isPublic = :isPublic, cachedAt = :cachedAt WHERE id = :id")
+    /**
+     * What the per-character endpoint knows: activity only; it never carries a name.
+     *
+     * Its time is the chat's `updated_at`, which is not when it was last written in: a
+     * rename moves it, and so may anything else Janitor does to the row. The time already
+     * held (the chat list's `last_message_at`) is kept unless the chat has gained or lost a
+     * message since. Taken as it came, opening a character's chats made that character newer
+     * than it was, and it jumped up the Chats tab, pushing everyone else down.
+     */
+    @Query(
+        """UPDATE chats SET
+           lastMessageAt = CASE WHEN lastMessageAt IS NULL OR messageCount != :messageCount THEN :lastMessageAt ELSE lastMessageAt END,
+           lastMessagePreview = :lastMessagePreview, messageCount = :messageCount, isPublic = :isPublic, cachedAt = :cachedAt WHERE id = :id""",
+    )
     suspend fun updateActivity(id: Long, lastMessageAt: Long?, lastMessagePreview: String?, messageCount: Int, isPublic: Boolean, cachedAt: Long): Int
+
+    /**
+     * What the per-character endpoint says of who a chat is played as, and what the chat is
+     * called. A persona's name is kept when none is sent (a chat played as the profile has no
+     * `personas`, and its name comes from the chat's detail); a title is kept when none is sent.
+     */
+    @Query(
+        """UPDATE chats SET personaId = :personaId, personaAvatar = :personaAvatar,
+           personaName = CASE WHEN :personaName IS NULL THEN personaName ELSE :personaName END,
+           title = CASE WHEN :title IS NULL THEN title ELSE :title END WHERE id = :id""",
+    )
+    suspend fun updatePlayedAs(id: Long, personaId: String?, personaName: String?, personaAvatar: String?, title: String?)
+
+    @Query("UPDATE chats SET title = :title WHERE id = :id")
+    suspend fun setTitle(id: Long, title: String?)
+
+    /** A title the chat list carried; a list that carries none leaves what is known alone. */
+    @Query("UPDATE chats SET title = :title WHERE id = :id AND :title IS NOT NULL")
+    suspend fun learnTitle(id: Long, title: String?)
+
+    /** The chat last written in, whoever it is with: what "jump back in" offers. */
+    @Query("SELECT * FROM chats WHERE lastMessageAt IS NOT NULL AND characterDeleted = 0 ORDER BY lastMessageAt DESC, id DESC LIMIT 1")
+    fun observeLatest(): Flow<ChatEntity?>
 
     @Query("SELECT * FROM chats WHERE id = :chatId")
     fun observe(chatId: Long): Flow<ChatEntity?>

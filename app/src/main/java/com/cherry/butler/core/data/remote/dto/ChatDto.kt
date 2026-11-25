@@ -32,6 +32,16 @@ data class ChatSummaryDto(
     @SerialName("last_message_at") val lastMessageAt: String? = null,
     @SerialName("last_message_preview") val lastMessagePreview: String? = null,
     @SerialName("message_count") val messageCount: Int = 0,
+    /**
+     * The chat's own name, sent only once it has one (a chat that was renamed; seen
+     * 2026-11-25). Without it the website shows the character's name.
+     */
+    val title: String? = null,
+    /**
+     * Who the chat is played as: one persona, or empty for the profile itself (seen
+     * 2026-11-25). Null when the list does not say at all, which leaves what is known alone.
+     */
+    val personas: List<ChatPersonaRefDto>? = null,
 )
 
 /** The reduced character embedded in a chat list row — six fields, not the full object. */
@@ -70,6 +80,8 @@ data class ChatDto(
     val summary: String? = null,
     /** The message id the summary covers up to. */
     @SerialName("summary_chat_id") val summaryChatId: Long? = null,
+    /** The chat's own name (see [CharacterChatDto.title]). */
+    val title: String? = null,
 )
 
 /** The character as embedded in a chat detail — enough to render the transcript header and the opening turn. */
@@ -163,9 +175,25 @@ data class CharacterChatDto(
     @SerialName("chat_count") val chatCount: Int = 0,
     @SerialName("is_public") val isPublic: Boolean = false,
     @SerialName("last_message_preview") val lastMessagePreview: String? = null,
+    /** Null: the chat is played as the profile itself (the default persona). */
     @SerialName("persona_id") val personaId: String? = null,
+    /** Who it is played as, ready to show: empty when [personaId] is null (seen 2026-11-25). */
+    val personas: List<ChatPersonaRefDto> = emptyList(),
     val summary: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
+    /**
+     * The chat's own name. `PATCH /chats/{id} {title}` sets it and answers with it; the
+     * sample of this list seen 2026-11-25 carried none, so it is read where it is sent.
+     */
+    val title: String? = null,
+)
+
+/** A persona as a chat list names it: enough to show whose chat it is. */
+@Serializable
+data class ChatPersonaRefDto(
+    val id: String,
+    val name: String = "",
+    val avatar: String? = null,
 )
 
 /**

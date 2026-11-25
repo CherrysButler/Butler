@@ -48,6 +48,19 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putBoolean(KEY_SHIFT_ENTER_SENDS, on).apply()
     }
 
+    private val _chatsAsCards = MutableStateFlow(prefs.getBoolean(KEY_CHATS_AS_CARDS, true))
+
+    /**
+     * How the Chats tab shows who you have talked to: as cards, a picture with its name on it
+     * (true, the way it is unless changed), or as the list it always was (false).
+     */
+    val chatsAsCards: StateFlow<Boolean> = _chatsAsCards.asStateFlow()
+
+    fun setChatsAsCards(on: Boolean) {
+        _chatsAsCards.value = on
+        prefs.edit().putBoolean(KEY_CHATS_AS_CARDS, on).apply()
+    }
+
     private val _claudeOn = MutableStateFlow(prefs.getBoolean(KEY_BUTLER_ON, true))
     /** Whether Claude's list is in the pool. */
     val claudeOn: StateFlow<Boolean> = _claudeOn.asStateFlow()
@@ -159,6 +172,7 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
     private companion object {
         const val KEY_CLOSE_KEYBOARD = "close_keyboard_on_send"
         const val KEY_SHIFT_ENTER_SENDS = "shift_enter_sends"
+        const val KEY_CHATS_AS_CARDS = "chats_as_cards"
         const val KEY_BUTLER_ON = "thinking_words_butler"
         const val KEY_CLAUDE_ADDED = "thinking_claude_added"
         const val KEY_CLAUDE_REMOVED = "thinking_claude_removed"

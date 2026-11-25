@@ -134,6 +134,8 @@ fun CharacterTile(
     nameColor: Color? = null,
     /** Held down: everything about it at once (CharacterPeekSheet); null does nothing. */
     onLongClick: (() -> Unit)? = null,
+    /** What holding it does, said to a screen reader. */
+    longClickLabel: String = "Show tags and tokens",
     footer: @Composable () -> Unit,
 ) {
     val height = portraitHeight(width)
@@ -180,7 +182,7 @@ fun CharacterTile(
                 interactionSource = pressSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = onClick,
-                onLongClickLabel = if (onLongClick != null) "Show tags and tokens" else null,
+                onLongClickLabel = if (onLongClick != null) longClickLabel else null,
                 onLongClick = onLongClick?.let { held -> { haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); held() } },
             ),
     ) {
