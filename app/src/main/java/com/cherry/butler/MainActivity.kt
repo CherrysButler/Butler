@@ -148,10 +148,6 @@ class MainActivity : FragmentActivity() {
                         com.cherry.butler.feature.auth.CloudflareCheckHost()
                         // Janitor's queue, while Butler stands in it.
                         com.cherry.butler.ui.components.QueueBanner(androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopCenter))
-                        // The glass's tuning panel, while it is wanted (GlassTuner.kt).
-                        if (com.cherry.butler.ui.components.GlassTuning.shown) {
-                            com.cherry.butler.ui.components.GlassTuner(androidx.compose.ui.Modifier.align(androidx.compose.ui.Alignment.TopCenter))
-                        }
                     }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = locked,

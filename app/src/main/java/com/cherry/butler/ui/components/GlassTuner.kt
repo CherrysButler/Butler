@@ -28,8 +28,12 @@ import com.cherry.butler.core.design.Lift
  * A tool for settling the glass by eye, not a feature: the numbers the glass is made with,
  * held where a set of sliders can move them while the glass is on screen. Glass.kt reads
  * them; the panel below floats over whatever screen is up, so a list can be scrolled under
- * the nav bar with one hand and a number moved with the other. It goes once the numbers are
- * settled, and its values become Glass.kt's constants.
+ * the nav bar with one hand and a number moved with the other.
+ *
+ * Out of reach since 0.5.3: the numbers were settled on a phone and are Glass.kt's own
+ * (every value here starts as one of them), so the switch in Settings > Look and the panel's
+ * place in MainActivity were taken out for the release. To tune again, show GlassTuner()
+ * over the app and set GlassTuning.shown.
  */
 object GlassTuning {
     /** The panel is up. */
