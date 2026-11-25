@@ -19,15 +19,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.cherry.butler.ui.components.CenteredMessage
+import com.cherry.butler.ui.components.card
+import com.cherry.butler.ui.components.frostSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,60 +72,102 @@ fun LorebooksLibraryScreen(
     val limit by viewModel.contextCharLimit.collectAsStateWithLifecycle(initialValue = LorebookMatcher.DEFAULT_CONTEXT_CHAR_LIMIT)
     var importing by rememberSaveable { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back") }
-            PlateText("Local Lorebooks", PlateLevel.Name, modifier = Modifier.weight(1f))
-        }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item {
-                NumberRow(
-                    title = "Lore character limit",
-                    subtitle = null,
-                    value = limit,
-                    onCommit = viewModel::setContextCharLimit,
-                    range = 0..Int.MAX_VALUE,
-                )
-            }
-            item {
+    // Making or bringing in a book is the round key at the foot of the page, as on Profile:
+    // always in reach. (The two keys for it sat under the whole list.) With Depth Lifted the
+    // key is glass over the page, so the page is what it looks through.
+    val keyGlass = if (com.cherry.butler.ui.components.glassOn()) io.github.fletchmckee.liquid.rememberLiquidState() else null
+    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().frostSource(keyGlass)) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
+                }
                 Text(
-                    "All your lorebooks on this device. Tap a book to edit it. Enable books in a chat or attach them to a persona.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ButlerTheme.colors.textMed,
-                    modifier = Modifier.padding(16.dp),
+                    if (books.isEmpty()) "Local lorebooks" else "Local lorebooks · ${books.size}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
             }
-            if (books.isEmpty()) item {
-                Text(
-                    "No lorebooks yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ButlerTheme.colors.textLow,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-                )
-            }
-            items(books, key = { it.id }) { book ->
-                ListItem(
-                    modifier = Modifier.clickable { onEdit(book.id) },
-                    headlineContent = { Text(book.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = { Text("${book.entryCount} entries") },
-                    leadingContent = {
-                        LorebookFavoriteButton(
-                            isFavorite = book.favorite,
-                            bookName = book.name,
-                            onClick = { viewModel.toggleFavorite(book.id) },
-                        )
-                    },
-                )
-            }
-            item {
-                Column(
-                    Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp),
+            if (books.isEmpty()) {
+                // Nothing to list: say so, and say the one thing a new book needs said.
+                CenteredMessage(
+                    icon = Icons.AutoMirrored.Outlined.MenuBook,
+                    title = "No lorebooks yet",
+                    body = "Make one or bring one in as JSON. A book is switched on in a chat, or attached to a persona.",
+                ) {
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        KeyButton("Import JSON", onClick = { importing = true })
+                        KeyButton("New lorebook", onClick = { onEdit(null) }, primary = true)
+                    }
+                }
+            } else {
+                // Each book a card of its own; the room at the foot is the round key's.
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    KeyButton("Add Lorebook", onClick = { onEdit(null) }, modifier = Modifier.fillMaxWidth())
-                    KeyButton("Import JSON", onClick = { importing = true }, modifier = Modifier.fillMaxWidth())
+                    items(books, key = { it.id }) { book ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .card()
+                                .clickable(onClickLabel = "Edit ${book.name}") { onEdit(book.id) }
+                                .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    book.name.ifBlank { "Lorebook" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    if (book.entryCount == 1) "1 entry" else "${book.entryCount} entries",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                                    color = ButlerTheme.colors.textMed,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                            LorebookFavoriteButton(
+                                isFavorite = book.favorite,
+                                bookName = book.name,
+                                onClick = { viewModel.toggleFavorite(book.id) },
+                            )
+                        }
+                    }
+                    // What every book shares: how much lore a message may carry in all.
+                    item(key = "limit") {
+                        com.cherry.butler.feature.settings.SettingsSection(title = "For every book") {
+                            NumberRow(
+                                title = "Lore character limit",
+                                subtitle = null,
+                                value = limit,
+                                onCommit = viewModel::setContextCharLimit,
+                                range = 0..Int.MAX_VALUE,
+                            )
+                        }
+                    }
                 }
             }
+        }
+        if (books.isNotEmpty()) {
+            com.cherry.butler.ui.components.GlassKey(
+                glass = keyGlass,
+                choices = listOf(
+                    com.cherry.butler.ui.components.GlassKeyChoice("New lorebook", Icons.AutoMirrored.Outlined.NoteAdd) { onEdit(null) },
+                    com.cherry.butler.ui.components.GlassKeyChoice("Import JSON", Icons.Outlined.FileOpen) { importing = true },
+                ),
+                label = "New or import a lorebook",
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
+            )
         }
     }
     if (importing) {
@@ -191,32 +239,45 @@ private fun ImportLorebookDialog(
             onImport(json, fileName)
         }
     }
-    com.cherry.butler.ui.components.ButlerAlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Import JSON") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                KeyButton(
-                    "Choose JSON file",
-                    onClick = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !busy,
-                )
-                OutlinedTextField(
+    // Butler's own dialog and field, as renaming a chat or naming a group uses: a file, or
+    // the JSON pasted in.
+    com.cherry.butler.ui.components.ButlerDialog(onDismissRequest = { if (!busy) onDismiss() }) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.large)
+                .padding(vertical = 16.dp),
+        ) {
+            Text(
+                "Import a lorebook",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            KeyButton(
+                if (busy) "Reading…" else "Choose a JSON file",
+                onClick = { openFile.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*")) },
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                enabled = !busy,
+            )
+            Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState())) {
+                com.cherry.butler.feature.settings.FieldBlock(
+                    label = "Or paste its JSON",
                     value = text,
-                    onValueChange = { text = it; error = null },
-                    label = { Text("Or paste lorebook JSON") },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 220.dp),
-                    enabled = !busy,
+                    onChange = { if (!busy) { text = it; error = null } },
+                    singleLine = false,
+                    minLines = 4,
+                    error = error,
+                    textStyle = MaterialTheme.typography.bodyMedium,
                 )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-        },
-        confirmButton = {
-            TextButton(enabled = text.isNotBlank() && !busy, onClick = { runImport { onImport(text, "") } }) {
-                Text(if (busy) "Reading…" else "Continue")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) {
+                KeyButton("Cancel", onClick = onDismiss, enabled = !busy)
+                KeyButton("Continue", onClick = { runImport { onImport(text, "") } }, enabled = text.isNotBlank() && !busy, primary = true)
             }
-        },
-        dismissButton = { TextButton(onClick = com.cherry.butler.ui.components.leaving(onDismiss), enabled = !busy) { Text("Cancel") } },
-    )
+        }
+    }
 }

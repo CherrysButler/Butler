@@ -61,6 +61,29 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
         prefs.edit().putBoolean(KEY_CHATS_AS_CARDS, on).apply()
     }
 
+    private val _replyGlow = MutableStateFlow(prefs.getBoolean(KEY_REPLY_GLOW, true))
+
+    /**
+     * On a PC: whether the light round an open chat warms and breathes while a reply is being
+     * written. Off, the light stays as it is at rest.
+     */
+    val replyGlow: StateFlow<Boolean> = _replyGlow.asStateFlow()
+
+    fun setReplyGlow(on: Boolean) {
+        _replyGlow.value = on
+        prefs.edit().putBoolean(KEY_REPLY_GLOW, on).apply()
+    }
+
+    private val _replyGlowColor = MutableStateFlow(if (prefs.contains(KEY_REPLY_GLOW_COLOR)) prefs.getLong(KEY_REPLY_GLOW_COLOR, 0L) else null)
+
+    /** The colour that light warms to (ARGB); null is the look's own accent. */
+    val replyGlowColor: StateFlow<Long?> = _replyGlowColor.asStateFlow()
+
+    fun setReplyGlowColor(argb: Long?) {
+        _replyGlowColor.value = argb
+        prefs.edit().apply { if (argb == null) remove(KEY_REPLY_GLOW_COLOR) else putLong(KEY_REPLY_GLOW_COLOR, argb) }.apply()
+    }
+
     private val _claudeOn = MutableStateFlow(prefs.getBoolean(KEY_BUTLER_ON, true))
     /** Whether Claude's list is in the pool. */
     val claudeOn: StateFlow<Boolean> = _claudeOn.asStateFlow()
@@ -173,6 +196,8 @@ class ChatPrefs @Inject constructor(@ApplicationContext context: Context) {
         const val KEY_CLOSE_KEYBOARD = "close_keyboard_on_send"
         const val KEY_SHIFT_ENTER_SENDS = "shift_enter_sends"
         const val KEY_CHATS_AS_CARDS = "chats_as_cards"
+        const val KEY_REPLY_GLOW = "reply_glow"
+        const val KEY_REPLY_GLOW_COLOR = "reply_glow_color"
         const val KEY_BUTLER_ON = "thinking_words_butler"
         const val KEY_CLAUDE_ADDED = "thinking_claude_added"
         const val KEY_CLAUDE_REMOVED = "thinking_claude_removed"

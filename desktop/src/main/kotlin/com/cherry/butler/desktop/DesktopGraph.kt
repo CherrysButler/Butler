@@ -42,6 +42,7 @@ interface DesktopComponent : WidgetsEntryPoint, LockEntryPoint {
     fun chatRepository(): com.cherry.butler.core.data.ChatRepository
     fun database(): com.cherry.butler.core.data.local.ButlerDatabase
     fun backgroundReplies(): com.cherry.butler.core.background.BackgroundReplies
+    fun chatPrefs(): com.cherry.butler.core.data.ChatPrefs
 }
 
 object DesktopGraph {

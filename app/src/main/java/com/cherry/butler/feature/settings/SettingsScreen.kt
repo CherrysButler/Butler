@@ -68,6 +68,7 @@ import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
@@ -422,6 +423,8 @@ private fun ChatSection(viewModel: SettingsViewModel) {
             }
         }
     }
+    // A PC's: the light round an open chat, which warms and breathes while a reply is written.
+    if (com.cherry.butler.feature.chat.LocalEnterSends.current) ReplyGlowSection(viewModel)
     WriteForMeSection(viewModel)
     com.cherry.butler.feature.lessons.LessonsSection()
     CompactSection(viewModel)
@@ -1568,6 +1571,60 @@ private fun TokenRow(
 }
 
 /** A colour setting: its name and what it colours, and its swatch at the end. */
+/**
+ * A PC's light round an open chat while a reply is being written: whether it warms and
+ * breathes at all, and the colour it warms to (the look's accent unless one is picked).
+ */
+@Composable
+private fun ReplyGlowSection(viewModel: SettingsViewModel) {
+    val on by viewModel.replyGlow.collectAsStateWithLifecycle()
+    val picked by viewModel.replyGlowColor.collectAsStateWithLifecycle()
+    val recent by viewModel.recentColors.collectAsStateWithLifecycle()
+    var picking by remember { mutableStateOf(false) }
+    val accent = MaterialTheme.colorScheme.primary
+    val shown = picked?.let { androidx.compose.ui.graphics.Color(it) } ?: accent
+    SettingsSection(title = "Reply glow", icon = Icons.Rounded.LightMode) {
+        SwitchRow("Glow while a reply is written", null, on, viewModel::setReplyGlow)
+        com.cherry.butler.ui.components.Unfold(on) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { picking = true }.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Colour", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(shown).rim(1.dp, ButlerTheme.colors.rule, CircleShape))
+                }
+                // Back to the look's own accent, whatever that is or becomes.
+                if (picked != null) {
+                    Text(
+                        "Use the look" + "’" + "s accent",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable { viewModel.setReplyGlowColor(null) }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                    )
+                }
+            }
+        }
+    }
+    if (picking) {
+        com.cherry.butler.ui.components.ColorPickerSheet(
+            title = "Reply glow",
+            initial = shown,
+            recent = recent,
+            onPick = { argb ->
+                picking = false
+                viewModel.addRecent(argb)
+                viewModel.setReplyGlowColor(argb)
+            },
+            onDismiss = { picking = false },
+        )
+    }
+}
+
 @Composable
 private fun ColorRow(title: String, subtitle: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
     Row(

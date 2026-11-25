@@ -114,6 +114,12 @@ class SettingsViewModel @Inject constructor(
     val shiftEnterSends: StateFlow<Boolean> = chat.shiftEnterSends
     fun setShiftEnterSends(on: Boolean) = chat.setShiftEnterSends(on)
 
+    /** On a PC: the light round a chat while a reply is written, and the colour it warms to. */
+    val replyGlow: StateFlow<Boolean> = chat.replyGlow
+    fun setReplyGlow(on: Boolean) = chat.setReplyGlow(on)
+    val replyGlowColor: StateFlow<Long?> = chat.replyGlowColor
+    fun setReplyGlowColor(argb: Long?) = chat.setReplyGlowColor(argb)
+
     /** Thinking words: Claude's list (on or off, added to or taken from) and the user's lists. */
     val claudeOn: StateFlow<Boolean> = chat.claudeOn
     fun setClaudeOn(on: Boolean) = chat.setClaudeOn(on)

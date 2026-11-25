@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -75,7 +76,12 @@ internal fun ChatLightOverlay(light: ChatLight, modifier: Modifier) {
     val phase = remember { mutableFloatStateOf(0f) }
     val breath = remember { mutableFloatStateOf(0f) }
     val warmth = remember { Animatable(0f) }
-    val warm = light.warm
+    // Settings › Chat › Reply glow: whether it warms at all while a reply is written, and to
+    // what colour. Switched off mid-reply it cools as it does when a reply ends.
+    val prefs = remember { com.cherry.butler.desktop.DesktopGraph.component.chatPrefs() }
+    val glowOn by prefs.replyGlow.collectAsState()
+    val glowColor by prefs.replyGlowColor.collectAsState()
+    val warm = light.warm && glowOn
     LaunchedEffect(warm) {
         // Warming and cooling both ease in and out over seconds: an ease-out did most of the
         // cooling in its first instant, which read as a snap back to white.
@@ -94,7 +100,8 @@ internal fun ChatLightOverlay(light: ChatLight, modifier: Modifier) {
         }
     }
     val ink = MaterialTheme.colorScheme.onSurface
-    val accent = MaterialTheme.colorScheme.primary
+    // The colour picked for it, or the look's own accent.
+    val accent = glowColor?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
     // Lighter looks get less: the same lift reads far stronger on a pale ground.
     val strength = if (MaterialTheme.colorScheme.background.luminance() > 0.5f) 0.035f else 0.06f
     val glow = remember { GlowPaint() }
