@@ -129,7 +129,9 @@ class PictureDescriber @Inject constructor(
         // The options may carry the preset's own model; the picked one wins.
         payload = kotlinx.serialization.json.JsonObject(payload + ("model" to kotlinx.serialization.json.JsonPrimitive(target.model)))
 
-        val request = Request.Builder()
+        // Claude's own API takes another request and answers in another shape ([ClaudeApi]).
+        val claude = ClaudeApi.isClaude(target.url)
+        val request = if (claude) ClaudeApi.post(target.url, target.key, ClaudeApi.body(payload, thinking = false)) else Request.Builder()
             .url(target.url)
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${target.key}")
@@ -137,7 +139,8 @@ class PictureDescriber @Inject constructor(
             .header("HTTP-Referer", "https://janitorai.com")
             .header("X-Title", "janitor")
             .build()
-        val response = try { http.newCall(request).execute() } catch (e: IOException) { throw ApiError.Network(ApiError.Network.Kind.Unknown, e) }
+        val plain = com.cherry.butler.core.network.PlainProxies.client(http, target.url)
+        val response = try { plain.newCall(request).execute() } catch (e: IOException) { throw ApiError.Network(ApiError.Network.Kind.Unknown, e) }
         response.use { r ->
             val body = r.body?.string().orEmpty()
             if (!r.isSuccessful) {
@@ -151,6 +154,7 @@ class PictureDescriber @Inject constructor(
                 throw ApiError.Api(r.code, janitorCode = "PROXY_ERROR", serverMessage = message, retryable = false)
             }
             val content = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull()
+                ?.let { if (claude) ClaudeApi.asOpenAi(it) else it }
                 ?.get("choices")?.jsonArray?.firstOrNull()?.jsonObject
                 ?.get("message")?.jsonObject?.get("content")
             val text = when (content) {

@@ -104,6 +104,21 @@ class ModelCatalogTest {
     }
 
     @Test
+    fun `a routing shortcut is a word on the model's end`() {
+        assertEquals("moonshotai/kimi-k2.6:nitro", ModelVariant.with("moonshotai/kimi-k2.6", ModelVariant.Nitro))
+        assertEquals("moonshotai/kimi-k2.6:floor", ModelVariant.with("moonshotai/kimi-k2.6:nitro", ModelVariant.Floor))
+        assertEquals("moonshotai/kimi-k2.6", ModelVariant.with("moonshotai/kimi-k2.6:floor", ModelVariant.Standard))
+        assertEquals(ModelVariant.Nitro, ModelVariant.of("moonshotai/kimi-k2.6:nitro"))
+        assertEquals(ModelVariant.Standard, ModelVariant.of("moonshotai/kimi-k2.6"))
+        assertEquals("moonshotai/kimi-k2.6", ModelVariant.base(" moonshotai/kimi-k2.6:NITRO "))
+        // A model whose id ends in a word of its own is a fixed offer: no shortcut goes on it.
+        assertEquals(ModelVariant.Standard, ModelVariant.of("meta/llama:free"))
+        assertFalse(ModelVariant.takes("meta/llama:free"))
+        assertTrue(ModelVariant.takes("meta/llama"))
+        assertFalse(ModelVariant.takes(""))
+    }
+
+    @Test
     fun `sizes in k and M`() {
         assertEquals("8k", sizeOf(8192))
         assertEquals("128k", sizeOf(128_000))

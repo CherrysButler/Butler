@@ -72,10 +72,11 @@ data class OpenRouterOptions(
      * The payload as the proxy should receive it: OpenRouter's options for OpenRouter
      * ([openRouter]), only the thinking level, in the OpenAI standard's field, for any other.
      */
-    fun applyTo(payload: JsonObject, openRouter: Boolean = true): JsonObject {
+    fun applyTo(payload: JsonObject, openRouter: Boolean = true, everyLevel: Boolean = false): JsonObject {
         if (isEmpty) return payload
         if (!openRouter) {
-            val effort = thinking.standardWire ?: return payload
+            // [everyLevel]: a proxy that isn't OpenRouter and still takes the levels past high (Claude's own API).
+            val effort = (if (everyLevel) thinking.wire else thinking.standardWire) ?: return payload
             return JsonObject(payload + ("reasoning_effort" to JsonPrimitive(effort)))
         }
         val out = payload.toMutableMap()
@@ -102,6 +103,9 @@ data class OpenRouterOptions(
     companion object {
         fun isOpenRouter(url: String): Boolean =
             runCatching { URI(url.trim()).host.orEmpty() }.getOrDefault("").let { it == "openrouter.ai" || it.endsWith(".openrouter.ai") }
+
+        /** Whether a proxy at [url] takes every thinking level: OpenRouter and Claude's own API do; the OpenAI standard stops at high. */
+        fun everyLevel(url: String): Boolean = isOpenRouter(url) || com.cherry.butler.core.generation.ClaudeApi.isClaude(url)
 
         /** "deepinfra, Together ,  fireworks" → [deepinfra, together, fireworks] */
         fun parseProviders(text: String): List<String> =

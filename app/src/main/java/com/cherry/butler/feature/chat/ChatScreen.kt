@@ -687,7 +687,7 @@ fun ChatScreen(
                 commands = run {
                     val ai by viewModel.aiSettingsState.collectAsStateWithLifecycle()
                     val proxyUrl = ai?.selectedProxy?.apiUrl?.takeIf { ai?.provider == com.cherry.butler.core.data.Provider.Proxy }
-                    remember(lessonsOn, proxyUrl) { ChatCommands.available(lessonsOn, proxyUrl?.let(com.cherry.butler.core.data.OpenRouterOptions::isOpenRouter) == true) }
+                    remember(lessonsOn, proxyUrl) { ChatCommands.available(lessonsOn, proxyUrl?.let(com.cherry.butler.core.data.OpenRouterOptions::everyLevel) == true) }
                 },
                 above = {
                     val note by viewModel.pendingNote.collectAsStateWithLifecycle()

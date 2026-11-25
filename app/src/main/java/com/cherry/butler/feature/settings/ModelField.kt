@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cherry.butler.core.data.CatalogModel
 import com.cherry.butler.core.data.ModelCatalog
+import com.cherry.butler.core.data.ModelVariant
 import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.Pill
 import com.cherry.butler.feature.chats.KeyButton
@@ -100,15 +101,19 @@ fun ModelField(
     var open by remember { mutableStateOf(startOpen) }
     var query by remember { mutableStateOf(startQuery) }
     var filters by remember { mutableStateOf(emptySet<ModelFilter>()) }
-    val current = remember(catalog.models, value) { catalog.models.firstOrNull { it.id == value } }
+    // The model, and the routing shortcut on its end (":nitro", ":floor"): the list knows the
+    // model by its id alone.
+    val variant = ModelVariant.of(value)
+    val base = ModelVariant.base(value)
+    val current = remember(catalog.models, base) { catalog.models.firstOrNull { it.id == base } }
     LaunchedEffect(open) { if (open) onLoad(false) else query = "" }
     // A list on show before the first frame (startOpen) has not animated in: nothing to wait for.
 
-    val found = remember(catalog.models, query, filters, value) {
-        val base = catalog.models.filter { m -> filters.all { it.keeps(m) } }
-        val hits = ModelCatalog.search(base, query)
+    val found = remember(catalog.models, query, filters, base) {
+        val kept = catalog.models.filter { m -> filters.all { it.keeps(m) } }
+        val hits = ModelCatalog.search(kept, query)
         // With nothing typed the model in use leads the list, so it is seen to be the one.
-        if (query.isBlank()) hits.sortedByDescending { it.id == value } else hits
+        if (query.isBlank()) hits.sortedByDescending { it.id == base } else hits
     }
     // An id typed that the list does not have: offered as it is, at the list's foot.
     val typed = query.trim().takeIf { q -> q.isNotEmpty() && catalog.models.none { it.id.equals(q, ignoreCase = true) } }
@@ -120,7 +125,10 @@ fun ModelField(
 
     fun choose(id: String) {
         open = false
-        if (id != value) onChoose(id)
+        // Another model keeps the shortcut that was on the last one, where it can carry one;
+        // an id typed with a shortcut of its own is used as typed.
+        val full = if (ModelVariant.of(id) == ModelVariant.Standard && ModelVariant.takes(id)) id + variant.suffix else id
+        if (full != value) onChoose(full)
     }
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -128,6 +136,31 @@ fun ModelField(
         Spacer(Modifier.height(6.dp))
         if (!open) {
             ClosedRow(value = value, model = current, onOpen = { open = true })
+            // How its provider is picked: OpenRouter's own balance, the fastest, or the cheapest.
+            if (ModelVariant.takes(base)) {
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    ModelVariant.entries.forEach { v ->
+                        val on = v == variant
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(if (on) MaterialTheme.colorScheme.primaryContainer else ButlerTheme.colors.surfaceHigh)
+                                .clickable(role = Role.RadioButton, onClickLabel = v.label) { if (!on) onChoose(ModelVariant.with(value, v)) }
+                                .heightIn(min = 36.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                v.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (on) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textMed,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             SearchRow(
                 query = query,
@@ -158,7 +191,7 @@ fun ModelField(
                     catalog.models.isEmpty() && catalog.failed -> Failed(onRetry = { onLoad(true) }, typed = typed, onUse = ::choose)
                     else -> LazyColumn(state = list, modifier = Modifier.fillMaxWidth().heightIn(max = 392.dp)) {
                         itemsIndexed(found, key = { _, m -> m.id }) { i, m ->
-                            ModelRow(model = m, selected = m.id == value, lit = i == lit, onClick = { choose(m.id) })
+                            ModelRow(model = m, selected = m.id == base, lit = i == lit, onClick = { choose(m.id) })
                         }
                         if (typed != null) item(key = "typed") {
                             UseTyped(id = typed, lit = lit == found.size, onClick = { choose(typed) })
@@ -206,7 +239,8 @@ private fun ClosedRow(value: String, model: CatalogModel?, onOpen: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             if (model != null) {
-                Text(model.id, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The id as it is sent, shortcut and all.
+                Text(value, style = MaterialTheme.typography.labelSmall, color = ButlerTheme.colors.textLow, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (model != null) {

@@ -194,7 +194,9 @@ class LessonsLearner @Inject constructor(
             })
         }
         payload = openRouter.get(proxyId).applyTo(payload, OpenRouterOptions.isOpenRouter(proxy.url))
-        val request = Request.Builder()
+        // Claude's own API takes another request and answers in another shape ([ClaudeApi]).
+        val claude = ClaudeApi.isClaude(proxy.url)
+        val request = if (claude) ClaudeApi.post(proxy.url, proxy.key, ClaudeApi.body(payload, thinking = false)) else Request.Builder()
             .url(proxy.url)
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${proxy.key}")
@@ -202,7 +204,7 @@ class LessonsLearner @Inject constructor(
             .header("X-Title", "janitor")
             .build()
         val body = try {
-            http.newCall(request).execute().use { r ->
+            com.cherry.butler.core.network.PlainProxies.client(http, proxy.url).newCall(request).execute().use { r ->
                 if (!r.isSuccessful) {
                     val message = when (r.code) {
                         401, 403 -> "The proxy rejected the key."
@@ -219,7 +221,9 @@ class LessonsLearner @Inject constructor(
         }
         // The last answer, kept to look at when it couldn't be read (files/lessons-last-answer.txt).
         runCatching { java.io.File(context.filesDir, "lessons-last-answer.txt").writeText(body) }
-        val choice = runCatching { json.parseToJsonElement(body).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject }.getOrNull()
+        val choice = runCatching {
+            json.parseToJsonElement(body).jsonObject.let { if (claude) ClaudeApi.asOpenAi(it) else it }["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+        }.getOrNull()
         val text = Prompt.content(choice)
         val cut = (choice?.get("finish_reason") as? JsonPrimitive)?.contentOrNull == "length"
         if (text == null) throw ApiError.Api(200, janitorCode = "BUTLER_NO_LESSONS", serverMessage = if (cut) "The model spent all its room thinking and wrote no notes. Try again, or pick a model that thinks less for summaries." else "The model's answer was empty. Try again.", retryable = false)

@@ -94,7 +94,9 @@ class DescriptionWriter @Inject constructor(
         }
         payload = openRouter.get(preset.id).applyTo(payload, OpenRouterOptions.isOpenRouter(proxy.url))
 
-        val request = Request.Builder()
+        // Claude's own API takes another request and answers in another shape ([ClaudeApi]).
+        val claude = ClaudeApi.isClaude(proxy.url)
+        val request = if (claude) ClaudeApi.post(proxy.url, proxy.key, ClaudeApi.body(payload, thinking = false)) else Request.Builder()
             .url(proxy.url)
             .post(payload.toString().toRequestBody(JSON))
             .header("Authorization", "Bearer ${proxy.key}")
@@ -102,7 +104,7 @@ class DescriptionWriter @Inject constructor(
             .header("HTTP-Referer", "https://janitorai.com")
             .header("X-Title", "janitor")
             .build()
-        val call = http.newCall(request)
+        val call = com.cherry.butler.core.network.PlainProxies.client(http, proxy.url).newCall(request)
         val handle = currentCoroutineContext().job.cancelOnStop(call)
         try {
             val response = try { call.execute() } catch (e: IOException) { throw ApiError.Network(ApiError.Network.Kind.Unknown, e) }
@@ -123,7 +125,8 @@ class DescriptionWriter @Inject constructor(
                 SseReader.events(source).collect { event ->
                     val data = event.data.trim()
                     if (data == "[DONE]") return@collect
-                    val chunk = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return@collect
+                    val chunk = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull()
+                        ?.let { if (claude) ClaudeApi.asOpenAiChunk(it) else it } ?: return@collect
                     val piece = chunk["choices"]?.jsonArray?.firstOrNull()?.jsonObject
                         ?.get("delta")?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull ?: return@collect
                     for (e in parser.feed(piece)) when (e) {

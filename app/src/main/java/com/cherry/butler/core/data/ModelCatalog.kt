@@ -26,6 +26,38 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * OpenRouter's routing shortcuts: a word on the end of a model's id that says how its
+ * provider is picked. `:nitro` asks for the fastest, `:floor` for the cheapest; with neither
+ * it is OpenRouter's own balance. They are not models of their own, so the list has no rows
+ * for them: a model is picked, then one of these is put on it
+ * (`moonshotai/kimi-k2.6` becomes `moonshotai/kimi-k2.6:nitro`).
+ */
+enum class ModelVariant(val suffix: String, val label: String) {
+    Standard("", "Standard"),
+    Nitro(":nitro", "Nitro"),
+    Floor(":floor", "Floor"),
+    ;
+
+    companion object {
+        /** The shortcut on [model]'s end; [Standard] for none. */
+        fun of(model: String): ModelVariant =
+            entries.firstOrNull { it.suffix.isNotEmpty() && model.trim().endsWith(it.suffix, ignoreCase = true) } ?: Standard
+
+        /** [model] without its shortcut: the id the list knows it by. */
+        fun base(model: String): String = model.trim().let { it.dropLast(of(it).suffix.length) }
+
+        /** [model] with [variant] in place of whatever shortcut it had. */
+        fun with(model: String, variant: ModelVariant): String = base(model) + variant.suffix
+
+        /**
+         * Whether a shortcut can be put on the model with this [base] id. One whose id already
+         * ends in a word of its own (`:free`, `:extended`) is a fixed offer and takes none.
+         */
+        fun takes(base: String): Boolean = base.isNotBlank() && ':' !in base
+    }
+}
+
 /** One model a router offers, with what a picker shows of it. */
 @Serializable
 data class CatalogModel(

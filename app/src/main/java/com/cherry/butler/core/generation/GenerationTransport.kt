@@ -60,7 +60,7 @@ interface GenerationTransport {
 /**
  * Where to send the assembled payload when Janitor hands one back instead of streaming.
  * Built from the user's selected proxy configuration; the key never leaves this object
- * except as an `Authorization` header to [url].
+ * except as an `Authorization` header to [url] (`x-api-key` for Claude's own API).
  */
 class ProxyTarget(
     val url: String,
@@ -73,6 +73,12 @@ class ProxyTarget(
     private val key = key
 
     fun authorization(): String = bearer
+
+    /** Claude's own API rather than the OpenAI standard ([ClaudeApi]): another request, another answer. */
+    val claude: Boolean = ClaudeApi.isClaude(url)
+
+    /** The request that carries [body], already in Claude's shape, to this proxy. */
+    fun claudeRequest(body: JsonObject): Request = ClaudeApi.post(url, key, body)
 
     /** The same proxy, with one more change made to the payload after this one's own. */
     fun then(next: (JsonObject) -> JsonObject): ProxyTarget = ProxyTarget(url, key) { next(shape(it)) }
@@ -222,6 +228,7 @@ class HttpGenerationTransport(
      */
     private suspend fun FlowCollector<GenerationEvent>.streamFromProxy(payload: JsonObject, target: ProxyTarget) {
         val shaped = ProxyPayload.normalized(target.shape(payload))
+        if (target.claude) return streamFromClaude(shaped, target)
         // What leaves for the proxy, minus anything secret: the model and whether routing rides along.
         Log.i(TAG, "proxy: model=${shaped["model"]} provider=${shaped["provider"] ?: "-"}")
         val request = Request.Builder()
@@ -234,6 +241,47 @@ class HttpGenerationTransport(
             .header("X-Title", "janitor")
             .build()
         executeStreaming(request, direct = true) { response -> readOpenAiStream(response) }
+    }
+
+    /** The models that refused a thinking level, so the next reply doesn't ask them again (until Butler restarts). */
+    private val noThinking = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * The second hop when the proxy is Claude's own API: the payload in Claude's shape
+     * ([ClaudeApi]). A model that refuses the thinking level (one from before adaptive
+     * thinking, or one that can't have it switched off) is asked again without it: the refusal
+     * comes before any of the reply, so nothing is written twice.
+     */
+    private suspend fun FlowCollector<GenerationEvent>.streamFromClaude(shaped: JsonObject, target: ProxyTarget) {
+        val model = shaped["model"]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }.orEmpty()
+        val body = ClaudeApi.body(shaped, thinking = model !in noThinking)
+        // Minus anything secret, and minus the chat: the model, the thinking level, how many turns.
+        Log.i(TAG, "claude: model=${body["model"]} thinking=${body["thinking"] ?: "-"} effort=${body["output_config"] ?: "-"} turns=${(body["messages"] as? kotlinx.serialization.json.JsonArray)?.size}")
+        suspend fun send(body: JsonObject, onRefusal: ((Int, String) -> Throwable)?) =
+            executeStreaming(target.claudeRequest(body), direct = true, onRefusal = onRefusal) { response -> readClaudeStream(response) }
+        if (!ClaudeApi.hasThinking(body)) return send(body, null)
+        try {
+            send(body) { code, answer -> if (ClaudeApi.refusesThinking(code, answer)) ThinkingRefused() else proxyError(code, answer) }
+        } catch (e: ThinkingRefused) {
+            Log.w(TAG, "claude: $model refused the thinking level; asking without it")
+            noThinking += model
+            send(ClaudeApi.withoutThinking(body), null)
+        }
+    }
+
+    private class ThinkingRefused : RuntimeException()
+
+    /** Claude's own stream ([ClaudeApi.Stream]): named events, and `message_stop` for the end. */
+    private suspend fun FlowCollector<GenerationEvent>.readClaudeStream(response: Response) {
+        val source = response.body?.source() ?: return
+        val stream = ClaudeApi.Stream(json)
+        val started = System.currentTimeMillis()
+        var events = 0
+        SseReader.events(source).collect { event ->
+            if (events++ == 0) Log.i(TAG, "claude stream: first event after ${System.currentTimeMillis() - started} ms")
+            stream.read(event.data).forEach { emit(it) }
+        }
+        Log.i(TAG, "claude stream: closed after $events events, ${System.currentTimeMillis() - started} ms")
     }
 
     /**
@@ -290,9 +338,12 @@ class HttpGenerationTransport(
     private suspend fun executeStreaming(
         request: Request,
         direct: Boolean = false,
+        /** What a refusal from the proxy becomes, when it isn't simply [proxyError]. */
+        onRefusal: ((Int, String) -> Throwable)? = null,
         block: suspend (Response) -> Unit,
     ) {
-        val call = (if (direct) proxyClient else client).newCall(request)
+        // The person's proxy may be one without HTTPS that they allowed (PlainProxies); Janitor never is.
+        val call = (if (direct) com.cherry.butler.core.network.PlainProxies.client(proxyClient, request.url.toString()) else client).newCall(request)
         val handle = currentCoroutineContext().job.cancelOnStop(call)
         try {
             val response = try {
@@ -304,7 +355,7 @@ class HttpGenerationTransport(
             response.use { r ->
                 if (!r.isSuccessful) {
                     val body = r.body?.string().orEmpty()
-                    if (direct) throw proxyError(r.code, body)
+                    if (direct) throw onRefusal?.invoke(r.code, body) ?: proxyError(r.code, body)
                     if (com.cherry.butler.BuildConfig.DEBUG) {
                         Log.w(TAG, "${r.request.url.encodedPath} -> ${r.code} ${r.protocol} server=${r.header("server")} via=${r.header("via")} body=${body.take(300).lines().joinToString(" ")}")
                     }
@@ -337,9 +388,15 @@ class HttpGenerationTransport(
             401, 403 -> ApiError.Api(code, janitorCode = "PROXY_AUTH", serverMessage = "The proxy rejected the API key.", retryable = false)
             429 -> ApiError.RateLimited()
             in 500..599 -> ApiError.Server(code)
-            else -> ApiError.Api(code, janitorCode = "PROXY_ERROR", serverMessage = body.take(200), retryable = false)
+            else -> ApiError.Api(code, janitorCode = "PROXY_ERROR", serverMessage = said(body) ?: body.take(200), retryable = false)
         }
     }
+
+    /** What a refusal says in words: `error.message`, the OpenAI standard's and Claude's alike. */
+    private fun said(body: String): String? = runCatching {
+        val error = json.parseToJsonElement(body).jsonObject["error"]
+        (error as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull ?: (error as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+    }.getOrNull()?.takeIf { it.isNotBlank() }?.take(300)
 
     private companion object {
         const val TAG = "GenerationTransport"

@@ -38,7 +38,11 @@ object DataModule {
         ButlerUserAgent.load(context)
         com.cherry.butler.core.network.CloudflareGate.init(context)
         com.cherry.butler.core.network.JanitorCookies.init(context)
+        com.cherry.butler.core.network.PlainProxies.init(context)
         return OkHttpClient.Builder()
+            // HTTPS only, for this client and every one made from it. The one way out without
+            // it is PlainProxies.client, for a proxy address the person allowed.
+            .connectionSpecs(com.cherry.butler.core.network.PlainProxies.SECURE)
             // Debug builds only: Settings › Debug can route everything through Burp or mitmproxy.
             .proxySelector(DebugProxy)
             .apply { if (com.cherry.butler.BuildConfig.DEBUG) sslSocketFactory(DebugProxy.socketFactory, DebugProxy.trustManager) }

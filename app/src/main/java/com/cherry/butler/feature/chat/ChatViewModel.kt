@@ -672,10 +672,10 @@ class ChatViewModel @Inject constructor(
                 val ai = aiSettingsState.value
                 val proxy = ai?.selectedProxy?.takeIf { ai.provider == Provider.Proxy }
                     ?: run { _notices.trySend("Thinking is set per proxy, and you're chatting on JLLM."); return }
-                val viaOpenRouter = com.cherry.butler.core.data.OpenRouterOptions.isOpenRouter(proxy.apiUrl)
+                val everyLevel = com.cherry.butler.core.data.OpenRouterOptions.everyLevel(proxy.apiUrl)
                 val now = openRouter.get(proxy.id)
                 openRouter.set(proxy.ids, now.copy(thinking = level))
-                val sent = if (!viaOpenRouter && !level.standard) " (sent as high: past high is OpenRouter's)" else ""
+                val sent = if (!everyLevel && !level.standard) " (sent as high: past high is OpenRouter's and Claude's)" else ""
                 _notices.trySend("Thinking on ${proxy.name.ifBlank { "your proxy" }}: ${level.label.lowercase()}$sent.")
             }
             is ChatCommands.Command.Agent -> {

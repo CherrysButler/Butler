@@ -57,6 +57,7 @@ import com.cherry.butler.core.design.ButlerTheme
 import com.cherry.butler.core.design.PlateLevel
 import com.cherry.butler.core.design.PlateText
 import com.cherry.butler.core.network.ApiError
+import com.cherry.butler.core.network.PlainProxies
 import com.cherry.butler.feature.chat.DeleteConfirmDialog
 import com.cherry.butler.feature.chats.KeyButton
 import com.cherry.butler.ui.components.HairlineRule
@@ -211,8 +212,18 @@ fun ProxyEditorScreen(onBack: () -> Unit, viewModel: ProxyEditorViewModel = hilt
     val form by viewModel.form.collectAsStateWithLifecycle()
     var confirmDelete by remember { mutableStateOf(false) }
     var pickingPrompt by remember { mutableStateOf(false) }
+    // An address without HTTPS is saved only past its warning (PlainProxies).
+    var warnPlain by remember { mutableStateOf(false) }
     val promptName = viewModel.prompts.firstOrNull { it.id == form.promptId }?.name
         ?: form.promptId?.let { "Linked prompt" }
+
+    if (warnPlain) {
+        PlainAddressDialog(
+            place = PlainProxies.shown(form.apiUrl),
+            onAllow = { warnPlain = false; PlainProxies.allow(form.apiUrl); viewModel.save(onBack) },
+            onBack = { warnPlain = false },
+        )
+    }
 
     if (confirmDelete) {
         DeleteConfirmDialog(
@@ -237,7 +248,7 @@ fun ProxyEditorScreen(onBack: () -> Unit, viewModel: ProxyEditorViewModel = hilt
         onBack = onBack,
         saving = form.saving,
         canSave = form.loaded && form.name.isNotBlank() && form.apiUrl.isNotBlank(),
-        onSave = { viewModel.save(onBack) },
+        onSave = { if (PlainProxies.needsAnswer(form.apiUrl)) warnPlain = true else viewModel.save(onBack) },
         error = form.error?.let { "Not saved. ${it.userMessage()}" },
         menu = if (viewModel.isNew) null else { close ->
             EditorMenuItem("Make a copy", Icons.Outlined.ContentCopy, enabled = !form.saving) { close(); viewModel.copy(onBack) }
@@ -369,14 +380,53 @@ fun PromptPickerSheet(
 }
 
 /**
+ * The warning an address without HTTPS is saved past: what is sent to it can be read on the
+ * way. Two answers and no other way out, so the proxy is saved knowingly or not at all.
+ */
+@Composable
+private fun PlainAddressDialog(place: String, onAllow: () -> Unit, onBack: () -> Unit) {
+    com.cherry.butler.ui.components.ButlerAlertDialog(
+        onDismissRequest = onBack,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
+        title = { Text("No HTTPS on this address", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Text(
+                "Your API key and your chats will be sent to $place as plain text. Anyone on the network in between can read them.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ButlerTheme.colors.textMed,
+            )
+        },
+        confirmButton = {
+            val leave = com.cherry.butler.ui.components.LocalLeave.current
+            Column(Modifier.fillMaxWidth(), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)) {
+                androidx.compose.material3.Button(
+                    onClick = { leave(onAllow) },
+                    shape = com.cherry.butler.core.design.Pill,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = ButlerTheme.colors.danger,
+                        contentColor = androidx.compose.ui.graphics.Color.White,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("I understand", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
+                TextButton(onClick = { leave(onBack) }, shape = com.cherry.butler.core.design.Pill, modifier = Modifier.fillMaxWidth()) {
+                    Text("Go back", color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
+        },
+    )
+}
+
+/**
  * How hard a thinking model thinks, for an OpenRouter proxy: out in the open rather than
  * folded into routing, since it changes the replies themselves. Models that don't think
  * ignore it.
  */
 @Composable
 private fun ThinkingRow(form: ProxyForm, update: ((ProxyForm) -> ProxyForm) -> Unit) {
-    // OpenRouter's levels go past the OpenAI standard's; another proxy is offered the standard's.
-    val levels = if (form.isOpenRouter) OpenRouterOptions.Thinking.entries else OpenRouterOptions.Thinking.standardLevels
+    // OpenRouter's levels, and Claude's own, go past the OpenAI standard's; another proxy is offered the standard's.
+    val levels = if (OpenRouterOptions.everyLevel(form.apiUrl)) OpenRouterOptions.Thinking.entries else OpenRouterOptions.Thinking.standardLevels
     val shown = if (form.thinking in levels) form.thinking else OpenRouterOptions.Thinking.High
     DropRow(title = "Thinking", value = shown.label) { close ->
         levels.forEach { level ->

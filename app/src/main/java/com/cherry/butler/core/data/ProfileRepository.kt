@@ -180,8 +180,9 @@ class ProfileRepository @Inject constructor(
                 )
                 val options = openRouter.get(p.id)
                 val viaOpenRouter = OpenRouterOptions.isOpenRouter(p.url)
+                val everyLevel = OpenRouterOptions.everyLevel(p.url)
                 val target = ProxyTarget(url = p.url, key = p.key, shape = { payload ->
-                    val shaped = options.applyTo(payload, viaOpenRouter)
+                    val shaped = options.applyTo(payload, viaOpenRouter, everyLevel)
                     p.model?.let { JsonObject(shaped + ("model" to JsonPrimitive(it))) } ?: shaped
                 })
                 GenerationEnvelope.userConfig(
@@ -197,7 +198,8 @@ class ProfileRepository @Inject constructor(
         selectedProxy(profile)?.let { proxy ->
             val options = openRouter.get(proxy.id)
             val viaOpenRouter = OpenRouterOptions.isOpenRouter(proxy.url)
-            ProxyTarget(url = proxy.url, key = proxy.key, shape = { payload -> options.applyTo(payload, viaOpenRouter) })
+            val everyLevel = OpenRouterOptions.everyLevel(proxy.url)
+            ProxyTarget(url = proxy.url, key = proxy.key, shape = { payload -> options.applyTo(payload, viaOpenRouter, everyLevel) })
         }
 
     /**

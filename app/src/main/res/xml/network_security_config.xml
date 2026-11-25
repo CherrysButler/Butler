@@ -1,14 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Android's defaults for this target SDK, written down so no future change loosens them by
-    accident: no cleartext HTTP anywhere, and only the system's built-in certificate
-    authorities are trusted. Certificates a user or another app installs are ignored, so a
-    MITM proxy with its own CA on the phone can't read Butler's traffic.
+    Only the system's built-in certificate authorities are trusted. Certificates a user or
+    another app installs are ignored, so a MITM proxy with its own CA on the phone can't read
+    Butler's traffic.
+
+    Plain HTTP is permitted here because one thing needs it: a model on the person's own
+    network, reached at an IP address, which has no HTTPS to offer. Android can only permit it
+    for addresses named in this file, and that address is the person's own, so the rule is
+    kept in the app instead (core/network/PlainProxies.kt): every network client is
+    HTTPS-only, and the one way out without it is a proxy address the person was warned about
+    and allowed. The hosts Butler itself talks to stay HTTPS-only for the system too, below,
+    which also covers the web views that open Janitor's pages.
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">janitorai.com</domain>
+        <domain includeSubdomains="true">openrouter.ai</domain>
+        <domain includeSubdomains="true">anthropic.com</domain>
+        <domain includeSubdomains="true">github.com</domain>
+        <domain includeSubdomains="true">githubusercontent.com</domain>
+        <domain includeSubdomains="true">cloudflare.com</domain>
+    </domain-config>
 </network-security-config>

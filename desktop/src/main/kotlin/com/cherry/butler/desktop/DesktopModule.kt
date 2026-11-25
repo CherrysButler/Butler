@@ -70,7 +70,11 @@ object DesktopModule {
         ButlerUserAgent.load(context)
         CloudflareGate.init(context)
         JanitorCookies.init(context)
+        com.cherry.butler.core.network.PlainProxies.init(context)
         return OkHttpClient.Builder()
+            // HTTPS only, as on the phone (which also has the system refuse it): the one way
+            // out without it is PlainProxies.client, for a proxy address the person allowed.
+            .connectionSpecs(com.cherry.butler.core.network.PlainProxies.SECURE)
             .proxySelector(DebugProxy)
             .apply { if (com.cherry.butler.BuildConfig.DEBUG) sslSocketFactory(DebugProxy.socketFactory, DebugProxy.trustManager) }
             .addInterceptor(ButlerUserAgent)
