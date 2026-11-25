@@ -305,11 +305,9 @@ private fun HeadingKey(level: Int, enabled: Boolean, onPicked: () -> Unit, onPic
             Text(if (level == 0) "Paragraph" else "Heading $level", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
             Icon(Icons.Rounded.ExpandMore, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
         }
-        DropdownMenu(
+        ButlerMenu(
             expanded = open,
             onDismissRequest = { open = false; onPicked() },
-            shape = MaterialTheme.shapes.medium,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             (0..6).forEach { n ->
                 DropdownMenuItem(

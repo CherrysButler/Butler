@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -160,26 +162,31 @@ fun FolderPickerSheet(
     var newName by remember { mutableStateOf("") }
     Sheet(onDismiss) {
         SheetTitle("Add to folder")
-        folders.forEach { folder ->
-            val on = folder.id in inFolders
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !busy) { onToggle(folder) }
-                    .heightIn(min = 56.dp)
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Outlined.Folder, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(16.dp))
-                Text(folder.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                if (on) Icon(Icons.Rounded.Check, contentDescription = "In this folder", tint = MaterialTheme.colorScheme.primary)
-            }
-        }
+        // Making a folder comes first and stays put; the folders scroll under it. With the
+        // field after the list, enough folders pushed it and its key off the screen, and the
+        // list itself did not scroll (reported on 0.5.2).
         FieldBlock("New folder", newName, { newName = it.take(40) }, placeholder = "Name")
         if (newName.isNotBlank()) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
                 KeyButton(label = if (busy) "Making…" else "Make and add", onClick = { onCreate(newName.trim()); newName = "" }, enabled = !busy, primary = true)
+            }
+        }
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            folders.forEach { folder ->
+                val on = folder.id in inFolders
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !busy) { onToggle(folder) }
+                        .heightIn(min = 56.dp)
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Folder, contentDescription = null, tint = ButlerTheme.colors.textMed, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Text(folder.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    if (on) Icon(Icons.Rounded.Check, contentDescription = "In this folder", tint = MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }
@@ -221,9 +228,10 @@ fun FolderManageSheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Sheet(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun Sheet(onDismiss: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
-        Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) { content() }
+        // Above the keyboard: a field in a sheet is written in with the keyboard up.
+        Column(modifier = Modifier.navigationBarsPadding().imePadding().padding(bottom = 12.dp)) { content() }
     }
 }
 

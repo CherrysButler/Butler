@@ -1,5 +1,8 @@
 package com.cherry.butler.feature.character
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.material.icons.outlined.Flag
+import com.cherry.butler.ui.components.ButlerMenu
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.PersonOff
 import androidx.compose.material.icons.rounded.Block
@@ -183,6 +186,8 @@ fun CharacterDetailScreen(
             onDismiss = { blocking = null },
         )
     }
+    val report by viewModel.report.collectAsStateWithLifecycle()
+    report?.let { r -> ReportSheet(name = header?.name.orEmpty(), state = r, onSend = viewModel::sendReport, onDismiss = viewModel::closeReport) }
     // A character card PNG (V2) for SillyTavern, Chub and the rest.
     var cardNote by remember { mutableStateOf<String?>(null) }
     var cardSaving by remember { mutableStateOf(false) }
@@ -235,6 +240,7 @@ fun CharacterDetailScreen(
                 onFavorite = viewModel::toggleFavorite,
                 creatorName = header?.creatorName,
                 onBlock = if (mine) null else ({ creator -> blocking = creator }),
+                onReport = if (mine || state.detail == null) null else viewModel::openReport,
                 onEdit = if (mine) ({ onEditCharacter(viewModel.characterId) }) else null,
                 onShare = header?.let { h -> { shareCharacter(context, viewModel.characterId, h.name) } },
                 onExport = if (state.detail != null) ({ viewModel.openCardExport(mine) }) else null,
@@ -317,6 +323,8 @@ private fun TopBar(
     creatorName: String? = null,
     /** false blocks the character, true its creator. */
     onBlock: ((Boolean) -> Unit)? = null,
+    /** Reports the character to Janitor's moderators; null on your own. */
+    onReport: (() -> Unit)? = null,
     /** Hands the character's page on Janitor to the phone's share sheet. */
     onShare: (() -> Unit)? = null,
     /** Your own character: the pencil to its editor. */
@@ -391,17 +399,15 @@ private fun TopBar(
                 Icon(Icons.Rounded.Edit, contentDescription = "Edit character", tint = MaterialTheme.colorScheme.onSurface)
             }
         }
-        if (onBlock != null || onExport != null) {
+        if (onBlock != null || onExport != null || onReport != null) {
             var menu by remember { mutableStateOf(false) }
             Box {
                 IconButton(onClick = { menu = true }) {
                     Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurface)
                 }
-                androidx.compose.material3.DropdownMenu(
+                ButlerMenu(
                     expanded = menu,
                     onDismissRequest = { menu = false },
-                    shape = MaterialTheme.shapes.medium,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     if (onExport != null) {
                         androidx.compose.material3.DropdownMenuItem(
@@ -422,6 +428,11 @@ private fun TopBar(
                             onClick = { menu = false; onBlock(true) },
                         )
                     }
+                    if (onReport != null) androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Report", style = MaterialTheme.typography.titleSmall) },
+                        leadingIcon = { Icon(androidx.compose.material.icons.Icons.Outlined.Flag, contentDescription = null, tint = ButlerTheme.colors.textMed) },
+                        onClick = { menu = false; onReport() },
+                    )
                 }
             }
         }
@@ -885,11 +896,68 @@ private fun FollowPill(following: Boolean, onClick: () -> Unit) {
  * the website's own address, id then the name as a slug, as Janitor writes it.
  */
 private fun shareCharacter(context: android.content.Context, characterId: String, name: String) {
-    val slug = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(60)
-    val link = "https://janitorai.com/characters/$characterId" + (if (slug.isEmpty()) "" else "_character-$slug")
+    val link = com.cherry.butler.core.model.CharacterReport.pageUrl(characterId, name)
     val send = android.content.Intent(android.content.Intent.ACTION_SEND)
         .setType("text/plain")
         .putExtra(android.content.Intent.EXTRA_SUBJECT, "$name on JanitorAI")
         .putExtra(android.content.Intent.EXTRA_TEXT, "$name on JanitorAI\n$link")
     runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share $name")) }
+}
+
+/**
+ * A character reported to Janitor's moderators: one of the four reasons Janitor takes, and
+ * what is wrong in the reader's words (asked for when the reason is Other, where it is all
+ * the moderators have to go on).
+ */
+@Composable
+private fun ReportSheet(
+    name: String,
+    state: CharacterDetailViewModel.ReportState,
+    onSend: (com.cherry.butler.core.model.ReportReason, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val reasons = com.cherry.butler.core.model.ReportReason.entries
+    var reason by remember { mutableStateOf(reasons.first()) }
+    var details by remember { mutableStateOf("") }
+    com.cherry.butler.ui.components.ButlerSheet(onDismiss = onDismiss) {
+        val leave = com.cherry.butler.ui.components.LocalLeave.current
+        Column(modifier = Modifier.navigationBarsPadding().imePadding().padding(bottom = 12.dp)) {
+            Text(
+                if (state.sent) "Reported to Janitor" else "Report $name",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            if (state.sent) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.End) {
+                    com.cherry.butler.feature.chats.KeyButton(label = "Done", onClick = { leave(onDismiss) }, primary = true)
+                }
+                return@Column
+            }
+            com.cherry.butler.ui.components.SegmentedChoice(
+                options = reasons.map { it.label },
+                selected = reasons.indexOf(reason),
+                onSelect = { if (!state.sending) reason = reasons[it] },
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            )
+            com.cherry.butler.feature.settings.FieldBlock(
+                label = "What is wrong",
+                value = details,
+                onChange = { if (!state.sending) details = it.take(1000) },
+                singleLine = false,
+                minLines = 3,
+                error = state.error,
+            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
+                com.cherry.butler.feature.chats.KeyButton(
+                    label = if (state.sending) "Sending…" else "Send report",
+                    onClick = { onSend(reason, details) },
+                    enabled = !state.sending && (reason != com.cherry.butler.core.model.ReportReason.Other || details.isNotBlank()),
+                    primary = true,
+                )
+            }
+        }
+    }
 }

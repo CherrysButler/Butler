@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.studio
 
+import com.cherry.butler.ui.components.ButlerMenu
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -308,11 +309,9 @@ private fun OwnerFooter(
             IconButton(onClick = { menu = true }, enabled = !busy) {
                 Icon(Icons.Rounded.MoreVert, contentDescription = "Manage", tint = ButlerTheme.colors.textMed)
             }
-            DropdownMenu(
+            ButlerMenu(
                 expanded = menu,
                 onDismissRequest = { menu = false },
-                shape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 MenuRow("Edit", Icons.Rounded.Edit) { menu = false; onEdit() }
                 MenuRow(if (item.isPublic) "Make private" else "Make public", if (item.isPublic) Icons.Rounded.Lock else Icons.Rounded.Public) { menu = false; onTogglePublic() }

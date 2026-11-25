@@ -102,5 +102,7 @@ internal class LiquidNode(
     setFloatUniform("edge", edge)
     setFloatUniform("light", light.x, light.y)
     setFloatUniform("glow", glowAt.x, glowAt.y, glow.x, glow.y)
+    // Butler: a pane over a moving picture is lit by the way its edge faces (LiquidShader.kt).
+    setFloatUniform("place", 0f)
   }
 }

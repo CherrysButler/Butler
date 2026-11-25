@@ -116,6 +116,10 @@ class CommunityRepository @Inject constructor(
     private val remote: CommunityRemoteSource,
     private val profile: ProfileRepository,
 ) {
+    /** Reports a character to Janitor's moderators. */
+    suspend fun reportCharacter(characterId: String, name: String, reason: com.cherry.butler.core.model.ReportReason, details: String) =
+        remote.reportCharacter(characterId, name, reason, details)
+
     private val _unread = MutableStateFlow(0)
     /** Unread notifications, for the bell's badge. */
     val unread: StateFlow<Int> = _unread.asStateFlow()

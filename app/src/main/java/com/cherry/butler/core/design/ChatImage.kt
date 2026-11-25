@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,6 +47,11 @@ fun ChatImage(url: String, alt: String, modifier: Modifier = Modifier) {
             contentDescription = alt.ifBlank { null },
             modifier = modifier
                 .fillMaxWidth()
+                // Across the column, but free to be narrower: a tall picture stops at the
+                // height below and is then as wide as its shape allows. Held to the full width
+                // it was laid out taller than the room it was given, and spilled over the
+                // lines above it and the message after it.
+                .wrapContentWidth(Alignment.Start)
                 .heightIn(max = 420.dp)
                 .clip(MaterialTheme.shapes.medium)
                 .then(com.cherry.butler.ui.components.LocalPictureViewer.current?.let { open -> Modifier.clickable(onClickLabel = "Show picture") { open(url, alt) } } ?: Modifier),

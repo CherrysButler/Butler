@@ -1,6 +1,7 @@
 package com.cherry.butler.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -15,6 +16,7 @@ fun LoadingPicture(url: String, contentDescription: String?, modifier: Modifier 
         model = url,
         contentDescription = contentDescription,
         contentScale = ContentScale.FillWidth,
-        modifier = modifier,
+        // Across the width it's given, whatever the caller left free.
+        modifier = modifier.fillMaxWidth(),
     )
 }

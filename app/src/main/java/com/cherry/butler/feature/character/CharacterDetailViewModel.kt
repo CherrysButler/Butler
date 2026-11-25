@@ -181,6 +181,27 @@ class CharacterDetailViewModel @Inject constructor(
         }
     }
 
+    /** A report being written, sent, or turned away; null when none is open. */
+    data class ReportState(val sending: Boolean = false, val sent: Boolean = false, val error: String? = null)
+    private val _report = MutableStateFlow<ReportState?>(null)
+    val report: StateFlow<ReportState?> = _report.asStateFlow()
+
+    fun openReport() { _report.value = ReportState() }
+    fun closeReport() { _report.value = null }
+
+    /** Sends the report to Janitor's moderators, once. */
+    fun sendReport(reason: com.cherry.butler.core.model.ReportReason, details: String) {
+        val now = _report.value ?: return
+        if (now.sending || now.sent) return
+        val name = _state.value.detail?.name.orEmpty()
+        _report.value = ReportState(sending = true)
+        viewModelScope.launch {
+            runCatching { community.reportCharacter(characterId, name, reason, details) }
+                .onSuccess { if (_report.value != null) _report.value = ReportState(sent = true) }
+                .onFailure { e -> if (_report.value != null) _report.value = ReportState(error = "Not sent. ${(e as? ApiError ?: ApiError.Unknown(e)).userMessage()}") }
+        }
+    }
+
     /** Blocks the character, or its creator, on Janitor; [onDone] leaves the page. */
     fun block(creator: Boolean, onDone: () -> Unit) {
         val creatorId = _state.value.detail?.creatorId?.takeIf { it.isNotBlank() }

@@ -26,6 +26,7 @@ internal const val LiquidShader = """
   uniform float2 size;
   uniform float4 cornerRadii;
   // Which copy of the picture `content` is: 0 blurred by the whole radius, 1 by half of it.
+  // Under 0, the only copy there is (LiquidStill).
   uniform float level;
   // Pixels in a point: Apple's amounts are in points.
   uniform float density;
@@ -46,6 +47,9 @@ internal const val LiquidShader = """
   // The rim highlight: how strong, and where its key light comes from (a unit vector, y down).
   uniform float edge;
   uniform float2 light;
+  // Butler: how far the highlight is lit by where on the pane a point lies, not by the way its
+  // edge faces. 0 is Apple's (by facing alone). See step 5.
+  uniform float place;
   uniform float4 glow;
 
   const float AA_WIDTH_PX = 1.5;
@@ -88,6 +92,10 @@ internal const val LiquidShader = """
   // edge. A radius between the half and the whole is read between the two copies, by its
   // logarithm, as between two mips.
   float share(float x, float side) {
+    // Under 0 there is one copy only (a pane on plain ground): all of the pixel is its.
+    if (level < 0.0) {
+      return 1.0;
+    }
     float thin = saturate((x + 0.5 * side) / max(0.5 * side - 1.0, 0.001));
     float whole = log2(2.0 - thin);
     return level < 0.5 ? whole : 1.0 - whole;
@@ -193,10 +201,25 @@ internal const val LiquidShader = """
     //    and fades to nothing 80 degrees round, so the two leave a gap on either side between
     //    them. On a macOS pane the key comes from the lower right and the fill from the upper
     //    left: the upper right and the lower left of the rim are the gaps.
+    //
+    //    Butler: that is by the way the edge faces, and a box's straight edge faces one way from
+    //    end to end. So a box was lit evenly along all four sides and only its small corner
+    //    arcs went dark: the gaps that make it glass were hardly there. With `place` the facing
+    //    is turned toward where the point lies from the pane's middle (as though the pane were
+    //    round), so the light is full at the corner that faces a light and dies along the two
+    //    sides on its way to the corners that face neither. Past 1 it is turned further, and
+    //    the gaps grow.
     if (edge > 0.0) {
       float into = saturate(-d);
       float band = 1.0 - mix(into, sqrt(into * (2.0 - into)), 0.7);
-      rgb = mix(rgb, half3(1.0), saturate(band * edge * (cone(n, light) + cone(n, -light))));
+      float2 facing = n;
+      if (place > 0.0) {
+        float2 at = shapeCoord / halfShapeSize;
+        float2 from = at / max(length(at), 0.0001);
+        float2 turned = n + (from - n) * place;
+        facing = turned / max(length(turned), 0.0001);
+      }
+      rgb = mix(rgb, half3(1.0), saturate(band * edge * (cone(facing, light) + cone(facing, -light))));
     }
 
     // Centers the AA gradient to the edge of our shape.

@@ -570,6 +570,7 @@ private fun PaneNav(
                         contentPadding = none,
                         onEditPersona = { navController.navigate(Routes.persona(it)) },
                         onOpenMyCharacters = { navController.navigate(Routes.MY_CHARACTERS) },
+                        onNewCharacter = { navController.navigate(Routes.characterEditor("new")) },
                     )
                     TopLevelDestination.Settings -> SettingsSection(navController, paneWidth)
                 }

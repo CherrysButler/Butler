@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.Unfold
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -312,11 +313,9 @@ fun EditorScaffold(
                     IconButton(onClick = { open = true }) {
                         Icon(Icons.Rounded.MoreVert, contentDescription = "More", tint = ButlerTheme.colors.textMed)
                     }
-                    androidx.compose.material3.DropdownMenu(
+                    ButlerMenu(
                         expanded = open,
                         onDismissRequest = { open = false },
-                        shape = MaterialTheme.shapes.medium,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ) { menu { open = false } }
                 }
                 Spacer(Modifier.width(4.dp))

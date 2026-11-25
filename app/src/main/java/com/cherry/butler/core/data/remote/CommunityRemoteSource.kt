@@ -49,6 +49,18 @@ class CommunityRemoteSource @Inject constructor(
     }
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * `POST /moderation/report {character_id, other, reason, url}`: a character reported to
+     * Janitor's moderators, as the website does it (its request read 2026-11-24). Butler has
+     * never sent one while being built, so what comes back is not read: any 2xx is taken as sent.
+     * Once only: a report must not go twice.
+     */
+    suspend fun reportCharacter(characterId: String, name: String, reason: com.cherry.butler.core.model.ReportReason, details: String) {
+        val body = com.cherry.butler.core.model.CharacterReport.body(characterId, name, reason, details).toString().toRequestBody(jsonMedia)
+        val request = Request.Builder().url("$base/moderation/report").post(body).build()
+        apiCall.execute(request, maxAttempts = 1) { }
+    }
+
     suspend fun comments(characterId: String, page: Int): List<ReviewDto> =
         get("$base/reviews/$characterId?page=${page.coerceAtLeast(1)}") {
             json.decodeFromString(ListSerializer(ReviewDto.serializer()), it)

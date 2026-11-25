@@ -1,5 +1,10 @@
 package com.cherry.butler.feature.profile
 
+import com.cherry.butler.ui.components.glassSurface
+import com.cherry.butler.ui.components.frostSource
+import androidx.compose.material.icons.outlined.Face
+import androidx.compose.material.icons.outlined.PersonAdd
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.rim
 import com.cherry.butler.feature.settings.RowDivider
 import com.cherry.butler.ui.components.dropLastPixel
@@ -76,6 +81,8 @@ fun ProfileScreen(
     onEditPersona: (String) -> Unit = {},
     /** The characters you made, private ones too. */
     onOpenMyCharacters: () -> Unit = {},
+    /** A new character, straight into its editor; null where there is none to open. */
+    onNewCharacter: (() -> Unit)? = null,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     // Ctrl+R / F5 on the desktop.
@@ -177,7 +184,14 @@ fun ProfileScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
+    // Depth Lifted: the round key is glass over the page, so the page is what it looks through.
+    val keyGlass = if (com.cherry.butler.ui.components.glassOn()) io.github.fletchmckee.liquid.rememberLiquidState() else null
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().padding(contentPadding)) {
+    // Where the round key sits.
+    val keyPlace = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp + com.cherry.butler.ui.components.bottomChrome())
+    // What the key's glass looks through: the page.
+    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize().frostSource(keyGlass)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ScreenHead(title = "Profile")
         PullToRefreshBox(isRefreshing = refreshing && me != null, onRefresh = { viewModel.refresh() }, modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp + com.cherry.butler.ui.components.bottomChrome())) {
@@ -295,6 +309,21 @@ fun ProfileScreen(
                 }
 
             }
+        }
+    }
+    }
+        // Making something new, always in reach: a round key at the foot of the page, over the
+        // list (asked for: New persona sat under every persona, a long scroll down).
+        if (me != null) {
+            com.cherry.butler.ui.components.GlassKey(
+                glass = keyGlass,
+                choices = listOfNotNull(
+                    com.cherry.butler.ui.components.GlassKeyChoice("New persona", androidx.compose.material.icons.Icons.Outlined.PersonAdd) { onEditPersona("new") },
+                    onNewCharacter?.let { com.cherry.butler.ui.components.GlassKeyChoice("New character", androidx.compose.material.icons.Icons.Outlined.Face, it) },
+                ),
+                label = "Make something new",
+                modifier = keyPlace,
+            )
         }
     }
 }
@@ -418,11 +447,9 @@ private fun PersonaRow(
                 androidx.compose.material3.IconButton(onClick = { menu = true }, enabled = !busy) {
                     Icon(Icons.Rounded.MoreVert, contentDescription = "More for ${option.name}", tint = ButlerTheme.colors.textLow)
                 }
-                androidx.compose.material3.DropdownMenu(
+                ButlerMenu(
                     expanded = menu,
                     onDismissRequest = { menu = false },
-                    shape = MaterialTheme.shapes.medium,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 ) {
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Edit", style = MaterialTheme.typography.titleSmall) },
@@ -476,11 +503,9 @@ private fun GroupMenu(
     onMoveRight: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    androidx.compose.material3.DropdownMenu(
+    ButlerMenu(
         expanded = open,
         onDismissRequest = onClose,
-        shape = MaterialTheme.shapes.medium,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         androidx.compose.material3.DropdownMenuItem(text = { Text("Rename and colour", style = MaterialTheme.typography.titleSmall) }, onClick = { onClose(); onEdit() })
         if (canMoveLeft) androidx.compose.material3.DropdownMenuItem(text = { Text("Move left", style = MaterialTheme.typography.titleSmall) }, onClick = { onClose(); onMoveLeft() })

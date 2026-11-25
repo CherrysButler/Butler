@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.rim
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -576,11 +577,9 @@ fun DropRow(
                     modifier = Modifier.graphicsLayer { rotationZ = turn },
                 )
             }
-            DropdownMenu(
+            ButlerMenu(
                 expanded = open,
                 onDismissRequest = { open = false },
-                shape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 offset = DpOffset(12.dp, 0.dp),
                 modifier = Modifier.width(with(density) { width.toDp() } - 24.dp),
             ) { items { open = false } }

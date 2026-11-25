@@ -95,12 +95,27 @@ fun Modifier.rim(width: Dp, brush: Brush, shape: Shape): Modifier = drawWithCach
  * fill is a touch lighter at its top, and a soft contact shadow sits under it, as deep as its
  * [lift]. The shadow is drawn once by the platform, not every frame.
  */
-fun Modifier.card(shape: Shape? = null, color: Color? = null, clip: Boolean = true, lift: Lift = Lift.Rest): Modifier = composed {
+fun Modifier.card(
+    shape: Shape? = null,
+    color: Color? = null,
+    clip: Boolean = true,
+    lift: Lift = Lift.Rest,
+    /** A picture for the card's glass to look through (Depth Lifted only; see [glassPane]). */
+    picture: (() -> GlassPicture?)? = null,
+): Modifier = composed {
     val s = shape ?: MaterialTheme.shapes.medium
     val outline = ButlerTheme.colors.cardOutline
     val fill = color ?: MaterialTheme.colorScheme.surfaceContainer
     val lifted = LocalDepth.current == Depth.Lifted
     val look = LocalDepthLook.current
+    // Depth Lifted: a card is a pane of glass (Glass.kt), the same glass as the frame's. A
+    // card given a colour that means something (a warning, a choice) keeps that colour; one
+    // given only a tone of the surface is glass like the rest.
+    val scheme = MaterialTheme.colorScheme
+    val tone = color == null || color == scheme.surfaceContainer || color == scheme.surfaceContainerHigh ||
+        color == scheme.background || color == ButlerTheme.colors.surfaceHigh || color == ButlerTheme.colors.chrome ||
+        color == ButlerTheme.colors.surfaceElevated
+    if (lifted && tone && glassAvailable()) return@composed glassPane(s, lift, clip, picture = picture)
     val raise = if (lifted) liftShadow(s, look, lift) else Modifier
     // A clip costs a rounded mask on every frame; content that never reaches the corners
     // (the Browse card's picture sits between its name and footer) can skip it.

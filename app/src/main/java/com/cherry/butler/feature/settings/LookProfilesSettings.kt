@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.ButlerMenu
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -183,11 +184,9 @@ private fun ProfileMenu(name: String, onRename: () -> Unit, onExport: () -> Unit
         IconButton(onClick = { open = true }) {
             Icon(Icons.Rounded.MoreVert, contentDescription = "More for $name", tint = ButlerTheme.colors.textMed, modifier = Modifier.size(20.dp))
         }
-        DropdownMenu(
+        ButlerMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            shape = MaterialTheme.shapes.medium,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             ProfileMenuItem(Icons.Outlined.Edit, "Rename") { open = false; onRename() }
             ProfileMenuItem(Icons.Outlined.FileUpload, "Export") { open = false; onExport() }

@@ -38,6 +38,8 @@ val androidOnly = listOf(
     "core/platform/GlassTilt.kt",
     // Where the on-screen keyboard is headed; a PC has none.
     "core/platform/Keyboard.kt",
+    // A picture's soft copy, made from what each platform's image loader hands over.
+    "core/platform/SoftPicture.kt",
     // Loads through Coil 2's request options and View geometry; the desktop has its own.
     "ui/components/LoadingPicture.kt",
 )

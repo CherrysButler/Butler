@@ -70,6 +70,8 @@ data class PersonaForm(
     val style: com.cherry.butler.core.data.ProfileStyle = com.cherry.butler.core.data.ProfileStyle(),
     /** Null: a saved set Butler has no button for, kept as it is unless another is picked. */
     val pronouns: PronounSet? = PronounSet.None,
+    /** The persona group it is in; null for none. Not the profile's. */
+    val groupId: String? = null,
     /** What is saved now. */
     val pictureUrl: String? = null,
     /** Chosen on the phone, not yet uploaded. */
@@ -173,6 +175,14 @@ class PersonaEditorViewModel @Inject constructor(
     private val _form = MutableStateFlow(PersonaForm(loaded = isNew))
     val form: StateFlow<PersonaForm> = _form.asStateFlow()
 
+    /** The groups a persona can be put in; read here in case the profile was never opened. */
+    val groups = profiles.groups
+    /** The group it was in when opened: it is moved only if that changed. */
+    private var startGroup: String? = null
+    init {
+        if (!isDefault) viewModelScope.launch { runCatching { profiles.groups() } }
+    }
+
     // What Butler already holds, at once: a network read here would land after the user has
     // started typing and wipe it. Saving re-reads before it writes.
     init {
@@ -195,6 +205,7 @@ class PersonaEditorViewModel @Inject constructor(
                         name = p.name,
                         appearance = p.appearance.orEmpty(),
                         pronouns = PronounSet.of(p.pronouns),
+                        groupId = p.groupId.also { startGroup = it },
                         pictureUrl = JanitorConfig.personaAvatarUrl(p.avatar),
                         loaded = true,
                     )
@@ -223,11 +234,20 @@ class PersonaEditorViewModel @Inject constructor(
                 when {
                     isNew -> {
                         val id = editing.create(draft)
+                        // The persona is made by now: a group that didn't take must not send
+                        // the reader back to make it a second time. It can be moved from the list.
+                        f.groupId?.let { group -> runCatching { profiles.movePersona(id, group) } }
                         val selected = draftLorebooks.value.toSet()
                         if (selected.isNotEmpty()) lorebooks.setPersonaBooks(id, selected)
                     }
                     isDefault -> editing.updateProfile(draft)
-                    else -> editing.update(personaId!!, draft)
+                    else -> {
+                        editing.update(personaId!!, draft)
+                        if (f.groupId != startGroup) {
+                            profiles.movePersona(personaId, f.groupId)
+                            startGroup = f.groupId
+                        }
+                    }
                 }
             }.onSuccess { onDone() }
                 .onFailure { e ->
@@ -389,6 +409,25 @@ fun PersonaEditorScreen(
                     onSelect = { i -> viewModel.update { it.copy(pronouns = sets[i]) } },
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
+            }
+            // Its group, picked here as it is made (asked for: it used to take a trip back
+            // to the list and a menu). Shown once there is a group to pick.
+            val groups by viewModel.groups.collectAsStateWithLifecycle()
+            if (groups.isNotEmpty()) {
+                Column(modifier = Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "Group",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = ButlerTheme.colors.textMed,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                    com.cherry.butler.ui.components.GroupPick(
+                        groups = groups,
+                        selected = form.groupId,
+                        onSelect = { id -> if (!form.saving) viewModel.update { it.copy(groupId = id) } },
+                        edge = 16.dp,
+                    )
+                }
             }
         }
         val enhance by viewModel.enhance.collectAsStateWithLifecycle()

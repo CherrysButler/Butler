@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.Unfold
 import com.cherry.butler.ui.components.rim
 import androidx.compose.material.icons.rounded.Layers
@@ -851,11 +852,9 @@ private fun JobCard(
             )
         }
         if (menu != null) {
-            DropdownMenu(
+            ButlerMenu(
                 expanded = open,
                 onDismissRequest = { open = false },
-                shape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 offset = DpOffset(12.dp, 0.dp),
                 modifier = Modifier.widthIn(min = 260.dp),
             ) { menu { open = false } }

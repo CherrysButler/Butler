@@ -76,8 +76,10 @@ fun SearchBox(
     // where typing carries on, not where it was in the old text.
     if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
     val focusManager = LocalFocusManager.current
+    // Depth Lifted: the box is a pane of glass, and its own rim is its edge until it has focus.
+    val glass = glassAvailable()
     val edge by animateColorAsState(
-        if (focused) MaterialTheme.colorScheme.primary else ButlerTheme.colors.rule,
+        if (focused) MaterialTheme.colorScheme.primary else if (glass) ButlerTheme.colors.rule.copy(alpha = 0f) else ButlerTheme.colors.rule,
         animationSpec = Motion.enter(Motion.SHORT),
         label = "search-edge",
     )
@@ -86,8 +88,7 @@ fun SearchBox(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
-            .clip(shape)
-            .background(ButlerTheme.colors.surfaceHigh)
+            .then(if (glass) Modifier.glassPane(shape) else Modifier.clip(shape).background(ButlerTheme.colors.surfaceHigh))
             .rim(1.dp, edge, shape)
             .padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.lorebook
 
+import com.cherry.butler.ui.components.ButlerMenu
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -133,11 +134,9 @@ fun LorebookEditorScreen(
                                     IconButton(enabled = !busy, onClick = { menuOpen = true }) {
                                         Icon(Icons.Outlined.MoreVert, "More", tint = ButlerTheme.colors.textMed)
                                     }
-                                    DropdownMenu(
+                                    ButlerMenu(
                                         expanded = menuOpen,
                                         onDismissRequest = { menuOpen = false },
-                                        shape = MaterialTheme.shapes.medium,
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                                     ) {
                                         EditorMenuItem("Export JSON", Icons.Outlined.FileDownload) {
                                             menuOpen = false
@@ -218,7 +217,7 @@ fun LorebookEditorScreen(
                                     )
                                     Box {
                                         IconButton(enabled = !busy, onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Entry ${index + 1} actions") }
-                                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                        ButlerMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                             DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; viewModel.editEntry(row.id) })
                                             DropdownMenuItem(text = { Text("Duplicate") }, enabled = book.entries.size < Lorebook.MAX_ENTRIES, onClick = { menu = false; viewModel.duplicateEntry(row.id) })
                                             DropdownMenuItem(text = { Text("Delete") }, onClick = { menu = false; deleting = row.id })

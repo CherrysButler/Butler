@@ -8,7 +8,10 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -155,6 +158,13 @@ fun CharacterTile(
     val fresh = remember { motion && TileArrivals.first("$name|$avatarUrl") }
     val arrival = remember { Animatable(if (fresh) 0f else 1f) }
     if (fresh) LaunchedEffect(Unit) { arrival.animateTo(1f, tween(Motion.MEDIUM, easing = Motion.EaseOut)) }
+    // Depth Lifted: the card's glass looks through the bot's own picture, so its colours run
+    // out from the picture's edges under the name and the footer, bent at the card's rim.
+    val soft = if (containerColor == null && avatarUrl != null && glassAvailable()) {
+        com.cherry.butler.core.platform.rememberSoftPicture(if (obscured) "$avatarUrl@obscured" else avatarUrl)
+    } else null
+    var slot by remember { androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val seen: (() -> GlassPicture?)? = if (soft == null) null else remember(soft) { { soft.image?.let { GlassPicture(it, slot) } } }
     Column(
         modifier = modifier
             .width(width)
@@ -163,7 +173,7 @@ fun CharacterTile(
                 translationY = (1f - arrival.value) * 10.dp.toPx()
             }
             .pressSpring(pressSource)
-            .card(shape = shape, color = containerColor, clip = false)
+            .card(shape = shape, color = containerColor, clip = false, picture = seen)
             .then(if (edgeColor != null) Modifier.rim(1.dp, edgeColor, shape ?: MaterialTheme.shapes.medium) else Modifier)
             .then(if (motion) Modifier.rim(1.dp, edge, shape ?: MaterialTheme.shapes.medium).hoverable(hoverSource).pointerHoverIcon(PointerIcon.Hand) else Modifier)
             .combinedClickable(
@@ -187,9 +197,21 @@ fun CharacterTile(
                 .height(with(androidx.compose.ui.platform.LocalDensity.current) { MaterialTheme.typography.titleSmall.lineHeight.toDp() })
                 .clipToBounds(),
         )
-        Box(modifier = Modifier.width(width).height(height).clipToBounds().background(ButlerTheme.colors.surfaceHigh)) {
+        Box(
+            modifier = Modifier
+                .width(width)
+                .height(height)
+                .then(
+                    if (soft == null) Modifier else Modifier.onPlaced {
+                        val at = it.positionInParent()
+                        slot = androidx.compose.ui.geometry.Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height)
+                    },
+                )
+                .clipToBounds()
+                .background(ButlerTheme.colors.surfaceHigh),
+        ) {
             Box(Modifier.fillMaxSize().then(if (leaning) Modifier.graphicsLayer { scaleX = lean.value; scaleY = lean.value } else Modifier)) {
-                TilePortrait(url = avatarUrl, name = name, width = width, height = height, obscured = obscured)
+                TilePortrait(url = avatarUrl, name = name, width = width, height = height, obscured = obscured, soft = soft)
             }
             if (chatCount != null) {
                 Row(
@@ -240,7 +262,7 @@ fun CharacterTile(
 }
 
 @Composable
-private fun TilePortrait(url: String?, name: String, width: Dp, height: Dp, obscured: Boolean) {
+private fun TilePortrait(url: String?, name: String, width: Dp, height: Dp, obscured: Boolean, soft: com.cherry.butler.core.platform.SoftPicture? = null) {
     val context = LocalContext.current
     val density = LocalDensity.current
     val wPx = with(density) { width.roundToPx() }
@@ -259,6 +281,7 @@ private fun TilePortrait(url: String?, name: String, width: Dp, height: Dp, obsc
                 contentScale = ContentScale.Crop,
                 filterQuality = FilterQuality.Low,
                 modifier = Modifier.fillMaxSize(),
+                onSuccess = { soft?.take(it) },
             )
         }
     }
@@ -387,7 +410,7 @@ fun BrowseTileFooter(
     }
 }
 
-/** A tag as Janitor shows it: an outlined pill. */
+/** A tag as Janitor shows it: an outlined pill (a soft fill of its colour, with Depth Lifted). */
 @Composable
 fun TagPill(text: String, modifier: Modifier = Modifier) {
     val tint = tagTint(text)
@@ -397,7 +420,12 @@ fun TagPill(text: String, modifier: Modifier = Modifier) {
         color = tint,
         maxLines = 1,
         modifier = modifier
-            .rim(1.dp, tint.copy(alpha = 0.45f), Pill)
+            // Depth Lifted: a soft fill of the tag's own colour and no line. (As a pane of glass
+            // a pill this small had its rim lit in two short arcs, which read as a smudge.)
+            .then(
+                if (glassAvailable()) Modifier.background(tint.copy(alpha = 0.16f), Pill)
+                else Modifier.rim(1.dp, tint.copy(alpha = 0.45f), Pill),
+            )
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
 }

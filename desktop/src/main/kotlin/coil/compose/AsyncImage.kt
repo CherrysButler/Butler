@@ -49,6 +49,7 @@ fun AsyncImage(
     alpha: Float = DefaultAlpha,
     colorFilter: ColorFilter? = null,
     filterQuality: FilterQuality = DrawScope.DefaultFilterQuality,
+    onSuccess: ((AsyncImagePainter.State.Success) -> Unit)? = null,
 ) {
     // The fade is set where the new picture is handed over, before it is drawn even once, so
     // its first frame is already transparent. (Starting it a frame later drew the picture
@@ -78,6 +79,7 @@ fun AsyncImage(
             }
             if (image != null) state.copy(painter = SkiaImagePainter(image, filterQuality)) else state
         },
+        onState = if (onSuccess == null) null else { state -> (state as? AsyncImagePainter.State.Success)?.let(onSuccess) },
         alignment = alignment,
         contentScale = contentScale,
         alpha = alpha,

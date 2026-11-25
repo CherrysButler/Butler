@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -18,7 +19,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.platform.LocalLayoutDirection
+import io.github.fletchmckee.liquid.internal.StillGlass
+import io.github.fletchmckee.liquid.internal.normalizedCornerRadii
+import io.github.fletchmckee.liquid.internal.stillGlassSupported
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -88,26 +98,59 @@ private val canFrost: Boolean get() = com.cherry.butler.core.platform.Device.can
  */
 val LocalGlassLight = compositionLocalOf<State<Offset>?> { null }
 
-/*
- * A regular pane's recipe, from macOS 26 (qcRecipe in spacedouut/liquid-glass, read off a live
- * NSGlassEffectView). Lengths are points, which are Butler's dp.
- */
-
-/** The rim: how deep it runs in from the edge, and how far the picture is pulled at the edge itself. */
-private const val RIM_DEPTH = 20f
-private const val RIM_PULL = 60f
-
-/** How much of the outward-bent picture is laid over the last point of the rim. */
-private const val OUTER_MIX = 0.3f
-
 /**
- * Colour fringing at the rim: how far apart red and blue are read at the edge. Apple leaves
- * this off on macOS; 3 is the step its playground starts from when it is turned on.
+ * The glass's numbers: the one place they are written. Every pane of glass in Butler is made
+ * from these, whether it floats over a moving picture ([glassSurface]) or stands on plain
+ * ground ([glassPane]); the tuner (GlassTuner.kt) starts from them and nothing else repeats
+ * them. Where they come from, and why the pull is not Apple's, is in docs/LIQUID_GLASS.md.
+ * Lengths are points, which are Butler's dp.
  */
-private const val FRINGE = 3f
+object Glass {
+    /** How deep the rim runs in from the edge. Apple's. */
+    const val RIM_DEPTH = 20f
 
-/** The rim highlight's strength: half way to white where an edge faces one of its two lights. */
-private const val HIGHLIGHT = 0.5f
+    /**
+     * How far the picture is pulled at the rim's edge. Apple's is 60, which on a bar as slim as
+     * Butler's reaches the far edge and shows it, flipped, in the near one; 35 is where the bend
+     * still reads and that stops (found by eye on a phone).
+     */
+    const val RIM_PULL = 35f
+
+    /** How much of the outward-bent picture is laid over the last point of the rim. Apple's. */
+    const val OUTER_MIX = 0.3f
+
+    /** Colour fringing at the rim, in points at the edge. Off, as Apple leaves it. */
+    const val FRINGE = 0f
+
+    /** The rim highlight: half way to white where an edge faces one of its two lights. Apple's. */
+    const val HIGHLIGHT = 0.5f
+
+    /** The blur's radius. Under 0 it would be Apple's own, by the pane's size ([frostFor]). */
+    const val BLUR = 3f
+
+    /**
+     * The blur behind a pane that has opened out to be written in (the message box with the
+     * keyboard up): words sit on it then, over whatever the chat is showing. It rises from
+     * [BLUR] to this as the pane opens.
+     */
+    const val BLUR_OPEN = 12f
+
+    /**
+     * How far short of the two unlit corners a box's rim light falls. 0 is Apple's: lit by the
+     * way the edge faces, which on a box leaves only the corner arcs dark. At 1 the light dies
+     * along the sides as on a round pane; past 1 sooner still. For panes on plain ground
+     * (cards, fields, chips); the bars keep Apple's.
+     */
+    const val RIM_GAPS = 1.5f
+
+    /**
+     * A bot's picture under its card's glass: the soft copy's width in pixels, and how far it
+     * is blurred, in those pixels. Small and soft enough that it reads as colour and light,
+     * not as a second picture.
+     */
+    const val LEAK_WIDTH = 32
+    const val LEAK_SOFT = 2.2f
+}
 
 /**
  * Apple's blur for a pane whose short side is [side] dp, as the radius Compose's blur takes.
@@ -199,14 +242,23 @@ private val FLEX_NONE = 160.dp
  * light at every corner.
  */
 @Composable
-fun Modifier.glassSurface(state: LiquidState, shape: Shape, lift: Lift = Lift.Float, still: Boolean = false): Modifier {
+fun Modifier.glassSurface(
+    state: LiquidState,
+    shape: Shape,
+    lift: Lift = Lift.Float,
+    still: Boolean = false,
+    /** How far the pane has opened out to be written in, 0 to 1: its blur rises with it ([Glass.BLUR_OPEN]). */
+    opened: (() -> Float)? = null,
+    /** Pull added to the pane's own for a moment, in points: a lens that swells and settles (GlassKey). */
+    swell: (() -> Float)? = null,
+): Modifier {
     val touch = remember { GlassTouch() }
     val look = LocalDepthLook.current
     val cut = (shape as? SmoothCornerShape)?.rounded() ?: shape
     val gain = with(LocalDensity.current) { FLEX_GAIN.toPx() }
     val flexFull = with(LocalDensity.current) { FLEX_FULL.toPx() }
     val flexNone = with(LocalDensity.current) { FLEX_NONE.toPx() }
-    val swell = if (still) Modifier else Modifier.graphicsLayer {
+    val flexing = if (still) Modifier else Modifier.graphicsLayer {
         val slim = ((flexNone - size.minDimension) / (flexNone - flexFull)).coerceIn(0f, 1f)
         val scale = 1f + (gain / size.maxDimension.coerceAtLeast(1f)).coerceAtMost(FLEX_MOST) * slim * touch.flex.value
         scaleX = scale
@@ -214,10 +266,74 @@ fun Modifier.glassSurface(state: LiquidState, shape: Shape, lift: Lift = Lift.Fl
     }
     return this
         // Outermost, so the shadow swells with the glass.
-        .then(swell)
+        .then(flexing)
         .liftShadow(cut, look, lift)
         .clip(cut)
-        .frosted(state, cut, touch, watched = !still)
+        .frosted(state, cut, touch, watched = !still, opened = opened, swell = swell)
+}
+
+/**
+ * Whether surfaces are glass now: Depth Lifted, not on battery saver, and a device that can
+ * run the shader as a paint. One answer for every card, chip and field (and nothing else
+ * asks the question its own way).
+ */
+@Composable
+fun glassAvailable(): Boolean = glassOn() && stillGlassSupported
+
+/**
+ * A pane of glass standing on plain ground: a card, a chip, a field. The same shader and the
+ * same numbers as the glass over a moving picture, given the ground's one colour for what is
+ * behind it, so the two are one glass. There is nothing to bend on plain ground, so what
+ * shows is the glass's face and the light on its rim.
+ *
+ * [lift] null leaves off the shadow (a small chip inside a card has none). [tint] washes the
+ * pane with a colour, for a pane that is a colour's own: a chosen chip. [picture] gives the
+ * pane a picture of its own to look through in place of the ground (a bot's, under its card):
+ * then there is something to bend, and the rim bends it as the frame's glass does. Call it
+ * only where [glassAvailable]; elsewhere it draws nothing.
+ */
+fun Modifier.glassPane(
+    shape: Shape,
+    lift: Lift? = Lift.Rest,
+    clip: Boolean = true,
+    tint: Color = Color.Unspecified,
+    picture: (() -> GlassPicture?)? = null,
+): Modifier = composed {
+    val cut = (shape as? SmoothCornerShape)?.rounded() ?: shape
+    val look = LocalDepthLook.current
+    val ground = MaterialTheme.colorScheme.background
+    val dark = ground.luminance() < 0.5f
+    val direction = LocalLayoutDirection.current
+    val still = remember { StillGlass() }
+    (if (lift != null) liftShadow(cut, look, lift) else Modifier)
+        .then(if (clip) Modifier.clip(cut) else Modifier)
+        .drawWithCache {
+            val face = faceFor(size.minDimension / density, dark)
+            // Read here, so the pane alone is redrawn when its picture arrives or moves.
+            val seen = picture?.invoke()
+            still.look(seen?.image, seen?.slot ?: androidx.compose.ui.geometry.Rect.Zero, GlassTuning.depth, GlassTuning.pull, GlassTuning.outer)
+            still.set(
+                size = size,
+                cornerRadii = cut.normalizedCornerRadii(size, this, direction),
+                density = density,
+                ground = ground,
+                fill = face.fill,
+                black = face.black,
+                white = face.white,
+                highlight = Glass.HIGHLIGHT,
+                // At rest: a card does not turn its light with every tilt of the phone.
+                light = keyLight(Offset.Zero),
+                place = GlassTuning.gaps,
+            )
+            val wash = if (tint.isSpecified) cut.createOutline(size, direction, this) else null
+            onDrawBehind {
+                still.shader()?.let { drawRect(ShaderBrush(it)) }
+                if (wash != null) drawOutline(wash, tint)
+            }
+        }
+        // On light ground the rim's light is white on white. A pane with a shadow is told
+        // from the ground by it; one without is given a hairline.
+        .then(if (!dark && lift == null) Modifier.rim(1.dp, Color.Black.copy(alpha = 0.09f), cut) else Modifier)
 }
 
 /** What the frame's glass looks through: the content under it. */
@@ -229,7 +345,14 @@ fun Modifier.frosted(state: LiquidState?, shape: Shape = RectangleShape): Modifi
     if (state == null) this else frosted(state, shape, remember { GlassTouch() }, watched = true)
 
 @Composable
-private fun Modifier.frosted(state: LiquidState, shape: Shape, touch: GlassTouch, watched: Boolean): Modifier {
+private fun Modifier.frosted(
+    state: LiquidState,
+    shape: Shape,
+    touch: GlassTouch,
+    watched: Boolean,
+    opened: (() -> Float)? = null,
+    swell: (() -> Float)? = null,
+): Modifier {
     val scope = rememberCoroutineScope()
     val tilt = LocalGlassLight.current
     val density = LocalDensity.current.density
@@ -241,7 +364,7 @@ private fun Modifier.frosted(state: LiquidState, shape: Shape, touch: GlassTouch
     // The rim belongs to a floating shape. A strip across the screen has no edge to bend or
     // light: with them its rim shows as a box drawn round the bar. It is only the face.
     val floating = shape != RectangleShape
-    val block: LiquidScope.() -> Unit = remember(shape, touch, tilt, density, start, most, dark, glowPower, floating) {
+    val block: LiquidScope.() -> Unit = remember(shape, touch, tilt, density, start, most, dark, glowPower, floating, opened, swell) {
         {
             this.shape = shape
             // The pane's short side in dp: Apple sizes the blur, the face and the outer bend by it.
@@ -249,13 +372,15 @@ private fun Modifier.frosted(state: LiquidState, shape: Shape, touch: GlassTouch
             val side = if (least > 0f) least else 56f
             val face = faceFor(side, dark)
             // Read from the tuner while it exists (GlassTuner.kt); its numbers start as these.
-            frost = if (GlassTuning.blur < 0f) frostFor(side) else GlassTuning.blur.dp
+            val rest = if (GlassTuning.blur < 0f) frostFor(side) else GlassTuning.blur.dp
+            val open = opened?.invoke()?.coerceIn(0f, 1f) ?: 0f
+            frost = if (open > 0f && GlassTuning.blurOpen.dp > rest) rest + (GlassTuning.blurOpen.dp - rest) * open else rest
             // Without a blur what is behind would read through the pane: nearly solid then.
             tint = if (canFrost) face.fill else face.fill.copy(alpha = 0.94f)
             range = Offset(face.black, face.white)
             saturation = 1f
             refraction = if (floating) GlassTuning.depth else 0f
-            curve = if (floating) GlassTuning.pull else 0f
+            curve = if (floating) (GlassTuning.pull + (swell?.invoke() ?: 0f)).coerceAtLeast(0f) else 0f
             outer = if (floating) GlassTuning.outer else 0f
             dispersion = if (floating) GlassTuning.fringe else 0f
             edge = if (floating) GlassTuning.highlight else 0f

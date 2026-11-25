@@ -1101,15 +1101,18 @@ private fun Scene(url: String?, name: String, onClick: () -> Unit = {}) {
 
 private val SCENE_HEIGHT = 220.dp
 
+/** How far a reply's words travel to be gone, when a swipe carries them off. */
+private val SLIDE_ROOM = 140.dp
+
 /** A reply's bubble (Bubbles): the mirror of yours, sharp at the top left under the name. */
 private val BotBubble: androidx.compose.ui.graphics.Shape
     @Composable @androidx.compose.runtime.ReadOnlyComposable
     get() = com.cherry.butler.core.design.liftedShape(topStart = 6.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
 
 /**
- * One reply, with its variants. The last reply follows a horizontal drag a third of the
- * way, then steps to the neighbouring variant (or asks for a new one past the end) and
- * slides it in from the side it came from; anywhere else the turn stays put.
+ * One reply, with its variants. The last reply's words follow a level drag and, let go past
+ * the mark, slide the rest of the way out and fade; the neighbouring variant (or a new one
+ * being written, past the end) comes in from the other side. Anywhere else the turn stays put.
  */
 @Composable
 private fun BotTurn(
@@ -1157,14 +1160,41 @@ private fun BotTurn(
     // why this was once taken out.
     val touch = !com.cherry.butler.ui.components.LocalPointerMotion.current
     val swipeable = touch && isLast && !editing && !writing && !busy && (canSwipe || intros.size > 1)
-    var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    val pulled by androidx.compose.animation.core.animateFloatAsState(pull, Motion.enter(Motion.SHORT), label = "reply swipe")
+    // Where the words are, from -1 (gone to the left) to 1 (gone to the right) of SLIDE_ROOM.
+    val slide = remember { androidx.compose.animation.core.Animatable(0f) }
+    val sliding by remember { androidx.compose.runtime.derivedStateOf { slide.value != 0f } }
+    val slideScope = rememberCoroutineScope()
+    val slideRoom = with(androidx.compose.ui.platform.LocalDensity.current) { SLIDE_ROOM.toPx() }
+    // Set while a swipe is changing the reply: the words have already been carried off by
+    // hand, so the change itself must not slide them a second time.
+    val bySwipe = remember { booleanArrayOf(false) }
+    // What is on show: which reply, and its words (an intro is changed in place).
+    val face by androidx.compose.runtime.rememberUpdatedState(shown.localId to shown.text)
+    val introAt = if (intros.size > 1) intros.indexOfFirst { it.trim() == shown.text.trim() } else -1
+    /** Whether a swipe that way leads anywhere: not back past the first, not past the last intro. */
+    fun leads(delta: Int): Boolean =
+        if (introAt >= 0) intros.getOrNull(introAt + delta) != null else canSwipe && turn.index + delta >= 0
     fun swipe(delta: Int) {
-        if (intros.size > 1) {
-            val at = intros.indexOfFirst { it.trim() == shown.text.trim() }
-            if (at >= 0) { intros.getOrNull(at + delta)?.let { actions.onPickIntro(shown, it) }; return }
+        if (!leads(delta)) {
+            slideScope.launch { slide.animateTo(0f, Motion.enter(Motion.SHORT)) }
+            return
         }
-        if (canSwipe) step(delta)
+        slideScope.launch {
+            val before = face
+            bySwipe[0] = true
+            try {
+                // The rest of the way out, the way it was dragged: left for the next one.
+                slide.animateTo(-delta.toFloat(), Motion.exit())
+                if (introAt >= 0) intros.getOrNull(introAt + delta)?.let { actions.onPickIntro(shown, it) } else step(delta)
+                // Until the next reply is the one on show (a new one is first a row in the chat).
+                withTimeoutOrNull(900) { snapshotFlow { face }.first { it != before } }
+                // In from the other side, a shorter way than it went out.
+                slide.snapTo(delta * 0.6f)
+                slide.animateTo(0f, Motion.enter())
+            } finally {
+                bySwipe[0] = false
+            }
+        }
     }
     Column(
         modifier = Modifier
@@ -1173,18 +1203,23 @@ private fun BotTurn(
             .then(
                 if (!swipeable) Modifier else Modifier
                     // Read outside the layer it moves: inside it, the line sliding with the
-                    // finger took a third off every pixel the swipe counted.
+                    // finger took a share off every pixel the swipe counted.
                     .replySwipe(
-                        // The line gives a little under the finger, to show it has hold of it.
-                        onPull = { pull = it * 0.35f },
+                        // The words go with the finger (most of the way, and never quite out
+                        // of sight while held); let go short of the mark, they come back.
+                        onPull = { px ->
+                            slideScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                                if (px == 0f) slide.animateTo(0f, Motion.enter(Motion.SHORT))
+                                else slide.snapTo((px * 0.8f / slideRoom).coerceIn(-0.85f, 0.85f))
+                            }
+                        },
                         // A tick as it passes the point where letting go counts.
                         onArmed = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) },
                         onSwipe = { delta ->
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             swipe(delta)
                         },
-                    )
-                    .graphicsLayer { translationX = pulled },
+                    ),
             )
             .padding(horizontal = 20.dp, vertical = 10.dp)
             .pointerInput(shown.localId, editing) {
@@ -1233,12 +1268,22 @@ private fun BotTurn(
         run {
             // Bubbles: the reply in a bubble too, its sharp corner up toward the character's name,
             // as yours points toward you.
-            Box(if (bubbles) Modifier.fillMaxWidth().card(shape = BotBubble).padding(horizontal = 16.dp, vertical = 12.dp) else Modifier) {
+            Box(
+                Modifier
+                    // A layer only while the words are away from their place.
+                    .then(
+                        if (!sliding) Modifier else Modifier.graphicsLayer {
+                            translationX = slide.value * slideRoom
+                            alpha = 1f - abs(slide.value).coerceIn(0f, 1f)
+                        },
+                    )
+                    .then(if (bubbles) Modifier.fillMaxWidth().card(shape = BotBubble).padding(horizontal = 16.dp, vertical = 12.dp) else Modifier),
+            ) {
             AnimatedContent(
                 targetState = shown.localId,
                 transitionSpec = {
                     val target = byId[targetState]
-                    if (target == null || target.text.isEmpty() || live.containsKey(targetState)) {
+                    if (bySwipe[0] || target == null || target.text.isEmpty() || live.containsKey(targetState)) {
                         // A fresh reply replaces the old one at once: sliding a long reply out while
                         // the turn shrank left the page blank for a frame, then snapped it back.
                         EnterTransition.None togetherWith ExitTransition.None using null

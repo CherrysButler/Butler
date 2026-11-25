@@ -1,5 +1,7 @@
 package com.cherry.butler.ui
 
+import com.cherry.butler.ui.components.glassOverlayFrame
+import com.cherry.butler.ui.components.GlassOverlayHost
 import com.cherry.butler.ui.components.rim
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.clip
@@ -136,6 +138,10 @@ fun ButlerRoot() {
     // Frosted: the island frosts the lists scrolling under it (Glass.kt).
     val frost = com.cherry.butler.ui.components.glassOn()
     val islandHaze = io.github.fletchmckee.liquid.rememberLiquidState()
+    // Glass a screen opens out of itself (a menu flowing out of its key) is drawn here, beside
+    // the page the island looks through, so it can look through that page too (GlassFlow.kt).
+    val glassOverlay = androidx.compose.runtime.remember(islandHaze) { com.cherry.butler.ui.components.GlassOverlay(islandHaze) }
+    Box(Modifier.fillMaxSize().glassOverlayFrame(glassOverlay)) {
     Scaffold(
         containerColor = if (showBar && !lifted) ButlerTheme.colors.chrome else MaterialTheme.colorScheme.background,
         bottomBar = { if (showBar) BottomBar(selected = tab, onSelect = { dest -> if (dest != tab) leaveGuard.leave { tab = dest } }, haze = islandHaze.takeIf { frost }) },
@@ -156,6 +162,7 @@ fun ButlerRoot() {
         ) {
             androidx.compose.runtime.CompositionLocalProvider(
                 com.cherry.butler.ui.components.LocalBottomChrome provides if (under) barPadding else 0.dp,
+                com.cherry.butler.ui.components.LocalGlassOverlay provides glassOverlay.takeIf { under },
                 // Janitor links open here, not in Janitor's app.
                 androidx.compose.ui.platform.LocalUriHandler provides com.cherry.butler.ui.components.rememberInAppLinks(
                     onCharacter = { navController.navigate(Routes.character(it)) },
@@ -196,6 +203,7 @@ fun ButlerRoot() {
                                 contentPadding = innerPadding,
                                 onEditPersona = { navController.navigate(Routes.persona(it)) },
                                 onOpenMyCharacters = { navController.navigate(Routes.MY_CHARACTERS) },
+                                onNewCharacter = { navController.navigate(Routes.characterEditor("new")) },
                             )
                             TopLevelDestination.Settings -> SettingsScreen(
                                 contentPadding = innerPadding,
@@ -427,6 +435,8 @@ fun ButlerRoot() {
             }
             }
         }
+    }
+    GlassOverlayHost(glassOverlay)
     }
     }
 }

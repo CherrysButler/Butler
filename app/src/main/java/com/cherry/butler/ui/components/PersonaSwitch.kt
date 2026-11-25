@@ -214,6 +214,37 @@ fun GroupRow(
     }
 }
 
+/**
+ * The group one persona is in, picked from all of them: "No group" first, then each group
+ * with its mark. The same blocks as [GroupRow], without counts.
+ */
+@Composable
+fun GroupPick(
+    groups: List<com.cherry.butler.core.data.remote.dto.PersonaGroupDto>,
+    selected: String?,
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+    edge: androidx.compose.ui.unit.Dp = 12.dp,
+) {
+    val known = selected?.takeIf { id -> groups.any { it.id == id } }
+    androidx.compose.foundation.lazy.LazyRow(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = edge, vertical = 4.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+    ) {
+        item("none") { GroupChip(label = "No group", count = null, mark = null, lit = known == null, onClick = { onSelect(null) }) }
+        items(groups, key = { it.id }) { group ->
+            GroupChip(
+                label = group.name,
+                count = null,
+                mark = groupColor(group.color) ?: ButlerTheme.colors.textLow,
+                lit = known == group.id,
+                onClick = { onSelect(group.id) },
+            )
+        }
+    }
+}
+
 /** One group in [GroupRow]: a small-cornered block, never a pill, 40 high with a 48 touch row. */
 @Composable
 private fun GroupChip(

@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.chat
 
+import com.cherry.butler.ui.components.ButlerMenu
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.outlined.FormatBold
@@ -68,11 +69,9 @@ fun ChatMenu(
         IconButton(onClick = { open = true }) {
             Icon(Icons.Rounded.MoreVert, contentDescription = "Chat menu", tint = MaterialTheme.colorScheme.onSurface)
         }
-        DropdownMenu(
+        ButlerMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            shape = MaterialTheme.shapes.medium,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             onModelSettings?.let { go -> MenuItem(Icons.Outlined.AutoAwesome, "Model settings") { open = false; go() } }
             MenuItem(Icons.Outlined.AutoStories, if (hasSummary) "Chat memory" else "Chat memory (empty)") { open = false; onMemory() }

@@ -36,39 +36,42 @@ object GlassTuning {
     var shown by mutableStateOf(false)
 
     /** How far the picture is pulled at the rim's edge, and how deep the rim runs (dp). */
-    var pull by mutableFloatStateOf(PULL)
-    var depth by mutableFloatStateOf(DEPTH)
+    var pull by mutableFloatStateOf(Glass.RIM_PULL)
+    var depth by mutableFloatStateOf(Glass.RIM_DEPTH)
 
     /** The blur's radius in dp; under 0 it is Apple's own, by the pane's size. */
-    var blur by mutableFloatStateOf(BLUR)
+    var blur by mutableFloatStateOf(Glass.BLUR)
+
+    /** The blur behind the message box once it has opened out (dp). */
+    var blurOpen by mutableFloatStateOf(Glass.BLUR_OPEN)
 
     /** How far apart red and blue are read at the edge (dp). */
-    var fringe by mutableFloatStateOf(FRINGE)
+    var fringe by mutableFloatStateOf(Glass.FRINGE)
 
     /** How much of the outward-bent picture is laid over the last point of the rim. */
-    var outer by mutableFloatStateOf(OUTER)
+    var outer by mutableFloatStateOf(Glass.OUTER_MIX)
 
     /** The rim highlight's strength. */
-    var highlight by mutableFloatStateOf(HIGHLIGHT)
+    var highlight by mutableFloatStateOf(Glass.HIGHLIGHT)
 
-    /** Back to what the glass was made with: Apple's numbers for a regular pane. */
+    /** How far short of the unlit corners a box's rim light falls. */
+    var gaps by mutableFloatStateOf(Glass.RIM_GAPS)
+
+
+    /** Back to what the glass is made with (Glass, in Glass.kt). */
     fun reset() {
-        pull = PULL
-        depth = DEPTH
-        blur = BLUR
-        fringe = FRINGE
-        outer = OUTER
-        highlight = HIGHLIGHT
+        pull = Glass.RIM_PULL
+        depth = Glass.RIM_DEPTH
+        blur = Glass.BLUR
+        blurOpen = Glass.BLUR_OPEN
+        fringe = Glass.FRINGE
+        outer = Glass.OUTER_MIX
+        highlight = Glass.HIGHLIGHT
+        gaps = Glass.RIM_GAPS
     }
 
-    // Apple's own rim. Blur and fringe are Cherry's, found with this panel.
-    const val PULL = 60f
-    const val DEPTH = 20f
+    /** Under 0 the blur is Apple's own, by the pane's size. */
     const val BLUR_BY_SIZE = -1f
-    const val BLUR = 3f
-    const val FRINGE = 0f
-    const val OUTER = 0.3f
-    const val HIGHLIGHT = 0.5f
 }
 
 /** The panel: one slider to a number, each with its value beside its name. */
@@ -90,9 +93,11 @@ fun GlassTuner(modifier: Modifier = Modifier) {
         Tune("Pull", GlassTuning.pull, 0f..80f, whole = true) { GlassTuning.pull = it }
         Tune("Rim", GlassTuning.depth, 2f..40f, whole = true) { GlassTuning.depth = it }
         Tune("Blur", GlassTuning.blur, -1f..24f, whole = true, lowest = "By size") { GlassTuning.blur = it }
+        Tune("Open blur", GlassTuning.blurOpen, 0f..32f, whole = true) { GlassTuning.blurOpen = it }
         Tune("Fringe", GlassTuning.fringe, 0f..8f, whole = false) { GlassTuning.fringe = it }
         Tune("Outer", GlassTuning.outer, 0f..1f, whole = false) { GlassTuning.outer = it }
         Tune("Shine", GlassTuning.highlight, 0f..1f, whole = false) { GlassTuning.highlight = it }
+        Tune("Box gaps", GlassTuning.gaps, 0f..3f, whole = false) { GlassTuning.gaps = it }
     }
 }
 

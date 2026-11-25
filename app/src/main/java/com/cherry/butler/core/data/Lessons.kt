@@ -140,7 +140,11 @@ object OocNotes {
         Regex("""\(\(\s*(.+?)\s*\)\)""", RegexOption.DOT_MATCHES_ALL),
         Regex("""\(\s*OOC\s*[:\-–—]?\s*(.+?)\)""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
         Regex("""\[\s*OOC\s*[:\-–—]?\s*(.+?)]""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
-        Regex("""\{\s*OOC\s*[:\-–—]?\s*(.+?)}""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
+        // The closing brace is escaped: Android's regex engine (ICU) refuses a bare one, where
+        // a PC's Java lets it through. Unescaped, this whole object failed to load on every
+        // phone and /learn never ran there; Android then names only the class that failed,
+        // which a release build had shortened to "L2.K2" (reported on 0.5.2).
+        Regex("""\{\s*OOC\s*[:\-–—]?\s*(.+?)\}""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)),
         Regex("""(?m)^\s*OOC\s*[:\-–—]\s*(.+)$""", RegexOption.IGNORE_CASE),
     )
 

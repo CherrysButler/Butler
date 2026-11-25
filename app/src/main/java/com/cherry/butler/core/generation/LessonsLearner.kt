@@ -120,7 +120,9 @@ class LessonsLearner @Inject constructor(
                 else State.Review(changes, corrections.size, upTo)
             }.onFailure { e ->
                 if (e is kotlinx.coroutines.CancellationException) return@onFailure
-                _state.value = State.Failed((e as? ApiError.Api)?.serverMessage ?: (e as? ApiError)?.let { "The model couldn't be reached." } ?: e.message ?: "Something went wrong.")
+                // Only words written for the reader are shown. Anything else's own message is
+                // for a programmer at best (and at worst a shortened class name, see OocNotes).
+                _state.value = State.Failed((e as? ApiError.Api)?.serverMessage ?: (e as? ApiError)?.let { "The model couldn't be reached." } ?: "Something went wrong. Try again.")
             }
         }
     }
@@ -218,8 +220,8 @@ class LessonsLearner @Inject constructor(
         // The last answer, kept to look at when it couldn't be read (files/lessons-last-answer.txt).
         runCatching { java.io.File(context.filesDir, "lessons-last-answer.txt").writeText(body) }
         val choice = runCatching { json.parseToJsonElement(body).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject }.getOrNull()
-        val text = choice?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-        val cut = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull == "length"
+        val text = Prompt.content(choice)
+        val cut = (choice?.get("finish_reason") as? JsonPrimitive)?.contentOrNull == "length"
         if (text == null) throw ApiError.Api(200, janitorCode = "BUTLER_NO_LESSONS", serverMessage = if (cut) "The model spent all its room thinking and wrote no notes. Try again, or pick a model that thinks less for summaries." else "The model's answer was empty. Try again.", retryable = false)
         try {
             Prompt.rules(text, current, corrections)
@@ -261,6 +263,22 @@ class LessonsLearner @Inject constructor(
          * whatever else it wrote (its thinking, a code fence, words before and after, trailing
          * commas), or, failing that, a plain list of `- note` lines.
          */
+        /**
+         * What the model wrote, from a chat-completions `choice`: `message.content` as text, or,
+         * as some proxies send it, as a list of parts whose text is joined. Null for none.
+         */
+        fun content(choice: JsonObject?): String? {
+            val content = (choice?.get("message") as? JsonObject)?.get("content")
+            val text = when (content) {
+                is JsonPrimitive -> content.contentOrNull
+                is JsonArray -> content.mapNotNull { part ->
+                    ((part as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull ?: (part as? JsonPrimitive)?.contentOrNull
+                }.joinToString("")
+                else -> null
+            }
+            return text?.takeIf { it.isNotBlank() }
+        }
+
         fun rules(answer: String, current: List<Lesson>, corrections: List<Correction>): List<Lesson> {
             // Its thinking isn't the answer, closed or not: what follows the last close is.
             var clean = answer.replace(Regex("(?is)<think(ing)?>.*?</think(ing)?>"), "")

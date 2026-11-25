@@ -1,5 +1,6 @@
 package com.cherry.butler.feature.settings
 
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.rim
 import android.graphics.Bitmap
 import android.net.Uri
@@ -362,7 +363,7 @@ private fun SavedTile(
                     .clickable(onClickLabel = "More") { menu = true },
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.MoreHoriz, contentDescription = "More", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp)) }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            ButlerMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Edit", style = MaterialTheme.typography.titleSmall) }, onClick = { menu = false; onEdit() })
                 DropdownMenuItem(
                     text = { Text("Delete", style = MaterialTheme.typography.titleSmall, color = ButlerTheme.colors.danger) },

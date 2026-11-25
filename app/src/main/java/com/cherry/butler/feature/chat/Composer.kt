@@ -276,6 +276,11 @@ fun Composer(
         label = "composer opened by keys",
     )
     val opened = if (desk) 0f else maxOf(rise, timed)
+    // The glass blurs more as the box opens: words sit on it then, over the chat. A PC's box
+    // opens on a clock of its own.
+    val deskOpened by androidx.compose.animation.core.animateFloatAsState(if (desk && open) 1f else 0f, androidx.compose.animation.core.tween(220), label = "composer glass opened")
+    val openedNow by androidx.compose.runtime.rememberUpdatedState(if (desk) deskOpened else opened)
+    val glassOpened = remember { { openedNow } }
     if (!desk) {
         // The keyboard put away is the writing put away: the box closes with it, as it starts
         // down and not once it has landed, so the two move together.
@@ -416,7 +421,7 @@ fun Composer(
                         // Glass: lifted off the picture by its shadow, lit along its rim, as the nav island is.
                         // Round enough to be a capsule while it is one line; a box with round
                         // corners once it has grown.
-                        Modifier.glassSurface(glass, androidx.compose.foundation.shape.RoundedCornerShape(24.dp), still = true)
+                        Modifier.glassSurface(glass, androidx.compose.foundation.shape.RoundedCornerShape(24.dp), still = true, opened = glassOpened)
                     },
                 )
                 .padding(6.dp),

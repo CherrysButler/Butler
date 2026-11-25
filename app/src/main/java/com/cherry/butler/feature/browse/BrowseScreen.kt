@@ -1,8 +1,13 @@
 package com.cherry.butler.feature.browse
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import com.cherry.butler.ui.components.ButlerMenu
 import com.cherry.butler.ui.components.rim
 import androidx.compose.foundation.layout.heightIn
 import com.cherry.butler.ui.components.SearchBox
+import com.cherry.butler.ui.components.glassAvailable
+import com.cherry.butler.ui.components.glassPane
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -226,7 +231,11 @@ internal fun ModeBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
             .padding(bottom = 6.dp)
-            .rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium)
+            .then(
+                // Depth Lifted: the bar is a pane of glass and its rim is its edge.
+                if (glassAvailable()) Modifier.glassPane(MaterialTheme.shapes.medium)
+                else Modifier.rim(1.dp, ButlerTheme.colors.rule, MaterialTheme.shapes.medium),
+            )
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -335,11 +344,18 @@ internal fun StripChip(text: String, selected: Boolean, onClick: () -> Unit, emp
         emphasis -> MaterialTheme.colorScheme.primary
         else -> ButlerTheme.colors.textMed
     }
+    // Depth Lifted: a chip is a pane of glass. What it stands for washes it (its tag's colour,
+    // or the accent when chosen), and a drawn edge is kept for a chip that is chosen or urged.
+    val glass = glassAvailable()
+    val wash = when {
+        tint != null -> tint.copy(alpha = if (selected) 0.24f else 0.10f)
+        selected -> fill
+        else -> Color.Unspecified
+    }
     Row(
         modifier = Modifier
-            .clip(shape)
-            .background(fill)
-            .rim(if (selected) 1.5.dp else 1.dp, edge, shape)
+            .then(if (glass) Modifier.glassPane(shape, lift = null, tint = wash) else Modifier.clip(shape).background(fill))
+            .then(if (glass && !selected && !emphasis) Modifier else Modifier.rim(if (selected) 1.5.dp else 1.dp, edge, shape))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -396,38 +412,73 @@ internal fun DropSegment(
     modifier: Modifier = Modifier,
 ) {
     var open by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
+    // Where the key is in the window: its menu opens down out of it, from this place and size.
+    val place = remember { arrayOf(androidx.compose.ui.geometry.Rect.Zero) }
+    val arrow: @Composable (Boolean) -> Unit = { lit ->
+        Icon(
+            Icons.Rounded.KeyboardArrowDown,
+            contentDescription = null,
+            tint = if (lit) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textLow,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+    // The choice the key is showing, if it is showing one (Trending, unpicked, names its menu).
+    val shown = options.indexOf(label)
+    // The other choices, as they were when the menu opened: a pick changes what the key
+    // shows, and the list must not re-order itself under the finger while it shuts.
+    var others by remember { mutableStateOf(emptyList<Int>()) }
+    Box(modifier = modifier.onGloballyPositioned { place[0] = it.boundsInWindow() }) {
         Segment(
             label = label,
             icon = icon,
             selected = selected,
-            onClick = { open = true },
+            onClick = { others = options.indices.filter { it != shown }; open = true },
             modifier = Modifier.fillMaxWidth(),
-            trailing = {
-                Icon(
-                    Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = if (selected) ButlerTheme.colors.onAccentSoft else ButlerTheme.colors.textLow,
-                    modifier = Modifier.size(16.dp),
-                )
-            },
+            trailing = { arrow(selected) },
         )
-        DropdownMenu(
+        com.cherry.butler.ui.components.GlassFlowMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            shape = MaterialTheme.shapes.medium,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        ) {
-            options.forEachIndexed { i, option ->
-                DropdownMenuItem(
-                    text = { Text(option, style = MaterialTheme.typography.titleMedium) },
-                    trailingIcon = if (i == chosen) {
-                        { Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }
-                    } else null,
-                    onClick = { open = false; onPick(i) },
+            anchor = { place[0] },
+            count = others.size,
+            plain = {
+                options.forEachIndexed { i, option ->
+                    DropdownMenuItem(
+                        text = { Text(option, style = MaterialTheme.typography.titleMedium) },
+                        trailingIcon = if (i == chosen) {
+                            { Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) }
+                        } else null,
+                        onClick = { open = false; onPick(i) },
+                    )
+                }
+            },
+            // The key itself, as it is. Tapped, it shuts; and when it shows a choice that is
+            // not the one in force (Popular, while Trending is), it puts that choice in force.
+            key = {
+                Segment(
+                    label = label,
+                    icon = icon,
+                    selected = selected,
+                    onClick = { open = false; if (shown >= 0 && !selected) onPick(shown) },
+                    modifier = Modifier.fillMaxSize(),
+                    trailing = { arrow(selected) },
                 )
-            }
-        }
+            },
+            // Another choice: its name alone, under the key's own. The key's mark is the
+            // key's; a row carrying it too read as a second key.
+            row = { n ->
+                val i = others.getOrNull(n) ?: return@GlassFlowMenu
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable(onClickLabel = options[i]) { open = false; onPick(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(options[i], style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            },
+        )
     }
 }
 
